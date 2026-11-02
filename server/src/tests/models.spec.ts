@@ -75,7 +75,7 @@ describe('Domain Models Schema Assertions', () => {
       name: 'Test Officer',
       email: 'test@safetech.so',
       password_hash: 'hash123',
-      role: 'superadmin' as unknown as UserRole,
+      role: 'superadmin' as any,
     });
 
     const err = user.validateSync();
