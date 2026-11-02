@@ -19,7 +19,7 @@ import { MonthlyRevenueChart } from './MonthlyRevenueChart';
 import { PaymentModalContent } from './PaymentModal';
 
 export const DashboardView: React.FC = () => {
-  const { setActiveTab } = useNavStore();
+  const { setActiveTab, setSelectedRecord } = useNavStore();
   const { can, needs } = useAuthStore();
   const { openModal, closeModal, addToast } = useUIStore();
 
@@ -261,7 +261,7 @@ export const DashboardView: React.FC = () => {
                 href="#quote-new"
                 onClick={(e) => {
                   e.preventDefault();
-                  if (needs('quotes')) setActiveTab('quotations');
+                  if (needs('quotes')) setSelectedRecord('quotations', 'new');
                 }}
               >
                 <b>Create quotation</b>
@@ -272,7 +272,7 @@ export const DashboardView: React.FC = () => {
                 href="#invoice-new"
                 onClick={(e) => {
                   e.preventDefault();
-                  if (needs('invoices')) setActiveTab('invoices');
+                  if (needs('invoices')) setSelectedRecord('invoices', 'new');
                 }}
               >
                 <b>Create invoice</b>
@@ -329,7 +329,7 @@ export const DashboardView: React.FC = () => {
                 <tr
                   key={`${tx.kind}-${tx.ref}-${idx}`}
                   className="link"
-                  onClick={() => setActiveTab(tx.tab)}
+                  onClick={() => setSelectedRecord(tx.tab, tx.id)}
                 >
                   <td className="muted">{fmtD(tx.date)}</td>
                   <td>{tx.kind}</td>

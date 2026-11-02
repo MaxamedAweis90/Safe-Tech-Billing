@@ -1,98 +1,62 @@
 import React, { useState } from 'react';
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
-import { SegmentedControl, SegmentOption } from '../../components/ui/SegmentedControl';
-import { IconPlus } from '../../components/icons';
+import { Icon } from '../../components/icons';
+import { QuoteEditor } from './QuoteEditor';
+import {
+  MOCK_QUOTES,
+  MOCK_INVOICES,
+} from '../../lib/mockData';
+import { fmtD, qStatus, totalsOf, formatMoney } from '../../lib/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
-import { QuotationStatus } from '../../types';
-import { formatMoney } from '../../lib/formatters';
+import { useNavStore } from '../../store/useNavStore';
 
-interface MockQuote {
-  _id: string;
-  number: string;
-  customerName: string;
-  date: string;
-  expiry_date: string;
-  total_milli: number;
-  currency: string;
-  status: QuotationStatus;
-  invoiceNumber?: string;
-}
+const STATUS_LABELS: Record<string, string> = {
+  all: 'All',
+  draft: 'Draft',
+  sent: 'Sent',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+  expired: 'Expired',
+};
+
+const FILTER_SEGMENTS = ['all', 'draft', 'sent', 'accepted', 'rejected', 'expired'];
 
 export const QuotationsView: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const { can } = useAuthStore();
+  const { selectedRecordId, setSelectedRecord } = useNavStore();
 
-  const mockQuotes: MockQuote[] = [
-    {
-      _id: 'q1',
-      number: 'QT-2026-0001',
-      customerName: 'Acme Global Ltd',
-      date: '15 Oct 2026',
-      expiry_date: '15 Nov 2026',
-      total_milli: 12500000,
-      currency: 'USD',
-      status: 'accepted',
-      invoiceNumber: 'INV-2026-0001',
-    },
-    {
-      _id: 'q2',
-      number: 'QT-2026-0002',
-      customerName: 'Nairobi Water Works',
-      date: '20 Oct 2026',
-      expiry_date: '20 Nov 2026',
-      total_milli: 4850000,
-      currency: 'USD',
-      status: 'accepted',
-    },
-    {
-      _id: 'q3',
-      number: 'QT-2026-0003',
-      customerName: 'Apex Logistics Inc',
-      date: '25 Oct 2026',
-      expiry_date: '25 Nov 2026',
-      total_milli: 3200000,
-      currency: 'USD',
-      status: 'sent',
-    },
-    {
-      _id: 'q4',
-      number: 'QT-2026-0004',
-      customerName: 'Coast Builders',
-      date: '01 Sep 2026',
-      expiry_date: '01 Oct 2026',
-      total_milli: 7100000,
-      currency: 'USD',
-      status: 'draft',
-    },
-  ];
+  // If a quotation is selected or "new" requested, render the QuoteEditor
+  if (selectedRecordId) {
+    return (
+      <QuoteEditor
+        quoteId={selectedRecordId}
+        onBack={() => setSelectedRecord('quotations', null)}
+        onNavigateInvoice={(invId) => setSelectedRecord('invoices', invId)}
+      />
+    );
+  }
 
-  const counts: Record<string, number> = {
-    all: mockQuotes.length,
-    draft: mockQuotes.filter((q) => q.status === 'draft').length,
-    sent: mockQuotes.filter((q) => q.status === 'sent').length,
-    accepted: mockQuotes.filter((q) => q.status === 'accepted').length,
-    rejected: mockQuotes.filter((q) => q.status === 'rejected').length,
-    expired: mockQuotes.filter((q) => q.status === 'expired').length,
-  };
-
-  const filterOptions: SegmentOption[] = [
-    { id: 'all', label: 'All', count: counts.all },
-    { id: 'draft', label: 'Draft', count: counts.draft },
-    { id: 'sent', label: 'Sent', count: counts.sent },
-    { id: 'accepted', label: 'Accepted', count: counts.accepted },
-    { id: 'rejected', label: 'Rejected', count: counts.rejected },
-    { id: 'expired', label: 'Expired', count: counts.expired },
-  ];
-
-  const filteredQuotes = mockQuotes.filter((q) => {
-    const matchesFilter = filter === 'all' || q.status === filter;
-    const matchesSearch =
-      q.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      q.customerName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
+  // Calculate live counts by derived status matching prototype lines 614-615
+  const counts: Record<string, number> = { all: MOCK_QUOTES.length };
+  MOCK_QUOTES.forEach((q) => {
+    const s = qStatus(q);
+    counts[s] = (counts[s] || 0) + 1;
   });
+
+  // Filter and sort rows matching prototype line 616
+  const filteredRows = MOCK_QUOTES.filter(
+    (q) => filter === 'all' || qStatus(q) === filter
+  )
+    .filter((q) => {
+      if (!searchTerm.trim()) return true;
+      const term = searchTerm.toLowerCase();
+      return (
+        q.number.toLowerCase().includes(term) ||
+        q.customerName.toLowerCase().includes(term)
+      );
+    })
+    .sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
 
   return (
     <>
@@ -104,9 +68,14 @@ export const QuotationsView: React.FC = () => {
         </div>
         <div className="actions">
           {can('quotes') && (
-            <Button variant="primary" leftIcon={<IconPlus size={15} />}>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => setSelectedRecord('quotations', 'new')}
+            >
+              <Icon name="plus" />
               New quotation
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -114,11 +83,24 @@ export const QuotationsView: React.FC = () => {
       {/* Main Panel with Filter Bar & Table */}
       <section className="panel">
         <div className="filters">
-          <SegmentedControl
-            options={filterOptions}
-            value={filter}
-            onChange={setFilter}
-          />
+          {/* Segmented Filter Pills */}
+          <div className="seg" data-seg="quotes">
+            {FILTER_SEGMENTS.map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={filter === f ? 'on' : ''}
+                onClick={() => setFilter(f)}
+              >
+                {STATUS_LABELS[f]}{' '}
+                <span className="num" style={{ opacity: 0.6 }}>
+                  {f === 'all' ? MOCK_QUOTES.length : counts[f] || 0}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Interactive Search Box */}
           <input
             className="inp"
             style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
@@ -128,6 +110,7 @@ export const QuotationsView: React.FC = () => {
           />
         </div>
 
+        {/* Ledger Table */}
         <div className="tbl-wrap">
           <table className="tbl">
             <thead>
@@ -142,36 +125,63 @@ export const QuotationsView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredQuotes.length > 0 ? (
-                filteredQuotes.map((q) => (
-                  <tr key={q._id} className="link">
-                    <td className="mono strong" style={{ color: 'var(--accent)' }}>
-                      {q.number}
-                    </td>
-                    <td>{q.customerName}</td>
-                    <td className="muted mono">{q.date}</td>
-                    <td className="muted mono">{q.expiry_date}</td>
-                    <td>
-                      <Badge variant={q.status}>{q.status}</Badge>
-                    </td>
-                    <td>
-                      {q.invoiceNumber ? (
-                        <span className="mono" style={{ color: 'var(--accent)' }}>
-                          {q.invoiceNumber}
+              {filteredRows.length > 0 ? (
+                filteredRows.map((q) => {
+                  const s = qStatus(q);
+                  const inv = q.invoiceId
+                    ? MOCK_INVOICES.find((i) => i.id === q.invoiceId)
+                    : undefined;
+                  const totals = totalsOf({ items: q.items });
+
+                  return (
+                    <tr
+                      key={q.id}
+                      className="link"
+                      onClick={() => setSelectedRecord('quotations', q.id)}
+                    >
+                      <td className="mono strong" style={{ color: 'var(--accent)' }}>
+                        {q.number}
+                      </td>
+                      <td>{q.customerName}</td>
+                      <td className="muted">{fmtD(q.date)}</td>
+                      <td className="muted">{fmtD(q.expiry)}</td>
+                      <td>
+                        <span className={`chip c-${s}`}>
+                          {STATUS_LABELS[s] || s}
                         </span>
-                      ) : q.status === 'accepted' ? (
-                        <span style={{ color: 'var(--warn)', fontSize: 12.5, fontWeight: 500 }}>
-                          Ready to convert
-                        </span>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td className="r strong font-mono">
-                      {formatMoney(q.total_milli, q.currency)}
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td>
+                        {inv ? (
+                          <span
+                            className="mono"
+                            style={{ color: 'var(--accent)', cursor: 'pointer' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedRecord('invoices', inv.id);
+                            }}
+                          >
+                            {inv.number || 'Draft'}
+                          </span>
+                        ) : s === 'accepted' ? (
+                          <span
+                            style={{
+                              color: 'var(--warn)',
+                              fontSize: 12.5,
+                              fontWeight: 500,
+                            }}
+                          >
+                            Ready to convert
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      <td className="r strong font-mono">
+                        {formatMoney(totals.total, q.currency)}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={7}>

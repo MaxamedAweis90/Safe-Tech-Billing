@@ -3,16 +3,63 @@
  * Strictly aligned with `./plan/Safe Tech Billing (3).html` seed data & financial math.
  */
 
+import { totalsOf, addDays, fmtNumber, qStatus, formatMoney } from './formatters';
+
 export const TODAY = '2026-10-31';
+
+export const CATALOG_ITEMS: [string, number][] = [
+  ['Premium Office Tissue Holder', 11500],
+  ['Modern Desk Bin', 19500],
+  ['Gaming Head Phones', 27500],
+  ['Office Door Signs', 27500],
+  ['Vaccination Record Cards', 250],
+  ['DVD Holder Pockets', 150],
+  ['Noteable Stickers', 1300],
+  ['Hard-Disk 512 SSD', 43000],
+  ['Hard Disk Drive Mounting Bracket', 16500],
+  ['A-Tech 12 GB RAM Compatible', 37500],
+  ['Laptop Core i5, 14-inch', 420000],
+  ['Installation & setup (per hour)', 15000],
+  ['CCTV Camera 4MP', 65000],
+  ['Network cabling (per point)', 25000],
+  ['Wireless Router AC1200', 45000],
+  ['UPS 1200VA', 110000],
+  ['HP LaserJet Toner 85A', 38000],
+  ['A4 Paper Ream', 4500],
+  ['Annual IT Support Contract', 1200000],
+];
+
+export const TAX_RATES = [
+  { id: 'none', name: 'No tax', rate: 0 },
+  { id: 'st5', name: 'Sales tax 5%', rate: 5 },
+  { id: 'svc10', name: 'Service tax 10%', rate: 10 },
+];
+
+export const QUOTE_TERMS =
+  'Prices are valid for 30 days from the quotation date.\nDelivery within 7 working days of order confirmation.\n50% deposit required for orders above $1,000.';
+
+export const INVOICE_TERMS =
+  'Make all checks payable to SAFE TECH SOLUTIONS.\nPlease quote the invoice number as your payment reference.';
 
 export interface MockCustomer {
   id: string;
   code: number;
   name: string;
   attn: string;
+  address?: string;
   phone: string;
   email: string;
   currency: string;
+  taxId?: string;
+}
+
+export interface MockQuoteItem {
+  desc: string;
+  qty: number;
+  price: number;
+  disc: number;
+  taxRate: number;
+  taxName: string;
 }
 
 export interface MockQuote {
@@ -21,13 +68,43 @@ export interface MockQuote {
   customerId: string;
   customerName: string;
   date: string;
-  expiry_date: string;
+  expiry: string;
+  expiry_date?: string;
   state: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
-  total_milli: number;
   currency: string;
+  items: MockQuoteItem[];
+  terms: string;
+  notes?: string;
+  total_milli: number;
   invoiceId?: string;
   invoiceNumber?: string;
+  rejectReason?: string;
+  createdAt?: string;
 }
+
+export const COMPANY_SETTINGS = {
+  name: 'SAFE TECH SOLUTIONS',
+  tagline: 'Innovator in Electronics',
+  address: 'Bakara Howlwadag, Mogadishu, Banadir 252',
+  phone: '+252 61 4 324 507',
+  email: 'info@sayftek.com',
+  website: 'www.sayftek.com',
+  taxId: '',
+  bankName: 'SALAAM SOMALI BANK',
+  accountName: 'SAFE TECH SOLUTIONS',
+  accountNo: '33354053',
+  mobileMoney: 'EVC Plus: +252 61 4 324 507',
+  signatory: 'Authorized Signatory',
+};
+
+export const INVOICE_TERMS_PRESETS: [number, string][] = [
+  [0, 'Due on receipt'],
+  [7, 'Net 7'],
+  [15, 'Net 15'],
+  [30, 'Net 30'],
+  [45, 'Net 45'],
+  [60, 'Net 60'],
+];
 
 export interface MockInvoice {
   id: string;
@@ -35,16 +112,33 @@ export interface MockInvoice {
   customerId: string;
   customerName: string;
   date: string;
-  due_date: string;
+  due: string;
+  due_date?: string;
+  termsDays?: number;
   state: 'draft' | 'issued' | 'cancelled';
   status: 'draft' | 'sent' | 'unpaid' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+  items: MockQuoteItem[];
+  terms: string;
+  notes?: string;
+  currency: string;
   total_milli: number;
   paid_milli: number;
   balance_milli: number;
-  currency: string;
   daysLate?: number;
   quoteId?: string;
-  cancelReason?: string;
+  sentAt?: string | null;
+  issuedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+}
+
+export interface MockCreditNote {
+  id: string;
+  number: string;
+  invoiceId: string;
+  amount: number;
+  reason: string;
+  date: string;
 }
 
 export interface MockReceipt {
@@ -80,74 +174,90 @@ export const MOCK_CUSTOMERS: MockCustomer[] = [
   {
     id: 'c38',
     code: 1001,
-    name: 'Acme Global Ltd',
-    attn: 'James Wilson',
-    phone: '+254 712 345 678',
-    email: 'accounts@acmeglobal.com',
+    name: 'Dr. SUMAIT Hospital - SIMAD University',
+    attn: 'N/A',
+    address: 'Wadadda Albarako, Hodan\nMogadishu, Banadir 252',
+    phone: '252 613 939 999',
+    email: '',
     currency: 'USD',
+    taxId: '',
   },
   {
     id: 'c39',
     code: 1002,
-    name: 'Nairobi Water Works',
-    attn: 'Eng. Peter Mwangi',
-    phone: '+254 722 987 654',
-    email: 'billing@nairobiwater.co.ke',
+    name: 'Hodan Medical Centre',
+    attn: 'Procurement Office',
+    address: 'Maka Al Mukarama Rd, Hodan\nMogadishu',
+    phone: '252 61 550 1210',
+    email: 'procurement@hodanmedical.example',
     currency: 'USD',
+    taxId: 'TIN-118204',
   },
   {
     id: 'c40',
     code: 1003,
-    name: 'Apex Logistics Inc',
-    attn: 'Grace Ochieng',
-    phone: '+254 733 456 789',
-    email: 'procurement@apexlogistics.com',
+    name: 'Shabelle Logistics Ltd',
+    attn: 'Ayaan Warsame',
+    address: 'KM4 Junction, Wadajir\nMogadishu',
+    phone: '252 61 770 3345',
+    email: 'accounts@shabelle-logistics.example',
     currency: 'USD',
+    taxId: 'TIN-207719',
   },
   {
     id: 'c41',
     code: 1004,
-    name: 'Zenith Holdings Ltd',
-    attn: 'David Kimani',
-    phone: '+254 701 112 233',
-    email: 'finance@zenith.co.ke',
+    name: 'Jazeera Coffee House',
+    attn: 'Owner',
+    address: 'Jazeera Beach Rd, Wadajir\nMogadishu',
+    phone: '252 61 802 4417',
+    email: 'hello@jazeeracoffee.example',
     currency: 'USD',
+    taxId: '',
   },
   {
     id: 'c42',
     code: 1005,
-    name: 'Coast Builders',
-    attn: 'Fatuma Abdi',
-    phone: '+254 711 223 344',
-    email: 'info@coastbuilders.co.ke',
+    name: 'Bakaara Traders Co.',
+    attn: 'Finance Dept.',
+    address: 'Bakaara Market, Howlwadaag\nMogadishu',
+    phone: '252 61 311 9020',
+    email: 'finance@bakaaratraders.example',
     currency: 'USD',
+    taxId: 'TIN-330051',
   },
   {
     id: 'c43',
     code: 1006,
     name: 'Lido Seaside Hotel',
     attn: 'General Manager',
-    phone: '+252 61 640 7788',
+    address: 'Lido Beach, Abdiaziz\nMogadishu',
+    phone: '252 61 640 7788',
     email: 'gm@lidoseaside.example',
     currency: 'USD',
+    taxId: 'TIN-441903',
   },
   {
     id: 'c44',
     code: 1007,
     name: 'Waaberi Primary School',
     attn: 'Head Teacher',
-    phone: '+252 61 905 1132',
+    address: 'Waaberi District\nMogadishu',
+    phone: '252 61 905 1132',
     email: 'office@waaberischool.example',
     currency: 'USD',
+    taxId: '',
   },
   {
     id: 'c45',
     code: 1008,
     name: 'Benadir Engineering Works',
     attn: 'Eng. Mahad Osman',
-    phone: '+252 61 287 6604',
+    address: 'Industrial Rd, Dayniile\nMogadishu',
+    phone: '252 61 287 6604',
     email: 'mahad@benadireng.example',
     currency: 'USD',
+    taxId: 'TIN-512276',
   },
 ];
 
@@ -156,40 +266,65 @@ export const MOCK_QUOTES: MockQuote[] = [
     id: 'q1',
     number: 'QT-2026-0001',
     customerId: 'c39',
-    customerName: 'Nairobi Water Works',
+    customerName: 'Hodan Medical Centre',
     date: '2026-05-02',
+    expiry: '2026-06-01',
     expiry_date: '2026-06-01',
     state: 'accepted',
-    total_milli: 4850000,
     currency: 'USD',
+    items: [
+      { desc: 'Laptop Core i5, 14-inch', qty: 3, price: 420000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 4, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    total_milli: 1320000,
     invoiceId: 'i10457',
     invoiceNumber: '10457',
+    createdAt: '2026-05-02',
   },
   {
     id: 'q2',
     number: 'QT-2026-0002',
     customerId: 'c40',
-    customerName: 'Apex Logistics Inc',
+    customerName: 'Shabelle Logistics Ltd',
     date: '2026-05-14',
+    expiry: '2026-06-13',
     expiry_date: '2026-06-13',
     state: 'accepted',
-    total_milli: 2200000,
     currency: 'USD',
+    items: [
+      { desc: 'CCTV Camera 4MP', qty: 8, price: 65000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Network cabling (per point)', qty: 8, price: 25000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 6, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    total_milli: 810000,
     invoiceId: 'i10458',
     invoiceNumber: '10458',
+    createdAt: '2026-05-14',
   },
   {
     id: 'q3',
     number: 'QT-2026-0003',
     customerId: 'c42',
-    customerName: 'Coast Builders',
+    customerName: 'Bakaara Traders Co.',
     date: '2026-06-15',
+    expiry: '2026-07-15',
     expiry_date: '2026-07-15',
     state: 'accepted',
-    total_milli: 590000,
     currency: 'USD',
+    items: [
+      { desc: 'UPS 1200VA', qty: 5, price: 110000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Wireless Router AC1200', qty: 2, price: 45000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    total_milli: 640000,
     invoiceId: 'i10460',
     invoiceNumber: '10460',
+    createdAt: '2026-06-15',
   },
   {
     id: 'q4',
@@ -197,10 +332,19 @@ export const MOCK_QUOTES: MockQuote[] = [
     customerId: 'c45',
     customerName: 'Benadir Engineering Works',
     date: '2026-07-02',
+    expiry: '2026-08-01',
     expiry_date: '2026-08-01',
     state: 'rejected',
-    total_milli: 3800000,
     currency: 'USD',
+    items: [
+      { desc: 'Laptop Core i5, 14-inch', qty: 10, price: 420000, disc: 8, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 12, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    rejectReason: 'Competitor offered a lower total price and faster delivery schedule.',
+    total_milli: 4044000,
+    createdAt: '2026-07-02',
   },
   {
     id: 'q5',
@@ -208,23 +352,39 @@ export const MOCK_QUOTES: MockQuote[] = [
     customerId: 'c43',
     customerName: 'Lido Seaside Hotel',
     date: '2026-07-18',
+    expiry: '2026-08-17',
     expiry_date: '2026-08-17',
     state: 'accepted',
-    total_milli: 926000,
     currency: 'USD',
+    items: [
+      { desc: 'Laptop Core i5, 14-inch', qty: 2, price: 420000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Hard-Disk 512 SSD', qty: 2, price: 43000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    total_milli: 926000,
     invoiceId: 'i10462',
     invoiceNumber: '10462',
+    createdAt: '2026-07-18',
   },
   {
     id: 'q6',
     number: 'QT-2026-0006',
     customerId: 'c41',
-    customerName: 'Zenith Holdings Ltd',
+    customerName: 'Jazeera Coffee House',
     date: '2026-08-20',
+    expiry: '2026-09-19',
     expiry_date: '2026-09-19',
     state: 'sent',
-    total_milli: 680000,
     currency: 'USD',
+    items: [
+      { desc: 'UPS 1200VA', qty: 4, price: 110000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 2, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    total_milli: 470000,
+    createdAt: '2026-08-20',
   },
   {
     id: 'q7',
@@ -232,12 +392,21 @@ export const MOCK_QUOTES: MockQuote[] = [
     customerId: 'c43',
     customerName: 'Lido Seaside Hotel',
     date: '2026-10-15',
+    expiry: '2026-11-14',
     expiry_date: '2026-11-14',
     state: 'accepted',
-    total_milli: 690000,
     currency: 'USD',
+    items: [
+      { desc: 'Wireless Router AC1200', qty: 6, price: 45000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Network cabling (per point)', qty: 12, price: 25000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 8, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    total_milli: 690000,
     invoiceId: 'i10470',
     invoiceNumber: '10470',
+    createdAt: '2026-10-15',
   },
   {
     id: 'q8',
@@ -245,21 +414,38 @@ export const MOCK_QUOTES: MockQuote[] = [
     customerId: 'c45',
     customerName: 'Benadir Engineering Works',
     date: '2026-10-20',
+    expiry: '2026-11-19',
     expiry_date: '2026-11-19',
     state: 'sent',
-    total_milli: 1250000,
     currency: 'USD',
+    items: [
+      { desc: 'CCTV Camera 4MP', qty: 16, price: 65000, disc: 5, taxRate: 0, taxName: '' },
+      { desc: 'Network cabling (per point)', qty: 16, price: 25000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 12, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    total_milli: 1568000,
+    createdAt: '2026-10-20',
   },
   {
     id: 'q9',
     number: 'QT-2026-0009',
     customerId: 'c38',
-    customerName: 'Acme Global Ltd',
+    customerName: 'Dr. SUMAIT Hospital - SIMAD University',
     date: '2026-10-27',
+    expiry: '2026-11-26',
     expiry_date: '2026-11-26',
     state: 'accepted',
-    total_milli: 1450000,
     currency: 'USD',
+    items: [
+      { desc: 'Annual IT Support Contract', qty: 1, price: 1200000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'HP LaserJet Toner 85A', qty: 5, price: 38000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    total_milli: 1390000,
+    createdAt: '2026-10-27',
   },
   {
     id: 'q10',
@@ -267,10 +453,29 @@ export const MOCK_QUOTES: MockQuote[] = [
     customerId: 'c44',
     customerName: 'Waaberi Primary School',
     date: '2026-10-31',
+    expiry: '2026-11-30',
     expiry_date: '2026-11-30',
     state: 'draft',
-    total_milli: 360000,
     currency: 'USD',
+    items: [
+      { desc: 'Wireless Router AC1200', qty: 2, price: 45000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 2, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: QUOTE_TERMS,
+    notes: '',
+    total_milli: 120000,
+    createdAt: '2026-10-31',
+  },
+];
+
+export const MOCK_CREDITS: MockCreditNote[] = [
+  {
+    id: 'cn1',
+    number: 'CN-0001',
+    invoiceId: 'i10465',
+    amount: 9000,
+    reason: '2 reams of A4 paper returned damaged',
+    date: '2026-09-20',
   },
 ];
 
@@ -279,88 +484,156 @@ export const MOCK_INVOICES: MockInvoice[] = [
     id: 'i10456',
     number: '10456',
     customerId: 'c38',
-    customerName: 'Acme Global Ltd',
+    customerName: 'Dr. SUMAIT Hospital - SIMAD University',
     date: '2024-03-26',
+    due: '2024-04-25',
     due_date: '2024-04-25',
+    termsDays: 30,
     state: 'issued',
     status: 'paid',
+    items: [
+      { desc: 'Premium Office Tissue Holder', qty: 2, price: 11500, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Modern Desk Bin', qty: 2, price: 19500, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Gaming Head Phones', qty: 1, price: 27500, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Office Door Signs', qty: 1, price: 27500, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Vaccination Record Cards', qty: 200, price: 250, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'DVD Holder Pockets', qty: 300, price: 150, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Noteable Stickers', qty: 45, price: 1300, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Hard-Disk 512 SSD', qty: 1, price: 43000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Hard Disk Drive Mounting Bracket', qty: 1, price: 16500, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'A-Tech 12 GB RAM Compatible', qty: 1, price: 37500, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
     total_milli: 12500000,
     paid_milli: 12500000,
     balance_milli: 0,
     currency: 'USD',
+    sentAt: null,
+    issuedAt: '2024-03-26',
   },
   {
     id: 'i10457',
     number: '10457',
     customerId: 'c39',
-    customerName: 'Nairobi Water Works',
+    customerName: 'Hodan Medical Centre',
     date: '2026-05-06',
+    due: '2026-06-05',
     due_date: '2026-06-05',
+    termsDays: 30,
     state: 'issued',
     status: 'paid',
-    total_milli: 4850000,
-    paid_milli: 4850000,
+    items: [
+      { desc: 'Laptop Core i5, 14-inch', qty: 3, price: 420000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 4, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
+    total_milli: 1320000,
+    paid_milli: 1320000,
     balance_milli: 0,
     currency: 'USD',
     quoteId: 'q1',
+    sentAt: '2026-05-06',
+    issuedAt: '2026-05-06',
   },
   {
     id: 'i10458',
     number: '10458',
     customerId: 'c40',
-    customerName: 'Apex Logistics Inc',
+    customerName: 'Shabelle Logistics Ltd',
     date: '2026-05-19',
+    due: '2026-06-03',
     due_date: '2026-06-03',
+    termsDays: 15,
     state: 'issued',
     status: 'paid',
-    total_milli: 2200000,
-    paid_milli: 2200000,
+    items: [
+      { desc: 'CCTV Camera 4MP', qty: 8, price: 65000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Network cabling (per point)', qty: 8, price: 25000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 6, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
+    total_milli: 810000,
+    paid_milli: 810000,
     balance_milli: 0,
     currency: 'USD',
     quoteId: 'q2',
+    sentAt: '2026-05-19',
+    issuedAt: '2026-05-19',
   },
   {
     id: 'i10459',
     number: '10459',
     customerId: 'c41',
-    customerName: 'Zenith Holdings Ltd',
+    customerName: 'Jazeera Coffee House',
     date: '2026-06-03',
+    due: '2026-07-03',
     due_date: '2026-07-03',
+    termsDays: 30,
     state: 'issued',
     status: 'paid',
-    total_milli: 1970000,
-    paid_milli: 1970000,
+    items: [
+      { desc: 'A4 Paper Ream', qty: 40, price: 4500, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'HP LaserJet Toner 85A', qty: 4, price: 38000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
+    total_milli: 332000,
+    paid_milli: 332000,
     balance_milli: 0,
     currency: 'USD',
+    sentAt: '2026-06-03',
+    issuedAt: '2026-06-03',
   },
   {
     id: 'i10460',
     number: '10460',
     customerId: 'c42',
-    customerName: 'Coast Builders',
+    customerName: 'Bakaara Traders Co.',
     date: '2026-06-21',
+    due: '2026-07-21',
     due_date: '2026-07-21',
+    termsDays: 30,
     state: 'issued',
     status: 'paid',
-    total_milli: 590000,
-    paid_milli: 590000,
+    items: [
+      { desc: 'UPS 1200VA', qty: 5, price: 110000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Wireless Router AC1200', qty: 2, price: 45000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
+    total_milli: 640000,
+    paid_milli: 640000,
     balance_milli: 0,
     currency: 'USD',
     quoteId: 'q3',
+    sentAt: '2026-06-21',
+    issuedAt: '2026-06-21',
   },
   {
     id: 'i10461',
     number: '10461',
     customerId: 'c38',
-    customerName: 'Acme Global Ltd',
+    customerName: 'Dr. SUMAIT Hospital - SIMAD University',
     date: '2026-07-08',
+    due: '2026-08-07',
     due_date: '2026-08-07',
+    termsDays: 30,
     state: 'issued',
     status: 'paid',
+    items: [
+      { desc: 'Annual IT Support Contract', qty: 1, price: 1200000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
     total_milli: 1200000,
     paid_milli: 1200000,
     balance_milli: 0,
     currency: 'USD',
+    sentAt: '2026-07-08',
+    issuedAt: '2026-07-08',
   },
   {
     id: 'i10462',
@@ -368,28 +641,49 @@ export const MOCK_INVOICES: MockInvoice[] = [
     customerId: 'c43',
     customerName: 'Lido Seaside Hotel',
     date: '2026-07-22',
+    due: '2026-08-06',
     due_date: '2026-08-06',
+    termsDays: 15,
     state: 'issued',
     status: 'paid',
+    items: [
+      { desc: 'Laptop Core i5, 14-inch', qty: 2, price: 420000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Hard-Disk 512 SSD', qty: 2, price: 43000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
     total_milli: 926000,
     paid_milli: 926000,
     balance_milli: 0,
     currency: 'USD',
     quoteId: 'q5',
+    sentAt: '2026-07-22',
+    issuedAt: '2026-07-22',
   },
   {
     id: 'i10463',
     number: '10463',
     customerId: 'c39',
-    customerName: 'Nairobi Water Works',
+    customerName: 'Hodan Medical Centre',
     date: '2026-08-10',
+    due: '2026-09-09',
     due_date: '2026-09-09',
+    termsDays: 30,
     state: 'issued',
     status: 'partial',
-    total_milli: 915000,
+    items: [
+      { desc: 'Network cabling (per point)', qty: 24, price: 25000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Wireless Router AC1200', qty: 3, price: 45000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 10, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
+    total_milli: 885000,
     paid_milli: 400000,
-    balance_milli: 515000,
+    balance_milli: 485000,
     currency: 'USD',
+    sentAt: '2026-08-10',
+    issuedAt: '2026-08-10',
   },
   {
     id: 'i10464',
@@ -397,86 +691,146 @@ export const MOCK_INVOICES: MockInvoice[] = [
     customerId: 'c44',
     customerName: 'Waaberi Primary School',
     date: '2026-08-27',
+    due: '2026-09-26',
     due_date: '2026-09-26',
+    termsDays: 30,
     state: 'issued',
     status: 'paid',
+    items: [
+      { desc: 'CCTV Camera 4MP', qty: 4, price: 65000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 3, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
     total_milli: 305000,
     paid_milli: 305000,
     balance_milli: 0,
     currency: 'USD',
+    sentAt: '2026-08-27',
+    issuedAt: '2026-08-27',
   },
   {
     id: 'i10465',
     number: '10465',
     customerId: 'c40',
-    customerName: 'Apex Logistics Inc',
+    customerName: 'Shabelle Logistics Ltd',
     date: '2026-09-09',
+    due: '2026-10-09',
     due_date: '2026-10-09',
+    termsDays: 30,
     state: 'issued',
     status: 'paid',
-    total_milli: 278000,
-    paid_milli: 269000,
+    items: [
+      { desc: 'UPS 1200VA', qty: 2, price: 110000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'A4 Paper Ream', qty: 20, price: 4500, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
+    total_milli: 310000,
+    paid_milli: 301000,
     balance_milli: 0,
     currency: 'USD',
+    sentAt: '2026-09-09',
+    issuedAt: '2026-09-09',
   },
   {
     id: 'i10466',
     number: '10466',
     customerId: 'c41',
-    customerName: 'Zenith Holdings Ltd',
+    customerName: 'Jazeera Coffee House',
     date: '2026-09-24',
+    due: '2026-10-09',
     due_date: '2026-10-09',
+    termsDays: 15,
     state: 'issued',
     status: 'overdue',
-    total_milli: 850000,
+    items: [
+      { desc: 'HP LaserJet Toner 85A', qty: 6, price: 38000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Office Door Signs', qty: 6, price: 27500, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
+    total_milli: 393000,
     paid_milli: 0,
-    balance_milli: 850000,
+    balance_milli: 393000,
     currency: 'USD',
     daysLate: 22,
+    sentAt: '2026-09-24',
+    issuedAt: '2026-09-24',
   },
   {
     id: 'i10467',
     number: '10467',
     customerId: 'c42',
-    customerName: 'Coast Builders',
+    customerName: 'Bakaara Traders Co.',
     date: '2026-10-05',
+    due: '2026-11-04',
     due_date: '2026-11-04',
+    termsDays: 30,
     state: 'issued',
     status: 'partial',
-    total_milli: 1680000,
+    items: [
+      { desc: 'Laptop Core i5, 14-inch', qty: 4, price: 420000, disc: 5, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
+    total_milli: 1596000,
     paid_milli: 1000000,
-    balance_milli: 680000,
+    balance_milli: 596000,
     currency: 'USD',
+    sentAt: '2026-10-05',
+    issuedAt: '2026-10-05',
   },
   {
     id: 'i10468',
     number: '10468',
     customerId: 'c38',
-    customerName: 'Acme Global Ltd',
+    customerName: 'Dr. SUMAIT Hospital - SIMAD University',
     date: '2026-10-14',
-    due_date: '2026-10-28',
+    due: '2026-11-13',
+    due_date: '2026-11-13',
+    termsDays: 30,
     state: 'issued',
     status: 'overdue',
-    total_milli: 1450000,
+    items: [
+      { desc: 'Vaccination Record Cards', qty: 500, price: 250, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Noteable Stickers', qty: 60, price: 1300, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Premium Office Tissue Holder', qty: 4, price: 11500, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
+    total_milli: 249000,
     paid_milli: 0,
-    balance_milli: 1450000,
+    balance_milli: 249000,
     currency: 'USD',
     daysLate: 3,
+    sentAt: '2026-10-14',
+    issuedAt: '2026-10-14',
   },
   {
     id: 'i10469',
     number: '10469',
     customerId: 'c40',
-    customerName: 'Apex Logistics Inc',
+    customerName: 'Shabelle Logistics Ltd',
     date: '2026-10-18',
+    due: '2026-11-17',
     due_date: '2026-11-17',
+    termsDays: 30,
     state: 'cancelled',
     status: 'cancelled',
+    items: [
+      { desc: 'Laptop Core i5, 14-inch', qty: 1, price: 420000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
     total_milli: 420000,
     paid_milli: 0,
     balance_milli: 0,
     currency: 'USD',
     cancelReason: 'Customer changed the order; replaced by quotation request.',
+    cancelledAt: '2026-10-19',
+    sentAt: '2026-10-18',
+    issuedAt: '2026-10-18',
   },
   {
     id: 'i10470',
@@ -484,14 +838,25 @@ export const MOCK_INVOICES: MockInvoice[] = [
     customerId: 'c43',
     customerName: 'Lido Seaside Hotel',
     date: '2026-10-22',
+    due: '2026-11-21',
     due_date: '2026-11-21',
+    termsDays: 30,
     state: 'issued',
     status: 'paid',
+    items: [
+      { desc: 'Wireless Router AC1200', qty: 6, price: 45000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Network cabling (per point)', qty: 12, price: 25000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 8, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
     total_milli: 690000,
     paid_milli: 690000,
     balance_milli: 0,
     currency: 'USD',
     quoteId: 'q7',
+    sentAt: '2026-10-22',
+    issuedAt: '2026-10-22',
   },
   {
     id: 'i10471',
@@ -499,27 +864,47 @@ export const MOCK_INVOICES: MockInvoice[] = [
     customerId: 'c44',
     customerName: 'Waaberi Primary School',
     date: '2026-10-28',
+    due: '2026-11-12',
     due_date: '2026-11-12',
+    termsDays: 15,
     state: 'issued',
     status: 'unpaid',
+    items: [
+      { desc: 'CCTV Camera 4MP', qty: 6, price: 65000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Hard Disk Drive Mounting Bracket', qty: 6, price: 16500, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
     total_milli: 489000,
     paid_milli: 0,
     balance_milli: 489000,
     currency: 'USD',
+    sentAt: '2026-10-28',
+    issuedAt: '2026-10-28',
   },
   {
     id: 'idraft1',
     number: '',
     customerId: 'c39',
-    customerName: 'Nairobi Water Works',
+    customerName: 'Hodan Medical Centre',
     date: '2026-10-30',
+    due: '2026-11-29',
     due_date: '2026-11-29',
+    termsDays: 30,
     state: 'draft',
     status: 'draft',
+    items: [
+      { desc: 'UPS 1200VA', qty: 3, price: 110000, disc: 0, taxRate: 0, taxName: '' },
+      { desc: 'Installation & setup (per hour)', qty: 2, price: 15000, disc: 0, taxRate: 0, taxName: '' },
+    ],
+    terms: INVOICE_TERMS,
+    notes: '',
     total_milli: 360000,
     paid_milli: 0,
     balance_milli: 0,
     currency: 'USD',
+    sentAt: null,
+    issuedAt: null,
   },
 ];
 
@@ -884,8 +1269,8 @@ export function lastMonths(n: number, fromDate = TODAY): string[] {
  * Computes live navigation counts matching prototype `navCounts()`
  */
 export function computeNavCounts() {
-  const openQ = MOCK_QUOTES.filter((q) => q.state === 'draft' || q.state === 'sent').length;
-  const overdue = MOCK_INVOICES.filter((i) => i.status === 'overdue' && i.balance_milli > 0).length;
+  const openQ = MOCK_QUOTES.filter((q) => ['draft', 'sent'].includes(qStatus(q))).length;
+  const overdue = MOCK_INVOICES.filter((i) => invStatus(i) === 'overdue').length;
   return { openQ, overdue };
 }
 
@@ -991,6 +1376,7 @@ export function computeInvoiceStatusDistribution() {
 }
 
 export interface RecentTransactionItem {
+  id: string;
   date: string;
   kind: 'Payment' | 'Invoice' | 'Quotation';
   ref: string;
@@ -1036,6 +1422,7 @@ export function getRecentTransactions(): RecentTransactionItem[] {
   const issued = MOCK_INVOICES.filter((i) => i.state !== 'draft' && i.state !== 'cancelled');
 
   const payments: RecentTransactionItem[] = MOCK_PAYMENTS.map((p) => ({
+    id: p.receiptId,
     date: p.date,
     kind: 'Payment',
     ref: p.invoiceNumber,
@@ -1050,6 +1437,7 @@ export function getRecentTransactions(): RecentTransactionItem[] {
   }));
 
   const invoices: RecentTransactionItem[] = issued.map((i) => ({
+    id: i.id,
     date: i.date,
     kind: 'Invoice',
     ref: i.number,
@@ -1064,6 +1452,7 @@ export function getRecentTransactions(): RecentTransactionItem[] {
   }));
 
   const quotes: RecentTransactionItem[] = MOCK_QUOTES.filter((q) => q.state !== 'draft').map((q) => ({
+    id: q.id,
     date: q.date,
     kind: 'Quotation',
     ref: q.number,
@@ -1208,3 +1597,485 @@ export function searchAllRecords(query: string): SearchResultItem[] {
 
   return results.slice(0, 10);
 }
+
+/* ==========================================================================
+   Quotation & Document Operations Store (Matching Prototype Logic)
+   ========================================================================== */
+
+export interface MockAuditEvent {
+  ts: number;
+  user: string;
+  role: string;
+  action: string;
+  ref: string;
+  detail?: string;
+}
+
+export const MOCK_AUDIT: MockAuditEvent[] = [
+  { ts: new Date('2026-10-31T09:15:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Created quotation', ref: 'QT-2026-0010' },
+  { ts: new Date('2026-10-27T14:30:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Customer accepted quotation', ref: 'QT-2026-0009' },
+  { ts: new Date('2026-10-27T10:00:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Created quotation', ref: 'QT-2026-0009' },
+  { ts: new Date('2026-10-20T11:45:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Sent quotation', ref: 'QT-2026-0008' },
+  { ts: new Date('2026-10-20T08:30:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Created quotation', ref: 'QT-2026-0008' },
+  { ts: new Date('2026-10-18T16:20:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Customer accepted quotation', ref: 'QT-2026-0007' },
+  { ts: new Date('2026-10-15T09:00:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Created quotation', ref: 'QT-2026-0007' },
+  { ts: new Date('2026-08-20T10:15:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Sent quotation', ref: 'QT-2026-0006' },
+  { ts: new Date('2026-07-21T11:00:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Customer accepted quotation', ref: 'QT-2026-0005' },
+  { ts: new Date('2026-07-05T15:00:00Z').getTime(), user: 'Faadumo Nur', role: 'Sales Officer', action: 'Customer rejected quotation', ref: 'QT-2026-0004' },
+];
+
+export function logAuditEvent(
+  action: string,
+  ref: string,
+  detail = '',
+  user = 'Faadumo Nur',
+  role = 'Sales Officer'
+) {
+  MOCK_AUDIT.unshift({
+    ts: Date.now(),
+    user,
+    role,
+    action,
+    ref,
+    detail,
+  });
+}
+
+export function getAuditEventsForRef(ref: string): MockAuditEvent[] {
+  return MOCK_AUDIT.filter(
+    (a) => a.ref === ref || a.ref.startsWith(ref + ' ') || a.ref.includes(' ' + ref)
+  ).slice(0, 8);
+}
+
+export function getQuoteById(id: string): MockQuote | undefined {
+  return MOCK_QUOTES.find((q) => q.id === id);
+}
+
+export function getCustomerById(id: string): MockCustomer | undefined {
+  return MOCK_CUSTOMERS.find((c) => c.id === id);
+}
+
+let quoteSeq = 10;
+
+export function nextQuoteNumber(dateStr = TODAY): string {
+  quoteSeq++;
+  return fmtNumber('QT-{YYYY}-{SEQ4}', quoteSeq, dateStr);
+}
+
+export function saveQuote(
+  data: Partial<MockQuote> & { id?: string },
+  markSent = false
+): MockQuote {
+  const cust = data.customerId ? getCustomerById(data.customerId) : undefined;
+  const targetState = markSent ? 'sent' : data.state || 'draft';
+  const totals = totalsOf({ items: data.items || [] });
+
+  if (data.id && data.id !== 'new') {
+    const existingIndex = MOCK_QUOTES.findIndex((q) => q.id === data.id);
+    if (existingIndex >= 0) {
+      const existing = MOCK_QUOTES[existingIndex];
+      const updated: MockQuote = {
+        ...existing,
+        ...data,
+        id: existing.id,
+        number: existing.number,
+        customerId: data.customerId || existing.customerId,
+        customerName: cust ? cust.name : existing.customerName,
+        date: data.date || existing.date,
+        expiry: data.expiry || existing.expiry,
+        expiry_date: data.expiry || existing.expiry,
+        state: targetState as any,
+        currency: data.currency || existing.currency,
+        items: data.items ? JSON.parse(JSON.stringify(data.items)) : existing.items,
+        terms: data.terms !== undefined ? data.terms : existing.terms,
+        notes: data.notes !== undefined ? data.notes : existing.notes,
+        total_milli: totals.total,
+      };
+      MOCK_QUOTES[existingIndex] = updated;
+      logAuditEvent(
+        markSent ? 'Sent quotation' : 'Updated quotation',
+        updated.number
+      );
+      return updated;
+    }
+  }
+
+  // Create new quotation
+  const newNum = nextQuoteNumber(data.date || TODAY);
+  const newId = `q${quoteSeq}`;
+  const newQuote: MockQuote = {
+    id: newId,
+    number: newNum,
+    customerId: data.customerId || '',
+    customerName: cust ? cust.name : 'Unknown Customer',
+    date: data.date || TODAY,
+    expiry: data.expiry || addDays(data.date || TODAY, 30),
+    expiry_date: data.expiry || addDays(data.date || TODAY, 30),
+    state: targetState as any,
+    currency: data.currency || 'USD',
+    items: data.items ? JSON.parse(JSON.stringify(data.items)) : [],
+    terms: data.terms || QUOTE_TERMS,
+    notes: data.notes || '',
+    total_milli: totals.total,
+    createdAt: TODAY,
+  };
+
+  MOCK_QUOTES.unshift(newQuote);
+  logAuditEvent('Created quotation', newQuote.number);
+  if (markSent) {
+    logAuditEvent('Sent quotation', newQuote.number);
+  }
+  return newQuote;
+}
+
+export function acceptQuote(id: string): MockQuote | undefined {
+  const quote = getQuoteById(id);
+  if (quote) {
+    quote.state = 'accepted';
+    logAuditEvent('Customer accepted quotation', quote.number);
+  }
+  return quote;
+}
+
+export function rejectQuote(id: string, reason: string): MockQuote | undefined {
+  const quote = getQuoteById(id);
+  if (quote) {
+    quote.state = 'rejected';
+    quote.rejectReason = reason;
+    logAuditEvent('Customer rejected quotation', quote.number, reason);
+  }
+  return quote;
+}
+
+export function duplicateQuote(id: string): MockQuote | undefined {
+  const quote = getQuoteById(id);
+  if (!quote) return undefined;
+
+  const newNum = nextQuoteNumber(TODAY);
+  const newId = `q${quoteSeq}`;
+  const duplicate: MockQuote = {
+    ...JSON.parse(JSON.stringify(quote)),
+    id: newId,
+    number: newNum,
+    date: TODAY,
+    expiry: addDays(TODAY, 30),
+    expiry_date: addDays(TODAY, 30),
+    state: 'draft',
+    invoiceId: undefined,
+    invoiceNumber: undefined,
+    rejectReason: undefined,
+    createdAt: TODAY,
+  };
+
+  MOCK_QUOTES.unshift(duplicate);
+  logAuditEvent('Duplicated quotation', duplicate.number, 'from ' + quote.number);
+  return duplicate;
+}
+
+export function deleteDraftQuote(id: string): boolean {
+  const index = MOCK_QUOTES.findIndex((q) => q.id === id);
+  if (index >= 0 && MOCK_QUOTES[index].state === 'draft') {
+    const num = MOCK_QUOTES[index].number;
+    MOCK_QUOTES.splice(index, 1);
+    logAuditEvent('Deleted draft quotation', num);
+    return true;
+  }
+  return false;
+}
+
+export function convertQuoteToInvoice(quoteId: string): {
+  invoiceId: string;
+  invoiceNumber: string;
+} {
+  const quote = getQuoteById(quoteId);
+  if (!quote) throw new Error('Quotation not found');
+
+  if (quote.invoiceId) {
+    const existing = MOCK_INVOICES.find((i) => i.id === quote.invoiceId);
+    return { invoiceId: quote.invoiceId, invoiceNumber: existing?.number || 'Draft' };
+  }
+
+  const nextSeq = MOCK_INVOICES.length + 10456;
+  const newInvoiceId = `i${nextSeq}`;
+  const newInvoice: MockInvoice = {
+    id: newInvoiceId,
+    number: '', // Draft invoices are unnumbered until issued in prototype
+    customerId: quote.customerId,
+    customerName: quote.customerName,
+    date: TODAY,
+    due: addDays(TODAY, 30),
+    due_date: addDays(TODAY, 30),
+    termsDays: 30,
+    items: JSON.parse(JSON.stringify(quote.items)),
+    terms: INVOICE_TERMS,
+    notes: '',
+    state: 'draft',
+    status: 'draft',
+    total_milli: quote.total_milli,
+    paid_milli: 0,
+    balance_milli: quote.total_milli,
+    currency: quote.currency,
+    quoteId: quote.id,
+  };
+
+  MOCK_INVOICES.unshift(newInvoice);
+  quote.invoiceId = newInvoiceId;
+  quote.invoiceNumber = '';
+  logAuditEvent('Created invoice draft from quotation', quote.number);
+
+  return { invoiceId: newInvoiceId, invoiceNumber: 'Draft' };
+}
+
+export function getInvoiceById(id: string): MockInvoice | undefined {
+  return MOCK_INVOICES.find((i) => i.id === id);
+}
+
+export function getCreditNotesForInvoice(invoiceId: string): MockCreditNote[] {
+  return MOCK_CREDITS.filter((c) => c.invoiceId === invoiceId);
+}
+
+export function getPaymentsForInvoice(invoiceId: string): MockPayment[] {
+  return MOCK_PAYMENTS.filter((p) => p.invoiceId === invoiceId);
+}
+
+export function getReceiptsForInvoice(invoiceId: string): MockReceipt[] {
+  return MOCK_RECEIPTS.filter((r) => r.invoiceId === invoiceId);
+}
+
+export function invFin(inv: MockInvoice) {
+  const t = totalsOf({ items: inv.items || [] });
+  const paid = MOCK_PAYMENTS.filter((p) => p.invoiceId === inv.id).reduce(
+    (a, p) => a + p.amount_milli,
+    0
+  );
+  const credit = MOCK_CREDITS.filter((c) => c.invoiceId === inv.id).reduce(
+    (a, c) => a + c.amount,
+    0
+  );
+  const balance =
+    inv.state === 'cancelled' || inv.state === 'draft'
+      ? 0
+      : Math.max(0, t.total - paid - credit);
+  return { ...t, paid, credit, balance };
+}
+
+export function invStatus(
+  inv: MockInvoice
+): 'draft' | 'sent' | 'unpaid' | 'partial' | 'paid' | 'overdue' | 'cancelled' {
+  if (inv.state === 'draft') return 'draft';
+  if (inv.state === 'cancelled') return 'cancelled';
+  const f = invFin(inv);
+  if (f.balance <= 0) return 'paid';
+  const dueDate = inv.due || inv.due_date || '';
+  if (dueDate < TODAY) return 'overdue';
+  if (f.paid > 0 || f.credit > 0) return 'partial';
+  return inv.sentAt ? 'sent' : 'unpaid';
+}
+
+let invoiceSeq = 10471;
+let creditSeq = 1;
+
+export function nextInvoiceNumber(_dateStr = TODAY): string {
+  invoiceSeq++;
+  return String(invoiceSeq);
+}
+
+export function peekNextInvoiceNumber(_dateStr = TODAY): string {
+  return String(invoiceSeq + 1);
+}
+
+export function nextCreditNumber(dateStr = TODAY): string {
+  creditSeq++;
+  return fmtNumber('CN-{SEQ4}', creditSeq, dateStr);
+}
+
+export function persistInvoice(
+  data: Partial<MockInvoice> & { id?: string },
+  issue = false
+): MockInvoice {
+  const cust = data.customerId ? getCustomerById(data.customerId) : undefined;
+  const totals = totalsOf({ items: data.items || [] });
+  const dueDate =
+    data.due || data.due_date || addDays(data.date || TODAY, data.termsDays ?? 30);
+
+  if (data.id && data.id !== 'new') {
+    const existingIndex = MOCK_INVOICES.findIndex((i) => i.id === data.id);
+    if (existingIndex >= 0) {
+      const existing = MOCK_INVOICES[existingIndex];
+      const updated: MockInvoice = {
+        ...existing,
+        ...data,
+        id: existing.id,
+        customerId: data.customerId || existing.customerId,
+        customerName: cust ? cust.name : existing.customerName,
+        date: data.date || existing.date,
+        due: dueDate,
+        due_date: dueDate,
+        termsDays: data.termsDays ?? existing.termsDays ?? 30,
+        currency: data.currency || existing.currency,
+        items: data.items ? JSON.parse(JSON.stringify(data.items)) : existing.items,
+        terms: data.terms !== undefined ? data.terms : existing.terms,
+        notes: data.notes !== undefined ? data.notes : existing.notes,
+        total_milli: totals.total,
+        balance_milli: totals.total,
+      };
+
+      if (issue) {
+        updated.state = 'issued';
+        updated.number = nextInvoiceNumber(updated.date);
+        updated.issuedAt = TODAY;
+        updated.sentAt = updated.date;
+        updated.status = invStatus(updated);
+        logAuditEvent(
+          'Issued invoice',
+          updated.number,
+          `${formatMoney(totals.total, updated.currency)}`
+        );
+        if (updated.quoteId) {
+          const q = getQuoteById(updated.quoteId);
+          if (q)
+            logAuditEvent(
+              'Converted quotation to invoice',
+              `${q.number} → ${updated.number}`
+            );
+        }
+      } else {
+        logAuditEvent('Saved draft invoice', updated.customerName);
+      }
+
+      MOCK_INVOICES[existingIndex] = updated;
+      return updated;
+    }
+  }
+
+  // Create new invoice
+  const nextSeq = MOCK_INVOICES.length + 10456;
+  const newId = `i${nextSeq}`;
+  const invNumber = issue ? nextInvoiceNumber(data.date || TODAY) : '';
+  const newInvoice: MockInvoice = {
+    id: newId,
+    number: invNumber,
+    customerId: data.customerId || '',
+    customerName: cust ? cust.name : 'Unknown Customer',
+    date: data.date || TODAY,
+    due: dueDate,
+    due_date: dueDate,
+    termsDays: data.termsDays ?? 30,
+    state: issue ? 'issued' : 'draft',
+    status: issue ? 'unpaid' : 'draft',
+    currency: data.currency || 'USD',
+    items: data.items ? JSON.parse(JSON.stringify(data.items)) : [],
+    terms: data.terms || INVOICE_TERMS,
+    notes: data.notes || '',
+    total_milli: totals.total,
+    paid_milli: 0,
+    balance_milli: totals.total,
+    issuedAt: issue ? TODAY : undefined,
+    sentAt: issue ? data.date || TODAY : null,
+  };
+
+  if (issue) {
+    newInvoice.status = invStatus(newInvoice);
+    logAuditEvent(
+      'Issued invoice',
+      newInvoice.number,
+      `${formatMoney(totals.total, newInvoice.currency)}`
+    );
+  } else {
+    logAuditEvent('Saved draft invoice', newInvoice.customerName);
+  }
+
+  MOCK_INVOICES.unshift(newInvoice);
+  return newInvoice;
+}
+
+export function deleteDraftInvoice(id: string): boolean {
+  const index = MOCK_INVOICES.findIndex((i) => i.id === id);
+  if (index >= 0 && MOCK_INVOICES[index].state === 'draft') {
+    const inv = MOCK_INVOICES[index];
+    if (inv.quoteId) {
+      const q = getQuoteById(inv.quoteId);
+      if (q) q.invoiceId = undefined;
+    }
+    MOCK_INVOICES.splice(index, 1);
+    logAuditEvent('Deleted draft invoice', inv.customerName);
+    return true;
+  }
+  return false;
+}
+
+export function markInvoiceSent(id: string): MockInvoice | undefined {
+  const inv = getInvoiceById(id);
+  if (inv && inv.state === 'issued') {
+    inv.sentAt = TODAY;
+    inv.status = invStatus(inv);
+    logAuditEvent('Marked invoice as sent', inv.number);
+  }
+  return inv;
+}
+
+export function cancelInvoice(id: string, reason: string): MockInvoice | undefined {
+  const inv = getInvoiceById(id);
+  if (inv && inv.state === 'issued') {
+    inv.state = 'cancelled';
+    inv.status = 'cancelled';
+    inv.cancelReason = reason;
+    inv.cancelledAt = TODAY;
+    inv.balance_milli = 0;
+    logAuditEvent('Cancelled invoice', inv.number, reason);
+  }
+  return inv;
+}
+
+export function issueCreditNote(
+  invoiceId: string,
+  amount: number,
+  reason: string
+): MockCreditNote {
+  const inv = getInvoiceById(invoiceId);
+  if (!inv) throw new Error('Invoice not found');
+  const cnNumber = nextCreditNumber(TODAY);
+  const creditNote: MockCreditNote = {
+    id: `cn${creditSeq}`,
+    number: cnNumber,
+    invoiceId: inv.id,
+    amount,
+    reason,
+    date: TODAY,
+  };
+  MOCK_CREDITS.push(creditNote);
+  inv.balance_milli = invFin(inv).balance;
+  inv.status = invStatus(inv);
+  logAuditEvent(
+    `Issued credit note ${formatMoney(amount, inv.currency)}`,
+    `${cnNumber} on ${inv.number}`,
+    reason
+  );
+  return creditNote;
+}
+
+export function addCustomer(data: {
+  name: string;
+  attn?: string;
+  phone: string;
+  email?: string;
+  taxId?: string;
+  address?: string;
+}): MockCustomer {
+  const maxCode = Math.max(...MOCK_CUSTOMERS.map((c) => c.code), 1000);
+  const newCustomer: MockCustomer = {
+    id: `c${maxCode + 1}`,
+    code: maxCode + 1,
+    name: data.name,
+    attn: data.attn || '',
+    phone: data.phone,
+    email: data.email || '',
+    currency: 'USD',
+    taxId: data.taxId || '',
+    address: data.address || '',
+  };
+  MOCK_CUSTOMERS.push(newCustomer);
+  logAuditEvent('Added customer', `${newCustomer.name} (${newCustomer.code})`);
+  return newCustomer;
+}
+

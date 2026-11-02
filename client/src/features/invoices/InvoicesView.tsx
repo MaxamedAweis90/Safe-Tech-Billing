@@ -1,112 +1,107 @@
 import React, { useState } from 'react';
-import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/icons';
 import { Badge } from '../../components/ui/Badge';
-import { SegmentedControl, SegmentOption } from '../../components/ui/SegmentedControl';
-import { IconPlus } from '../../components/icons';
+import { InvoiceEditor } from './InvoiceEditor';
+import { InvoiceDetailView } from './InvoiceDetailView';
+import {
+  MOCK_INVOICES,
+  TODAY,
+  invFin,
+  invStatus,
+  getInvoiceById,
+  getCustomerById,
+} from '../../lib/mockData';
+import { fmtD, daysBetween, formatMoney } from '../../lib/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
-import { InvoiceStatus } from '../../types';
-import { formatMoney } from '../../lib/formatters';
+import { useNavStore } from '../../store/useNavStore';
 
-interface MockInvoice {
-  _id: string;
-  number: string;
-  customerName: string;
-  date: string;
-  due_date: string;
-  total_milli: number;
-  paid_milli: number;
-  balance_milli: number;
-  currency: string;
-  status: InvoiceStatus;
-  daysLate?: number;
-}
+const STATUS_LABELS: Record<string, string> = {
+  all: 'All',
+  draft: 'Draft',
+  sent: 'Sent',
+  unpaid: 'Unpaid',
+  partial: 'Partially paid',
+  paid: 'Paid',
+  overdue: 'Overdue',
+  cancelled: 'Cancelled',
+};
+
+const FILTER_SEGMENTS = [
+  'all',
+  'draft',
+  'sent',
+  'unpaid',
+  'partial',
+  'paid',
+  'overdue',
+  'cancelled',
+];
 
 export const InvoicesView: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const { can } = useAuthStore();
+  const { selectedRecordId, setSelectedRecord } = useNavStore();
 
-  const mockInvoices: MockInvoice[] = [
-    {
-      _id: 'i1',
-      number: 'INV-2026-0001',
-      customerName: 'Acme Global Ltd',
-      date: '01 Oct 2026',
-      due_date: '31 Oct 2026',
-      total_milli: 12500000,
-      paid_milli: 12500000,
-      balance_milli: 0,
-      currency: 'USD',
-      status: 'paid',
-    },
-    {
-      _id: 'i2',
-      number: 'INV-2026-0002',
-      customerName: 'Nairobi Water Works',
-      date: '10 Oct 2026',
-      due_date: '09 Nov 2026',
-      total_milli: 4850000,
-      paid_milli: 2000000,
-      balance_milli: 2850000,
-      currency: 'USD',
-      status: 'partial',
-    },
-    {
-      _id: 'i3',
-      number: 'INV-2026-0003',
-      customerName: 'Apex Logistics Inc',
-      date: '12 Oct 2026',
-      due_date: '11 Nov 2026',
-      total_milli: 2200000,
-      paid_milli: 0,
-      balance_milli: 2200000,
-      currency: 'USD',
-      status: 'sent',
-    },
-    {
-      _id: 'i4',
-      number: 'INV-2026-0004',
-      customerName: 'Zenith Holdings Ltd',
-      date: '15 Sep 2026',
-      due_date: '15 Oct 2026',
-      total_milli: 850000,
-      paid_milli: 0,
-      balance_milli: 850000,
-      currency: 'USD',
-      status: 'overdue',
-      daysLate: 18,
-    },
-  ];
+  // If "new" is requested or an invoice is selected, determine whether to render Editor or Detail
+  if (selectedRecordId) {
+    if (selectedRecordId === 'new') {
+      return (
+        <InvoiceEditor
+          invoiceId="new"
+          onBack={() => setSelectedRecord('invoices', null)}
+          onIssued={(inv) => setSelectedRecord('invoices', inv.id)}
+        />
+      );
+    }
 
-  const counts: Record<string, number> = {
-    all: mockInvoices.length,
-    draft: mockInvoices.filter((i) => i.status === 'draft').length,
-    sent: mockInvoices.filter((i) => i.status === 'sent').length,
-    unpaid: mockInvoices.filter((i) => i.status === 'unpaid').length,
-    partial: mockInvoices.filter((i) => i.status === 'partial').length,
-    paid: mockInvoices.filter((i) => i.status === 'paid').length,
-    overdue: mockInvoices.filter((i) => i.status === 'overdue').length,
-    cancelled: mockInvoices.filter((i) => i.status === 'cancelled').length,
-  };
+    const activeInvoice = getInvoiceById(selectedRecordId);
+    if (activeInvoice) {
+      if (activeInvoice.state === 'draft') {
+        return (
+          <InvoiceEditor
+            invoiceId={activeInvoice.id}
+            onBack={() => setSelectedRecord('invoices', null)}
+            onIssued={(inv) => setSelectedRecord('invoices', inv.id)}
+          />
+        );
+      }
+      return (
+        <InvoiceDetailView
+          invoiceId={activeInvoice.id}
+          onBack={() => setSelectedRecord('invoices', null)}
+          onNavigateReceipt={(receiptId) => setSelectedRecord('receipts', receiptId)}
+          onNavigateCustomer={(customerId) => setSelectedRecord('customers', customerId)}
+          onNavigateQuote={(quoteId) => setSelectedRecord('quotations', quoteId)}
+        />
+      );
+    }
+  }
 
-  const filterOptions: SegmentOption[] = [
-    { id: 'all', label: 'All', count: counts.all },
-    { id: 'draft', label: 'Draft', count: counts.draft },
-    { id: 'sent', label: 'Sent', count: counts.sent },
-    { id: 'unpaid', label: 'Unpaid', count: counts.unpaid },
-    { id: 'partial', label: 'Partial', count: counts.partial },
-    { id: 'paid', label: 'Paid', count: counts.paid },
-    { id: 'overdue', label: 'Overdue', count: counts.overdue },
-    { id: 'cancelled', label: 'Cancelled', count: counts.cancelled },
-  ];
-
-  const filteredInvoices = mockInvoices.filter((inv) => {
-    const matchesFilter = filter === 'all' || inv.status === filter;
-    const matchesSearch =
-      inv.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.customerName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
+  // Calculate live counts matching prototype line 622
+  const counts: Record<string, number> = { all: MOCK_INVOICES.length };
+  MOCK_INVOICES.forEach((i) => {
+    const s = invStatus(i);
+    counts[s] = (counts[s] || 0) + 1;
   });
+
+  // Filter and sort rows matching prototype line 624:
+  // Drafts float to top, followed by descending issue date
+  const filteredRows = MOCK_INVOICES
+    .filter((i) => filter === 'all' || invStatus(i) === filter)
+    .filter((i) => {
+      if (!searchTerm.trim()) return true;
+      const term = searchTerm.toLowerCase();
+      const cust = getCustomerById(i.customerId);
+      const custName = cust ? cust.name : (i.customerName || '');
+      const numOrDraft = i.number || 'draft';
+      return `${numOrDraft} ${custName}`.toLowerCase().includes(term);
+    })
+    .sort(
+      (a, b) =>
+        (a.state === 'draft' ? -1 : 0) - (b.state === 'draft' ? -1 : 0) ||
+        b.date.localeCompare(a.date)
+    );
 
   return (
     <>
@@ -120,9 +115,13 @@ export const InvoicesView: React.FC = () => {
         </div>
         <div className="actions">
           {can('invoices') && (
-            <Button variant="primary" leftIcon={<IconPlus size={15} />}>
+            <button
+              className="btn primary"
+              onClick={() => setSelectedRecord('invoices', 'new')}
+            >
+              <Icon name="plus" size={15} />
               New invoice
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -130,11 +129,24 @@ export const InvoicesView: React.FC = () => {
       {/* Main Panel with Filter Bar & Invoices Table */}
       <section className="panel">
         <div className="filters">
-          <SegmentedControl
-            options={filterOptions}
-            value={filter}
-            onChange={setFilter}
-          />
+          {/* Segmented Filter Pills */}
+          <div className="seg" data-seg="invoices">
+            {FILTER_SEGMENTS.map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={filter === f ? 'on' : ''}
+                onClick={() => setFilter(f)}
+              >
+                {STATUS_LABELS[f]}{' '}
+                <span className="num" style={{ opacity: 0.6 }}>
+                  {f === 'all' ? MOCK_INVOICES.length : counts[f] || 0}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Real-time Search Box */}
           <input
             className="inp"
             style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
@@ -144,6 +156,7 @@ export const InvoicesView: React.FC = () => {
           />
         </div>
 
+        {/* Ledger Table */}
         <div className="tbl-wrap">
           <table className="tbl">
             <thead>
@@ -159,46 +172,56 @@ export const InvoicesView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredInvoices.length > 0 ? (
-                filteredInvoices.map((inv) => (
-                  <tr key={inv._id} className="link">
-                    <td className="mono strong" style={{ color: 'var(--accent)' }}>
-                      {inv.number}
-                    </td>
-                    <td>{inv.customerName}</td>
-                    <td className="muted mono">{inv.date}</td>
-                    <td className="muted mono">
-                      {inv.due_date}
-                      {inv.daysLate ? (
-                        <div style={{ color: 'var(--bad)', fontSize: 11.5 }}>
-                          {inv.daysLate} days late
-                        </div>
-                      ) : null}
-                    </td>
-                    <td>
-                      <Badge variant={inv.status}>{inv.status}</Badge>
-                    </td>
-                    <td className="r font-mono">
-                      {formatMoney(inv.total_milli, inv.currency)}
-                    </td>
-                    <td className="r muted font-mono">
-                      {inv.paid_milli ? formatMoney(inv.paid_milli, inv.currency) : '—'}
-                    </td>
-                    <td
-                      className="r strong font-mono"
-                      style={{
-                        color:
-                          inv.balance_milli > 0 && inv.status === 'overdue'
-                            ? 'var(--bad)'
-                            : inv.balance_milli > 0
-                            ? 'var(--warn)'
-                            : undefined,
-                      }}
+              {filteredRows.length > 0 ? (
+                filteredRows.map((i) => {
+                  const s = invStatus(i);
+                  const f = invFin(i);
+                  const late = s === 'overdue' ? daysBetween(i.due, TODAY) : 0;
+                  const cust = getCustomerById(i.customerId);
+                  const custName = cust ? cust.name : (i.customerName || '—');
+
+                  return (
+                    <tr
+                      key={i.id}
+                      className="link"
+                      onClick={() => setSelectedRecord('invoices', i.id)}
                     >
-                      {formatMoney(inv.balance_milli, inv.currency)}
-                    </td>
-                  </tr>
-                ))
+                      <td className="mono strong">
+                        {i.number ? i.number : <span className="muted">Draft</span>}
+                      </td>
+                      <td>{custName}</td>
+                      <td className="muted">{fmtD(i.date)}</td>
+                      <td className="muted">
+                        {fmtD(i.due)}
+                        {late > 0 ? (
+                          <div style={{ color: 'var(--bad)', fontSize: 11.5 }}>
+                            {late} days late
+                          </div>
+                        ) : null}
+                      </td>
+                      <td>
+                        <Badge variant={s as any}>{s}</Badge>
+                      </td>
+                      <td className="r font-mono">
+                        {formatMoney(f.total, i.currency)}
+                      </td>
+                      <td className="r muted font-mono">
+                        {f.paid ? formatMoney(f.paid, i.currency) : '—'}
+                      </td>
+                      <td
+                        className="r strong font-mono"
+                        style={{
+                          color:
+                            f.balance > 0 && s === 'overdue'
+                              ? 'var(--bad)'
+                              : undefined,
+                        }}
+                      >
+                        {i.state === 'issued' ? formatMoney(f.balance, i.currency) : '—'}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={8}>

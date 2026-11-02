@@ -3,7 +3,9 @@ import { NavTab } from '../types';
 
 interface NavState {
   activeTab: NavTab;
+  selectedRecordId: string | null;
   setActiveTab: (tab: NavTab) => void;
+  setSelectedRecord: (tab: NavTab, recordId?: string | null) => void;
   navCounts: {
     overdue: number;
     openQ: number;
@@ -18,7 +20,11 @@ interface NavState {
 
 export const useNavStore = create<NavState>((set) => ({
   activeTab: 'dashboard',
-  setActiveTab: (tab) => set({ activeTab: tab, mobileDrawerOpen: false }),
+  selectedRecordId: null,
+  setActiveTab: (tab) =>
+    set({ activeTab: tab, selectedRecordId: null, mobileDrawerOpen: false }),
+  setSelectedRecord: (tab, recordId = null) =>
+    set({ activeTab: tab, selectedRecordId: recordId, mobileDrawerOpen: false }),
   navCounts: {
     overdue: 2,
     openQ: 4,
@@ -28,6 +34,7 @@ export const useNavStore = create<NavState>((set) => ({
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   mobileDrawerOpen: false,
   setMobileDrawerOpen: (mobileDrawerOpen) => set({ mobileDrawerOpen }),
-  toggleMobileDrawer: () => set((state) => ({ mobileDrawerOpen: !state.mobileDrawerOpen })),
+  toggleMobileDrawer: () =>
+    set((state) => ({ mobileDrawerOpen: !state.mobileDrawerOpen })),
 }));
 

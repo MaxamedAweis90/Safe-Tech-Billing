@@ -22,7 +22,7 @@ export const PaymentModalContent: React.FC<PaymentModalContentProps> = ({
 }) => {
   const openInvoices = MOCK_INVOICES.filter(
     (i) => i.state === 'issued' && i.balance_milli > 0
-  ).sort((a, b) => a.due_date.localeCompare(b.due_date));
+  ).sort((a, b) => (a.due || a.due_date || '').localeCompare(b.due || b.due_date || ''));
 
   const [selectedInvId, setSelectedInvId] = useState<string>(
     initialInvoiceId || (openInvoices[0]?.id ?? '')

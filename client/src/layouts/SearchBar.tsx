@@ -8,7 +8,7 @@ export const SearchBar: React.FC = () => {
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { setActiveTab } = useNavStore();
+  const { setSelectedRecord } = useNavStore();
 
   // Listen to input changes
   useEffect(() => {
@@ -53,7 +53,7 @@ export const SearchBar: React.FC = () => {
   }, []);
 
   const handleSelect = (item: SearchResultItem) => {
-    setActiveTab(item.tab);
+    setSelectedRecord(item.tab, item.id);
     setIsOpen(false);
     setQuery('');
   };
