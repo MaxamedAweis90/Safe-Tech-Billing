@@ -1,110 +1,103 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { formatMoney } from '../../lib/formatters';
 
 export const ReportsView: React.FC = () => {
   const agingBuckets = [
-    { label: 'Current (0-30 days)', amount: 2200000, count: 1, color: 'text-ok' },
-    { label: '31-60 days', amount: 2850000, count: 1, color: 'text-warn' },
-    { label: '61-90 days', amount: 850000, count: 1, color: 'text-danger' },
-    { label: '90+ days overdue', amount: 0, count: 0, color: 'text-text-faint' },
+    { label: 'Current (0-30 days)', amount: 2200000, count: 1, color: 'var(--ok)' },
+    { label: '31-60 days', amount: 2850000, count: 1, color: 'var(--warn)' },
+    { label: '61-90 days', amount: 850000, count: 1, color: 'var(--bad)' },
+    { label: '90+ days overdue', amount: 0, count: 0, color: 'var(--faint)' },
   ];
 
   return (
-    <div className="space-y-6">
+    <>
       {/* Page Header */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-text-primary">
-          Financial Reports
-        </h1>
-        <p className="text-xs text-text-muted mt-0.5">
-          Commercial performance, aging schedules, and tax reconciliation
-        </p>
+      <div className="page-head">
+        <div>
+          <h1>Financial Reports</h1>
+          <p>Accounts receivable aging schedule, tax reconciliation, and collection efficiency.</p>
+        </div>
       </div>
 
-      {/* Aging Schedule */}
-      <Card>
-        <CardHeader>
+      {/* AR Aging Buckets */}
+      <section className="panel">
+        <div className="panel-head">
           <div>
-            <CardTitle>Accounts Receivable Aging Schedule</CardTitle>
-            <div className="text-xs text-text-muted mt-0.5">
-              Outstanding receivable balances bucketed by payment due date
-            </div>
+            <h2>Accounts receivable aging schedule</h2>
+            <span className="sub">Outstanding invoice balances bucketed by payment due date</span>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        </div>
+        <div className="panel-body">
+          <div className="kpis">
             {agingBuckets.map((bucket, idx) => (
-              <div
-                key={idx}
-                className="p-4 rounded-xl border border-border-strong bg-bg-subtle"
-              >
-                <div className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
-                  {bucket.label}
-                </div>
-                <div className={`text-xl font-bold mt-2 mono ${bucket.color}`}>
+              <div key={idx} className="kpi">
+                <span className="k-label">{bucket.label}</span>
+                <span className="k-value" style={{ color: bucket.color }}>
                   {formatMoney(bucket.amount, 'USD')}
-                </div>
-                <div className="text-xs text-text-faint mt-1">
-                  {bucket.count} outstanding invoice(s)
-                </div>
+                </span>
+                <span className="k-meta">{bucket.count} open invoice(s)</span>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      {/* Tax & Collection Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tax Reconciliation Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between py-2 border-b border-border-subtle text-xs">
-              <span className="text-text-muted">Standard Rate VAT (16%):</span>
-              <span className="font-mono font-semibold text-text-primary">
-                {formatMoney(1960000, 'USD')}
-              </span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-border-subtle text-xs">
-              <span className="text-text-muted">Zero Rated Supplies:</span>
-              <span className="font-mono font-semibold text-text-primary">
-                {formatMoney(0, 'USD')}
-              </span>
-            </div>
-            <div className="flex justify-between py-2 text-xs font-semibold">
-              <span className="text-text-primary">Total Output Tax:</span>
-              <span className="font-mono text-accent">
-                {formatMoney(1960000, 'USD')}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Grid 2: Tax Reconciliation & Collection Efficiency */}
+      <div className="grid-2e">
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Tax reconciliation summary</h2>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <tbody>
+                <tr>
+                  <td className="muted">Standard Rate VAT (16%)</td>
+                  <td className="r strong font-mono">{formatMoney(1960000, 'USD')}</td>
+                </tr>
+                <tr>
+                  <td className="muted">Zero-Rated Supplies (0%)</td>
+                  <td className="r font-mono">{formatMoney(0, 'USD')}</td>
+                </tr>
+                <tr style={{ background: 'var(--surface-2)' }}>
+                  <td className="strong">Total Output Tax Accrued</td>
+                  <td className="r strong font-mono" style={{ color: 'var(--accent)' }}>
+                    {formatMoney(1960000, 'USD')}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Settlement & Efficiency</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between py-2 border-b border-border-subtle text-xs">
-              <span className="text-text-muted">Collection Ratio:</span>
-              <span className="font-mono font-semibold text-ok">88.4%</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-border-subtle text-xs">
-              <span className="text-text-muted">Average Days to Pay:</span>
-              <span className="font-mono font-semibold text-text-primary">
-                18.2 Days
-              </span>
-            </div>
-            <div className="flex justify-between py-2 text-xs font-semibold">
-              <span className="text-text-primary">Disputed / Credit Note Ratio:</span>
-              <span className="font-mono text-text-muted">0.0%</span>
-            </div>
-          </CardContent>
-        </Card>
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Collection efficiency & KPI</h2>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <tbody>
+                <tr>
+                  <td className="muted">Collection Rate</td>
+                  <td className="r strong font-mono" style={{ color: 'var(--ok)' }}>
+                    88.4%
+                  </td>
+                </tr>
+                <tr>
+                  <td className="muted">Average Days to Pay (DSO)</td>
+                  <td className="r strong font-mono">18.2 Days</td>
+                </tr>
+                <tr style={{ background: 'var(--surface-2)' }}>
+                  <td className="strong">Disputed / Credit Note Ratio</td>
+                  <td className="r strong font-mono" style={{ color: 'var(--muted)' }}>
+                    0.0%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
-    </div>
+    </>
   );
 };
-

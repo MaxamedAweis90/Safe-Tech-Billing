@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 
 export const SettingsView: React.FC = () => {
   const [company, setCompany] = useState({
@@ -30,111 +28,151 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-head">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-text-primary">
-            Company & System Settings
-          </h1>
-          <p className="text-xs text-text-muted mt-0.5">
-            Configure enterprise identity, tax identifiers, and banking details
-          </p>
+          <h1>Company &amp; Settings</h1>
+          <p>Configure corporate identity, tax identifiers, banking details, and default currency.</p>
         </div>
-        <Button variant="primary" type="submit">
-          {saved ? 'Saved Successfully!' : 'Save changes'}
-        </Button>
+        <div className="actions">
+          <Button variant="primary" type="submit">
+            {saved ? 'Saved Successfully!' : 'Save changes'}
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid-2e">
         {/* Company Identity */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Company Legal Identity</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Input
-              label="Registered Company Name"
-              value={company.name}
-              onChange={(e) => setCompany({ ...company, name: e.target.value })}
-            />
-            <Input
-              label="Tagline / Sub-heading"
-              value={company.tagline}
-              onChange={(e) => setCompany({ ...company, tagline: e.target.value })}
-            />
-            <Input
-              label="Physical Address"
-              value={company.address}
-              onChange={(e) => setCompany({ ...company, address: e.target.value })}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Telephone"
-                value={company.phone}
-                onChange={(e) => setCompany({ ...company, phone: e.target.value })}
-              />
-              <Input
-                label="Billing Email"
-                value={company.email}
-                onChange={(e) => setCompany({ ...company, email: e.target.value })}
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Company legal identity</h2>
+          </div>
+          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="field">
+              <label>Registered Company Name</label>
+              <input
+                className="inp"
+                value={company.name}
+                onChange={(e) => setCompany({ ...company, name: e.target.value })}
               />
             </div>
-            <Input
-              label="KRA PIN / Tax ID"
-              value={company.tax_id}
-              onChange={(e) => setCompany({ ...company, tax_id: e.target.value })}
-            />
-          </CardContent>
-        </Card>
 
-        {/* Banking & Settlement Accounts */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Bank Details & Remittance</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Input
-              label="Bank Name"
-              value={company.bank_name}
-              onChange={(e) => setCompany({ ...company, bank_name: e.target.value })}
-            />
-            <Input
-              label="Account Name"
-              value={company.account_name}
-              onChange={(e) => setCompany({ ...company, account_name: e.target.value })}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Account Number"
-                value={company.account_number}
-                onChange={(e) => setCompany({ ...company, account_number: e.target.value })}
-              />
-              <Input
-                label="SWIFT / BIC Code"
-                value={company.swift_code}
-                onChange={(e) => setCompany({ ...company, swift_code: e.target.value })}
+            <div className="field">
+              <label>Tagline / Sub-heading</label>
+              <input
+                className="inp"
+                value={company.tagline}
+                onChange={(e) => setCompany({ ...company, tagline: e.target.value })}
               />
             </div>
-            <Input
-              label="Mobile Money Till / Paybill"
-              value={company.mobile_provider}
-              onChange={(e) => setCompany({ ...company, mobile_provider: e.target.value })}
-            />
-            <Input
-              label="Till / Account Number"
-              value={company.mobile_number}
-              onChange={(e) => setCompany({ ...company, mobile_number: e.target.value })}
-            />
-          </CardContent>
-          <CardFooter>
-            <span className="text-xs text-text-faint">
-              These details are printed on all generated PDF invoices & quotations.
+
+            <div className="field">
+              <label>Physical Address</label>
+              <input
+                className="inp"
+                value={company.address}
+                onChange={(e) => setCompany({ ...company, address: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="field">
+                <label>Telephone</label>
+                <input
+                  className="inp"
+                  value={company.phone}
+                  onChange={(e) => setCompany({ ...company, phone: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Billing Email</label>
+                <input
+                  className="inp"
+                  value={company.email}
+                  onChange={(e) => setCompany({ ...company, email: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="field">
+              <label>KRA PIN / Tax ID</label>
+              <input
+                className="inp"
+                value={company.tax_id}
+                onChange={(e) => setCompany({ ...company, tax_id: e.target.value })}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Banking Details */}
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Bank details &amp; remittance</h2>
+          </div>
+          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="field">
+              <label>Bank Name</label>
+              <input
+                className="inp"
+                value={company.bank_name}
+                onChange={(e) => setCompany({ ...company, bank_name: e.target.value })}
+              />
+            </div>
+
+            <div className="field">
+              <label>Account Name</label>
+              <input
+                className="inp"
+                value={company.account_name}
+                onChange={(e) => setCompany({ ...company, account_name: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="field">
+                <label>Account Number</label>
+                <input
+                  className="inp"
+                  value={company.account_number}
+                  onChange={(e) => setCompany({ ...company, account_number: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>SWIFT / BIC Code</label>
+                <input
+                  className="inp"
+                  value={company.swift_code}
+                  onChange={(e) => setCompany({ ...company, swift_code: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Mobile Money Till / Paybill</label>
+              <input
+                className="inp"
+                value={company.mobile_provider}
+                onChange={(e) => setCompany({ ...company, mobile_provider: e.target.value })}
+              />
+            </div>
+
+            <div className="field">
+              <label>Till / Account Number</label>
+              <input
+                className="inp"
+                value={company.mobile_number}
+                onChange={(e) => setCompany({ ...company, mobile_number: e.target.value })}
+              />
+            </div>
+
+            <span className="hint" style={{ marginTop: 6 }}>
+              These remittance details are automatically embedded on all A4 printable quotes &amp; invoices.
             </span>
-          </CardFooter>
-        </Card>
+          </div>
+        </section>
       </div>
     </form>
   );
 };
-

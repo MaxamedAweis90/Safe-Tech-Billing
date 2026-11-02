@@ -103,3 +103,4 @@ export const statusBadgeStyles = {
   expired: { bg: theme.colors.neutralSoft, text: theme.colors.faint },
   cancelled: { bg: theme.colors.neutralSoft, text: theme.colors.faint },
 } as const;
+

@@ -15,15 +15,15 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || generatedId;
 
     return (
-      <div className="w-full space-y-1.5">
+      <div className="field">
         {label && (
-          <label htmlFor={inputId} className="block text-xs font-medium text-text-muted">
+          <label htmlFor={inputId}>
             {label}
           </label>
         )}
         <div className="relative flex items-center">
           {leftIcon && (
-            <div className="absolute left-3 text-text-faint pointer-events-none flex items-center justify-center">
+            <div className="absolute left-2.5 text-faint pointer-events-none flex items-center justify-center">
               {leftIcon}
             </div>
           )}
@@ -32,26 +32,24 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             type={type}
             ref={ref}
             className={cn(
-              'w-full h-9 rounded-lg border border-border-strong bg-bg-subtle text-text-primary placeholder:text-text-faint text-sm px-3 transition-colors',
-              'focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent',
-              'disabled:opacity-40 disabled:cursor-not-allowed',
-              leftIcon && 'pl-9',
-              rightIcon && 'pr-9',
-              error && 'border-danger focus:ring-danger focus:border-danger',
+              'inp w-full',
+              leftIcon && 'pl-8',
+              rightIcon && 'pr-8',
+              error && 'border-bad',
               className
             )}
             {...props}
           />
           {rightIcon && (
-            <div className="absolute right-3 text-text-faint pointer-events-none flex items-center justify-center">
+            <div className="absolute right-2.5 text-faint pointer-events-none flex items-center justify-center">
               {rightIcon}
             </div>
           )}
         </div>
         {error ? (
-          <p className="text-xs text-danger font-medium">{error}</p>
+          <span className="err-msg">{error}</span>
         ) : helperText ? (
-          <p className="text-xs text-text-muted">{helperText}</p>
+          <span className="hint">{helperText}</span>
         ) : null}
       </div>
     );
@@ -59,4 +57,3 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 );
 
 Input.displayName = 'Input';
-

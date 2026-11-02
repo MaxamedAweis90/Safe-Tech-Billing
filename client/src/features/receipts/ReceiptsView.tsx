@@ -1,148 +1,164 @@
 import React, { useState } from 'react';
-import { Card, CardHeader } from '../../components/ui/Card';
-import { IconEye, IconDownload } from '../../components/icons';
+import { Button } from '../../components/ui/Button';
+import { SegmentedControl, SegmentOption } from '../../components/ui/SegmentedControl';
+import { IconCash } from '../../components/icons';
+import { useAuthStore } from '../../store/useAuthStore';
 import { formatMoney } from '../../lib/formatters';
 
 interface MockReceipt {
   _id: string;
-  receipt_number: string;
-  invoice_ref: string;
-  customerName: string;
+  number: string;
   date: string;
+  customerName: string;
+  invoiceNumber: string;
   method: string;
+  reference: string;
   amount_milli: number;
+  balanceAfter_milli: number;
   currency: string;
 }
 
 export const ReceiptsView: React.FC = () => {
+  const [methodFilter, setMethodFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const { can } = useAuthStore();
 
   const mockReceipts: MockReceipt[] = [
     {
       _id: 'r1',
-      receipt_number: 'RCP-2026-0001',
-      invoice_ref: 'INV-2026-0001',
+      number: 'RCP-2026-0001',
+      date: '18 Oct 2026',
       customerName: 'Acme Global Ltd',
-      date: '2026-10-18',
-      method: 'Bank Transfer',
+      invoiceNumber: 'INV-2026-0001',
+      method: 'Bank transfer',
+      reference: 'FT26291992X',
       amount_milli: 12500000,
+      balanceAfter_milli: 0,
       currency: 'USD',
     },
     {
       _id: 'r2',
-      receipt_number: 'RCP-2026-0002',
-      invoice_ref: 'INV-2026-0002',
+      number: 'RCP-2026-0002',
+      date: '22 Oct 2026',
       customerName: 'Nairobi Water Works',
-      date: '2026-10-22',
-      method: 'M-Pesa / Mobile',
+      invoiceNumber: 'INV-2026-0002',
+      method: 'Mobile money',
+      reference: 'QK78921099',
       amount_milli: 2000000,
+      balanceAfter_milli: 2850000,
       currency: 'USD',
     },
   ];
 
-  const filteredReceipts = mockReceipts.filter(
-    (r) =>
-      r.receipt_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const methodOptions: SegmentOption[] = [
+    { id: 'all', label: 'All methods' },
+    { id: 'Cash', label: 'Cash' },
+    { id: 'Bank transfer', label: 'Bank transfer' },
+    { id: 'Mobile money', label: 'Mobile money' },
+    { id: 'Card', label: 'Card' },
+  ];
+
+  const filteredReceipts = mockReceipts.filter((r) => {
+    const matchesMethod = methodFilter === 'all' || r.method === methodFilter;
+    const matchesSearch =
+      r.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.invoice_ref.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      r.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.reference.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesMethod && matchesSearch;
+  });
+
+  const totalAmount = filteredReceipts.reduce((sum, r) => sum + r.amount_milli, 0);
 
   return (
-    <div className="space-y-5">
+    <>
       {/* Page Header */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-text-primary">
-          Payment Receipts
-        </h1>
-        <p className="text-xs text-text-muted mt-0.5">
-          Immutable proof of payments recorded against invoices
-        </p>
+      <div className="page-head">
+        <div>
+          <h1>Receipts</h1>
+          <p>A receipt is issued automatically for every recorded payment, one per payment.</p>
+        </div>
+        <div className="actions">
+          {can('payments') && (
+            <Button variant="primary" leftIcon={<IconCash size={15} />}>
+              Record payment
+            </Button>
+          )}
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="gap-3">
-          <div className="w-full sm:w-72">
-            <input
-              type="text"
-              placeholder="Search receipt, invoice or customer..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-8 px-3 text-xs bg-bg-subtle border border-border-strong rounded-lg text-text-primary placeholder:text-text-faint focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </div>
-        </CardHeader>
+      {/* Main Panel */}
+      <section className="panel">
+        <div className="filters">
+          <SegmentedControl
+            options={methodOptions}
+            value={methodFilter}
+            onChange={setMethodFilter}
+          />
+          <input
+            className="inp"
+            style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
+            placeholder="Receipt, invoice, customer or reference"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <span
+            className="num"
+            style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: 13 }}
+          >
+            {filteredReceipts.length} receipts · {formatMoney(totalAmount, 'USD')}
+          </span>
+        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="tbl-wrap">
+          <table className="tbl">
             <thead>
-              <tr className="border-b border-border-subtle bg-bg-subtle/50 text-text-muted font-semibold uppercase tracking-wider text-[10.5px]">
-                <th className="py-2.5 px-4">Receipt #</th>
-                <th className="py-2.5 px-4">Invoice Ref</th>
-                <th className="py-2.5 px-4">Customer</th>
-                <th className="py-2.5 px-4">Date</th>
-                <th className="py-2.5 px-4">Payment Method</th>
-                <th className="py-2.5 px-4 text-right">Amount Received</th>
-                <th className="py-2.5 px-4 text-right">Actions</th>
+              <tr>
+                <th>Receipt #</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Invoice</th>
+                <th>Method</th>
+                <th>Reference</th>
+                <th className="r">Amount</th>
+                <th className="r">Balance after</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
+            <tbody>
               {filteredReceipts.length > 0 ? (
                 filteredReceipts.map((r) => (
-                  <tr
-                    key={r._id}
-                    className="hover:bg-bg-subtle/40 transition-colors cursor-pointer"
-                  >
-                    <td className="py-3 px-4 font-mono font-semibold text-accent">
-                      {r.receipt_number}
+                  <tr key={r._id} className="link">
+                    <td className="mono strong" style={{ color: 'var(--accent)' }}>
+                      {r.number}
                     </td>
-                    <td className="py-3 px-4 font-mono text-text-muted">
-                      {r.invoice_ref}
+                    <td className="muted mono">{r.date}</td>
+                    <td>{r.customerName}</td>
+                    <td className="mono" style={{ color: 'var(--accent)' }}>
+                      {r.invoiceNumber}
                     </td>
-                    <td className="py-3 px-4 font-medium text-text-primary">
-                      {r.customerName}
-                    </td>
-                    <td className="py-3 px-4 text-text-muted mono">{r.date}</td>
-                    <td className="py-3 px-4 text-text-primary">
-                      <span className="px-2 py-0.5 rounded bg-bg-subtle border border-border-strong text-[11px]">
-                        {r.method}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-medium text-ok">
+                    <td>{r.method}</td>
+                    <td className="mono muted">{r.reference || '—'}</td>
+                    <td className="r strong font-mono" style={{ color: 'var(--ok)' }}>
                       {formatMoney(r.amount_milli, r.currency)}
                     </td>
-                    <td className="py-3 px-4 text-right space-x-1">
-                      <button
-                        type="button"
-                        className="p-1 text-text-muted hover:text-accent rounded"
-                        title="View Receipt"
-                      >
-                        <IconEye size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 text-text-muted hover:text-accent rounded"
-                        title="Download PDF"
-                      >
-                        <IconDownload size={15} />
-                      </button>
+                    <td className="r muted font-mono">
+                      {formatMoney(r.balanceAfter_milli, r.currency)}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="py-10 text-center text-text-muted text-xs"
-                  >
-                    No receipts recorded yet.
+                  <td colSpan={8}>
+                    <div className="empty">
+                      No receipts yet. Record a payment against an invoice to issue one.
+                    </div>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </Card>
-    </div>
+      </section>
+    </>
   );
 };
-

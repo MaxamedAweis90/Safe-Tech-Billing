@@ -1,60 +1,67 @@
 import React from 'react';
 import { useNavStore } from '../store/useNavStore';
-import { useAuthStore, ROLE_CONFIG } from '../store/useAuthStore';
+import { useAuthStore, ROLES } from '../store/useAuthStore';
+import { computeNavCounts } from '../lib/mockData';
 import { Icon, IconName, IconX } from '../components/icons';
 import { NavTab } from '../types';
-import { cn } from '../utils/cn';
 
 export const MobileDrawer: React.FC = () => {
-  const { mobileDrawerOpen, setMobileDrawerOpen, activeTab, setActiveTab, navCounts } =
+  const { mobileDrawerOpen, setMobileDrawerOpen, activeTab, setActiveTab } =
     useNavStore();
-  const { role } = useAuthStore();
-  const roleConfig = ROLE_CONFIG[role];
+  const { role, can } = useAuthStore();
+  const roleInfo = ROLES[role];
+  const { openQ, overdue } = computeNavCounts();
 
   if (!mobileDrawerOpen) return null;
 
   const navItems: { id: NavTab; label: string; icon: IconName; badge?: number; alert?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dash' },
-    { id: 'quotations', label: 'Quotations', icon: 'quote', badge: navCounts.openQ },
-    { id: 'invoices', label: 'Invoices', icon: 'inv', badge: navCounts.overdue, alert: true },
+    { id: 'quotations', label: 'Quotations', icon: 'quote', badge: openQ },
+    { id: 'invoices', label: 'Invoices', icon: 'inv', badge: overdue, alert: true },
     { id: 'receipts', label: 'Receipts', icon: 'rec' },
     { id: 'customers', label: 'Customers', icon: 'cust' },
     { id: 'reports', label: 'Reports', icon: 'rep' },
-    ...(role === 'admin'
-      ? [
-          { id: 'settings' as NavTab, label: 'Company & settings', icon: 'set' as IconName },
-          { id: 'audit' as NavTab, label: 'Audit trail', icon: 'log' as IconName },
-        ]
+    ...(can('settings')
+      ? [{ id: 'settings' as NavTab, label: 'Company & settings', icon: 'set' as IconName }]
+      : []),
+    ...(can('audit')
+      ? [{ id: 'audit' as NavTab, label: 'Audit trail', icon: 'log' as IconName }]
       : []),
     { id: 'blueprint', label: 'System blueprint', icon: 'bp' },
   ];
 
+  const closeDrawer = () => setMobileDrawerOpen(false);
+
   return (
-    <div
-      className="fixed inset-0 z-50 md:hidden bg-black/80 backdrop-blur-xs flex"
-      onClick={() => setMobileDrawerOpen(false)}
-    >
+    <>
+      {/* Backdrop matching prototype `#drawerBg` */}
       <div
-        className="w-64 bg-bg-surface border-r border-border-strong h-full flex flex-col p-4 space-y-4"
-        onClick={(e) => e.stopPropagation()}
+        id="drawerBg"
+        className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-xs transition-opacity"
+        onClick={closeDrawer}
+      />
+
+      {/* Drawer Container */}
+      <div
+        className="fixed top-0 left-0 bottom-0 z-[70] w-64 bg-side-bg border-r border-line flex flex-col p-4 text-side-ink shadow-2xl"
       >
-        <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center font-bold text-accent text-sm">
-              ST
+        <div className="flex items-center justify-between pb-3 border-b border-line mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-bold text-accent text-sm">
+              <span style={{ color: '#1f3864', fontWeight: 800 }}>ST</span>
             </div>
-            <span className="font-bold text-sm text-text-primary">Safe Tech Billing</span>
+            <span className="font-bold text-sm text-white">Safe Tech</span>
           </div>
           <button
             type="button"
-            onClick={() => setMobileDrawerOpen(false)}
-            className="w-7 h-7 rounded flex items-center justify-center text-text-muted hover:text-text-primary"
+            onClick={closeDrawer}
+            className="w-7 h-7 rounded flex items-center justify-center text-side-muted hover:text-white"
           >
             <IconX size={16} />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto space-y-1">
+        <nav className="nav flex-1 overflow-y-auto space-y-1">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -63,26 +70,14 @@ export const MobileDrawer: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setActiveTab(item.id);
-                  setMobileDrawerOpen(false);
+                  closeDrawer();
                 }}
-                className={cn(
-                  'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-left transition-colors',
-                  isActive
-                    ? 'bg-accent/15 text-accent font-semibold border-l-2 border-accent'
-                    : 'text-text-muted hover:bg-bg-subtle hover:text-text-primary'
-                )}
+                className={isActive ? 'on' : ''}
               >
-                <Icon name={item.icon} size={16} />
-                <span className="flex-1">{item.label}</span>
+                <Icon name={item.icon} size={17} />
+                <span>{item.label}</span>
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span
-                    className={cn(
-                      'px-1.5 py-0.2 rounded-full text-[10px] font-bold mono',
-                      item.alert
-                        ? 'bg-danger text-white'
-                        : 'bg-bg-subtle text-text-muted border border-border-strong'
-                    )}
-                  >
+                  <span className={`count ${item.alert ? 'alert' : ''}`}>
                     {item.badge}
                   </span>
                 )}
@@ -91,12 +86,11 @@ export const MobileDrawer: React.FC = () => {
           })}
         </nav>
 
-        <div className="pt-3 border-t border-border-subtle text-xs text-text-muted">
-          <div>{roleConfig.user}</div>
-          <div className="text-[10px] text-accent">{roleConfig.label}</div>
+        <div className="pt-3 border-t border-line text-xs text-side-muted mt-auto">
+          <div>{roleInfo.user}</div>
+          <div style={{ color: 'var(--accent)', fontSize: 11 }}>{roleInfo.label}</div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
-

@@ -20,9 +20,9 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     const selectId = id || generatedId;
 
     return (
-      <div className="w-full space-y-1.5">
+      <div className="field">
         {label && (
-          <label htmlFor={selectId} className="block text-xs font-medium text-text-muted">
+          <label htmlFor={selectId}>
             {label}
           </label>
         )}
@@ -30,26 +30,24 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           id={selectId}
           ref={ref}
           className={cn(
-            'w-full h-9 rounded-lg border border-border-strong bg-bg-surface text-text-primary text-sm px-3 appearance-none transition-colors cursor-pointer',
-            'focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent',
-            'disabled:opacity-40 disabled:cursor-not-allowed',
-            error && 'border-danger focus:ring-danger focus:border-danger',
+            'sel w-full',
+            error && 'border-bad',
             className
           )}
           {...props}
         >
           {options
             ? options.map((opt) => (
-                <option key={opt.value} value={opt.value} disabled={opt.disabled} className="bg-bg-surface text-text-primary">
+                <option key={opt.value} value={opt.value} disabled={opt.disabled} className="bg-surface text-ink">
                   {opt.label}
                 </option>
               ))
             : children}
         </select>
         {error ? (
-          <p className="text-xs text-danger font-medium">{error}</p>
+          <span className="err-msg">{error}</span>
         ) : helperText ? (
-          <p className="text-xs text-text-muted">{helperText}</p>
+          <span className="hint">{helperText}</span>
         ) : null}
       </div>
     );
@@ -57,4 +55,3 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 );
 
 Select.displayName = 'Select';
-

@@ -18,6 +18,10 @@ export interface A4DocumentProps {
   amountInWords?: string;
 }
 
+/**
+ * A4 Printable Document Canvas matching prototype `.sheet-wrap`, `.sheet-scale`, `.doc`
+ * Strict 794px geometry (A4 at 96 DPI), scaled dynamically to fit container.
+ */
 export const A4Canvas: React.FC<A4DocumentProps> = ({
   type,
   number,
@@ -33,203 +37,166 @@ export const A4Canvas: React.FC<A4DocumentProps> = ({
   notes,
   amountInWords,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const scaleRef = useRef<HTMLDivElement>(null);
 
-  // Responsive scale down to fit container while keeping 794px width (standard A4 at 96 DPI)
   useEffect(() => {
-    const handleResize = () => {
-      if (!containerRef.current || !scaleRef.current) return;
-      const availableWidth = containerRef.current.clientWidth - 32;
-      const scale = Math.min(1, availableWidth / 794);
-      scaleRef.current.style.transform = `scale(${scale})`;
-      scaleRef.current.style.transformOrigin = 'top center';
+    const fitSheets = () => {
+      if (!wrapRef.current || !scaleRef.current) return;
+      const avail = wrapRef.current.clientWidth - 40; // 20px padding left + right
+      const k = Math.min(1, avail / 794);
+      scaleRef.current.style.transform = `scale(${k})`;
       scaleRef.current.style.width = '794px';
       if (scaleRef.current.firstElementChild) {
         scaleRef.current.style.height = `${
-          (scaleRef.current.firstElementChild as HTMLElement).offsetHeight * scale
+          (scaleRef.current.firstElementChild as HTMLElement).offsetHeight * k
         }px`;
       }
     };
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    fitSheets();
+    window.addEventListener('resize', fitSheets);
+    return () => window.removeEventListener('resize', fitSheets);
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full flex justify-center p-4 bg-bg-base/60 overflow-hidden"
-    >
-      <div ref={scaleRef} className="transition-transform duration-200">
-        {/* Printable White A4 Sheet */}
-        <div className="w-[794px] min-h-[1123px] bg-white text-neutral-900 p-12 shadow-xl font-sans text-xs leading-relaxed flex flex-col justify-between">
-          <div>
-            {/* Document Header */}
-            <div className="flex justify-between items-start border-b border-neutral-200 pb-8 mb-6">
-              <div>
-                <div className="text-xl font-extrabold text-neutral-900 tracking-tight">
-                  SAFE TECH SOLUTIONS LTD
-                </div>
-                <div className="text-neutral-500 text-[11px] mt-1">
-                  Enterprise Safety & Telecommunications Engineering
-                </div>
-                <div className="text-neutral-500 text-[11px] mt-0.5">
-                  Commercial Plaza, Westlands · P.O. Box 48201-00100 Nairobi
-                </div>
-                <div className="text-neutral-500 text-[11px]">
-                  PIN: P051234567Z · Email: billing@safetech.co.ke
-                </div>
-              </div>
-
-              <div className="text-right">
-                <div className="text-2xl font-black text-neutral-900 tracking-wider">
-                  {type}
-                </div>
-                <div className="text-sm font-bold font-mono text-neutral-700 mt-1">
-                  #{number}
-                </div>
-                <div className="text-[11px] text-neutral-500 mt-1">
-                  Date: <span className="font-semibold text-neutral-700">{date}</span>
-                </div>
-                {dueDateOrExpiry && (
-                  <div className="text-[11px] text-neutral-500">
-                    {type === 'QUOTATION' ? 'Valid Until: ' : 'Due Date: '}
-                    <span className="font-semibold text-neutral-700">
-                      {dueDateOrExpiry}
-                    </span>
-                  </div>
-                )}
-              </div>
+    <div ref={wrapRef} className="sheet-wrap">
+      <div ref={scaleRef} className="sheet-scale">
+        <div className="doc">
+          {/* Header */}
+          <div className="dh">
+            <div className="dlogo">
+              <b>SAFE TECH</b>
             </div>
-
-            {/* Bill To / Attention */}
-            <div className="mb-6 p-4 rounded-lg bg-neutral-50 border border-neutral-100">
-              <div className="text-[10.5px] uppercase font-bold tracking-wider text-neutral-400">
-                Billed To:
-              </div>
-              <div className="text-sm font-bold text-neutral-900 mt-1">
-                {customer.name}
-              </div>
-              {customer.attn && (
-                <div className="text-[11px] text-neutral-600">
-                  Attn: {customer.attn}
-                </div>
-              )}
-              {customer.address && (
-                <div className="text-[11px] text-neutral-500">{customer.address}</div>
-              )}
-              {customer.phone && (
-                <div className="text-[11px] text-neutral-500">{customer.phone}</div>
-              )}
-            </div>
-
-            {/* Line Items Table */}
-            <table className="w-full text-left mb-6 border-collapse">
-              <thead>
-                <tr className="border-b-2 border-neutral-900 text-[10.5px] uppercase tracking-wider text-neutral-600 font-bold">
-                  <th className="py-2">Description</th>
-                  <th className="py-2 text-right">Qty</th>
-                  <th className="py-2 text-right">Unit Price</th>
-                  <th className="py-2 text-right">Disc %</th>
-                  <th className="py-2 text-right">Tax</th>
-                  <th className="py-2 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200">
-                {items.map((item, idx) => (
-                  <tr key={idx}>
-                    <td className="py-2.5 font-medium text-neutral-800">
-                      {item.desc}
-                    </td>
-                    <td className="py-2.5 text-right font-mono text-neutral-700">
-                      {item.qty}
-                    </td>
-                    <td className="py-2.5 text-right font-mono text-neutral-700">
-                      {formatMoney(item.price_milli, currency)}
-                    </td>
-                    <td className="py-2.5 text-right font-mono text-neutral-500">
-                      {item.disc_pct ? `${item.disc_pct}%` : '—'}
-                    </td>
-                    <td className="py-2.5 text-right font-mono text-neutral-500">
-                      {item.tax_rate ? `${item.tax_rate}%` : '0%'}
-                    </td>
-                    <td className="py-2.5 text-right font-mono font-semibold text-neutral-900">
-                      {formatMoney(item.total_milli, currency)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Totals Section */}
-            <div className="flex justify-end mb-8">
-              <div className="w-64 space-y-2 text-xs">
-                <div className="flex justify-between py-1 text-neutral-600 border-b border-neutral-100">
-                  <span>Subtotal:</span>
-                  <span className="font-mono">
-                    {formatMoney(subtotal_milli, currency)}
-                  </span>
-                </div>
-                {disc_total_milli > 0 && (
-                  <div className="flex justify-between py-1 text-neutral-600 border-b border-neutral-100">
-                    <span>Discount:</span>
-                    <span className="font-mono text-red-600">
-                      -{formatMoney(disc_total_milli, currency)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between py-1 text-neutral-600 border-b border-neutral-100">
-                  <span>Tax (VAT):</span>
-                  <span className="font-mono">
-                    {formatMoney(tax_total_milli, currency)}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2 text-sm font-bold text-neutral-900 border-t-2 border-neutral-900">
-                  <span>Total Due:</span>
-                  <span className="font-mono font-extrabold">
-                    {formatMoney(total_milli, currency)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Amount in Words */}
-            {amountInWords && (
-              <div className="p-3 bg-neutral-50 rounded border border-neutral-200 text-[11px] mb-6">
-                <span className="font-semibold text-neutral-700">Amount in words: </span>
-                <span className="italic text-neutral-600">{amountInWords}</span>
-              </div>
-            )}
-
-            {/* Notes */}
-            {notes && (
-              <div className="text-[11px] text-neutral-500 mb-6">
-                <span className="font-semibold text-neutral-700">Terms & Notes: </span>
-                <span>{notes}</span>
-              </div>
-            )}
+            <div className="dtitle">{type}</div>
           </div>
 
-          {/* Footer & Banking Info */}
-          <div className="pt-6 border-t border-neutral-200 grid grid-cols-2 gap-4 text-[10.5px] text-neutral-500">
+          {/* Company & Meta */}
+          <div className="dco">
             <div>
-              <div className="font-bold text-neutral-700 uppercase tracking-wider mb-1">
-                Banking Remittance
+              <h3>SAFE TECH SOLUTIONS LIMITED</h3>
+              <div className="tag">Commercial Billing &amp; Engineering</div>
+              <div style={{ marginTop: 4, color: '#555', fontSize: 11.5 }}>
+                Commercial Plaza, Westlands · P.O. Box 48201-00100 Nairobi
+                <br />
+                PIN: P051234567Z · Email: billing@safetech.co.ke
               </div>
-              <div>Standard Chartered Bank · A/C: 0102030405060</div>
-              <div>SWIFT: SCBLKENX · Safe Tech Solutions Ltd</div>
-              <div>M-Pesa Buy Goods: 567890</div>
             </div>
-            <div className="text-right flex flex-col justify-end">
-              <div className="font-semibold text-neutral-700">Authorized Signature</div>
-              <div className="text-neutral-400 mt-6">Safe Tech Commercial Department</div>
+            <dl className="meta">
+              <dt>Number:</dt>
+              <dd className="mono font-bold">{number}</dd>
+              <dt>Date:</dt>
+              <dd>{date}</dd>
+              {dueDateOrExpiry && (
+                <>
+                  <dt>{type === 'QUOTATION' ? 'Valid until:' : 'Due date:'}</dt>
+                  <dd>{dueDateOrExpiry}</dd>
+                </>
+              )}
+            </dl>
+          </div>
+
+          {/* Bill To */}
+          <dl className="billto">
+            <dt>Bill to:</dt>
+            <dd>
+              <strong>{customer.name}</strong>
+              {customer.attn && <div>Attn: {customer.attn}</div>}
+              {customer.address && <div>{customer.address}</div>}
+              {customer.phone && <div>{customer.phone}</div>}
+            </dd>
+          </dl>
+
+          {/* Line Items Table */}
+          <table className="dt">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th className="r" style={{ width: 60 }}>Qty</th>
+                <th className="r" style={{ width: 90 }}>Price</th>
+                <th className="r" style={{ width: 60 }}>Disc</th>
+                <th className="r" style={{ width: 60 }}>Tax</th>
+                <th className="r" style={{ width: 100 }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, idx) => (
+                <tr key={idx}>
+                  <td>{item.desc}</td>
+                  <td className="r font-mono">{item.qty}</td>
+                  <td className="r font-mono">{formatMoney(item.price_milli, currency)}</td>
+                  <td className="r font-mono">{item.disc_pct ? `${item.disc_pct}%` : '—'}</td>
+                  <td className="r font-mono">{item.tax_rate ? `${item.tax_rate}%` : '0%'}</td>
+                  <td className="r font-mono font-semibold">
+                    {formatMoney(item.total_milli, currency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Foot: Remittance & Totals */}
+          <div className="dfoot">
+            <dl className="pay">
+              <div className="ph">Payment Remittance</div>
+              <dt>Bank:</dt>
+              <dd>Standard Chartered Bank</dd>
+              <dt>Account:</dt>
+              <dd className="font-mono">0102030405060 (Safe Tech Solutions)</dd>
+              <dt>SWIFT:</dt>
+              <dd className="font-mono">SCBLKENX</dd>
+              <dt>M-Pesa:</dt>
+              <dd className="font-mono">Buy Goods Till 567890</dd>
+            </dl>
+
+            <div className="tot">
+              <div className="lbl">Subtotal:</div>
+              <div className="val">{formatMoney(subtotal_milli, currency)}</div>
+
+              {disc_total_milli > 0 && (
+                <>
+                  <div className="lbl">Discount:</div>
+                  <div className="val">-{formatMoney(disc_total_milli, currency)}</div>
+                </>
+              )}
+
+              <div className="lbl">VAT (Tax):</div>
+              <div className="val">{formatMoney(tax_total_milli, currency)}</div>
+
+              <div className="lbl" style={{ color: '#111', fontWeight: 800 }}>Total:</div>
+              <div className="val big">{formatMoney(total_milli, currency)}</div>
             </div>
+          </div>
+
+          {/* Amount in Words */}
+          {amountInWords && (
+            <div style={{ marginTop: 14, fontSize: 11.5, color: '#444' }}>
+              <strong>Amount in words:</strong> <em>{amountInWords}</em>
+            </div>
+          )}
+
+          {/* Terms & Notes */}
+          {notes && (
+            <div className="terms">
+              <h4>Terms &amp; Conditions</h4>
+              <div>{notes}</div>
+            </div>
+          )}
+
+          {/* Signature Line */}
+          <div className="sig">
+            <div className="line">
+              Authorized Signature &amp; Stamp
+            </div>
+          </div>
+
+          {/* Thank You Note */}
+          <div className="dfine">
+            <div className="thanks">Thank you for your business.</div>
+            <div>Safe Tech Solutions Ltd · Commercial Department</div>
           </div>
         </div>
       </div>
     </div>
   );
 };
-

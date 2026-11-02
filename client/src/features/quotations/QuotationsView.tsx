@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { IconPlus, IconEye, IconCopy } from '../../components/icons';
+import { SegmentedControl, SegmentOption } from '../../components/ui/SegmentedControl';
+import { IconPlus } from '../../components/icons';
+import { useAuthStore } from '../../store/useAuthStore';
 import { QuotationStatus } from '../../types';
 import { formatMoney } from '../../lib/formatters';
 
@@ -15,53 +16,74 @@ interface MockQuote {
   total_milli: number;
   currency: string;
   status: QuotationStatus;
+  invoiceNumber?: string;
 }
 
 export const QuotationsView: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const { can } = useAuthStore();
 
   const mockQuotes: MockQuote[] = [
     {
       _id: 'q1',
       number: 'QT-2026-0001',
       customerName: 'Acme Global Ltd',
-      date: '2026-10-15',
-      expiry_date: '2026-11-15',
+      date: '15 Oct 2026',
+      expiry_date: '15 Nov 2026',
       total_milli: 12500000,
       currency: 'USD',
       status: 'accepted',
+      invoiceNumber: 'INV-2026-0001',
     },
     {
       _id: 'q2',
       number: 'QT-2026-0002',
       customerName: 'Nairobi Water Works',
-      date: '2026-10-20',
-      expiry_date: '2026-11-20',
+      date: '20 Oct 2026',
+      expiry_date: '20 Nov 2026',
       total_milli: 4850000,
       currency: 'USD',
-      status: 'sent',
+      status: 'accepted',
     },
     {
       _id: 'q3',
       number: 'QT-2026-0003',
       customerName: 'Apex Logistics Inc',
-      date: '2026-10-25',
-      expiry_date: '2026-11-25',
+      date: '25 Oct 2026',
+      expiry_date: '25 Nov 2026',
       total_milli: 3200000,
       currency: 'USD',
-      status: 'draft',
+      status: 'sent',
     },
     {
       _id: 'q4',
       number: 'QT-2026-0004',
       customerName: 'Coast Builders',
-      date: '2026-09-01',
-      expiry_date: '2026-10-01',
+      date: '01 Sep 2026',
+      expiry_date: '01 Oct 2026',
       total_milli: 7100000,
       currency: 'USD',
-      status: 'expired',
+      status: 'draft',
     },
+  ];
+
+  const counts: Record<string, number> = {
+    all: mockQuotes.length,
+    draft: mockQuotes.filter((q) => q.status === 'draft').length,
+    sent: mockQuotes.filter((q) => q.status === 'sent').length,
+    accepted: mockQuotes.filter((q) => q.status === 'accepted').length,
+    rejected: mockQuotes.filter((q) => q.status === 'rejected').length,
+    expired: mockQuotes.filter((q) => q.status === 'expired').length,
+  };
+
+  const filterOptions: SegmentOption[] = [
+    { id: 'all', label: 'All', count: counts.all },
+    { id: 'draft', label: 'Draft', count: counts.draft },
+    { id: 'sent', label: 'Sent', count: counts.sent },
+    { id: 'accepted', label: 'Accepted', count: counts.accepted },
+    { id: 'rejected', label: 'Rejected', count: counts.rejected },
+    { id: 'expired', label: 'Expired', count: counts.expired },
   ];
 
   const filteredQuotes = mockQuotes.filter((q) => {
@@ -72,134 +94,95 @@ export const QuotationsView: React.FC = () => {
     return matchesFilter && matchesSearch;
   });
 
-  const filterTabs = [
-    { id: 'all', label: 'All' },
-    { id: 'draft', label: 'Draft' },
-    { id: 'sent', label: 'Sent' },
-    { id: 'accepted', label: 'Accepted' },
-    { id: 'rejected', label: 'Rejected' },
-    { id: 'expired', label: 'Expired' },
-  ];
-
   return (
-    <div className="space-y-5">
+    <>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-head">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-text-primary">
-            Quotations
-          </h1>
-          <p className="text-xs text-text-muted mt-0.5">
-            Commercial proposals, formal bids and estimates
-          </p>
+          <h1>Quotations</h1>
+          <p>Price jobs, track decisions, and convert accepted quotations into invoices.</p>
         </div>
-        <Button variant="primary" size="md" leftIcon={<IconPlus size={15} />}>
-          New quotation
-        </Button>
+        <div className="actions">
+          {can('quotes') && (
+            <Button variant="primary" leftIcon={<IconPlus size={15} />}>
+              New quotation
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Main Table Card */}
-      <Card>
-        <CardHeader className="gap-3">
-          {/* Segmented Filter Control */}
-          <div className="flex items-center rounded-lg border border-border-strong bg-bg-subtle p-0.5 text-xs overflow-x-auto">
-            {filterTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setFilter(tab.id)}
-                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap ${
-                  filter === tab.id
-                    ? 'bg-bg-surface text-accent font-semibold shadow-xs'
-                    : 'text-text-muted hover:text-text-primary'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+      {/* Main Panel with Filter Bar & Table */}
+      <section className="panel">
+        <div className="filters">
+          <SegmentedControl
+            options={filterOptions}
+            value={filter}
+            onChange={setFilter}
+          />
+          <input
+            className="inp"
+            style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
+            placeholder="Filter by number or customer"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
 
-          {/* Quick Search */}
-          <div className="w-full sm:w-64">
-            <input
-              type="text"
-              placeholder="Search quote or customer..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-8 px-3 text-xs bg-bg-subtle border border-border-strong rounded-lg text-text-primary placeholder:text-text-faint focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </div>
-        </CardHeader>
-
-        {/* Quotations Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="tbl-wrap">
+          <table className="tbl">
             <thead>
-              <tr className="border-b border-border-subtle bg-bg-subtle/50 text-text-muted font-semibold uppercase tracking-wider text-[10.5px]">
-                <th className="py-2.5 px-4">Quote #</th>
-                <th className="py-2.5 px-4">Customer</th>
-                <th className="py-2.5 px-4">Date</th>
-                <th className="py-2.5 px-4">Expires</th>
-                <th className="py-2.5 px-4 text-right">Total Amount</th>
-                <th className="py-2.5 px-4 text-center">Status</th>
-                <th className="py-2.5 px-4 text-right">Actions</th>
+              <tr>
+                <th>Number</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Valid until</th>
+                <th>Status</th>
+                <th>Invoice</th>
+                <th className="r">Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
+            <tbody>
               {filteredQuotes.length > 0 ? (
                 filteredQuotes.map((q) => (
-                  <tr
-                    key={q._id}
-                    className="hover:bg-bg-subtle/40 transition-colors cursor-pointer"
-                  >
-                    <td className="py-3 px-4 font-mono font-semibold text-accent">
+                  <tr key={q._id} className="link">
+                    <td className="mono strong" style={{ color: 'var(--accent)' }}>
                       {q.number}
                     </td>
-                    <td className="py-3 px-4 font-medium text-text-primary">
-                      {q.customerName}
-                    </td>
-                    <td className="py-3 px-4 text-text-muted mono">{q.date}</td>
-                    <td className="py-3 px-4 text-text-muted mono">
-                      {q.expiry_date}
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-medium text-text-primary">
-                      {formatMoney(q.total_milli, q.currency)}
-                    </td>
-                    <td className="py-3 px-4 text-center">
+                    <td>{q.customerName}</td>
+                    <td className="muted mono">{q.date}</td>
+                    <td className="muted mono">{q.expiry_date}</td>
+                    <td>
                       <Badge variant={q.status}>{q.status}</Badge>
                     </td>
-                    <td className="py-3 px-4 text-right space-x-1">
-                      <button
-                        type="button"
-                        className="p-1 text-text-muted hover:text-accent rounded"
-                        title="View Quotation"
-                      >
-                        <IconEye size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 text-text-muted hover:text-accent rounded"
-                        title="Duplicate"
-                      >
-                        <IconCopy size={15} />
-                      </button>
+                    <td>
+                      {q.invoiceNumber ? (
+                        <span className="mono" style={{ color: 'var(--accent)' }}>
+                          {q.invoiceNumber}
+                        </span>
+                      ) : q.status === 'accepted' ? (
+                        <span style={{ color: 'var(--warn)', fontSize: 12.5, fontWeight: 500 }}>
+                          Ready to convert
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td className="r strong font-mono">
+                      {formatMoney(q.total_milli, q.currency)}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="py-10 text-center text-text-muted text-xs"
-                  >
-                    No quotations found matching the selected filter.
+                  <td colSpan={7}>
+                    <div className="empty">No quotations match this filter.</div>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </Card>
-    </div>
+      </section>
+    </>
   );
 };

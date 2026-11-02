@@ -1,67 +1,94 @@
 import { create } from 'zustand';
-import { User, UserRole } from '../types';
+import { UserRole } from '../types';
+import { toast } from './useUIStore';
 
-interface AuthState {
-  user: User | null;
-  token: string | null;
-  role: UserRole;
-  setRole: (role: UserRole) => void;
-  setUser: (user: User | null, token?: string | null) => void;
-  logout: () => void;
+export interface RoleDefinition {
+  label: string;
+  user: string;
+  can: string[];
 }
 
-export const ROLE_CONFIG: Record<UserRole, { label: string; user: string; perms: string[] }> = {
+export const ROLES: Record<UserRole, RoleDefinition> = {
   admin: {
-    label: 'Administrator (full access)',
-    user: 'Sarah M. (Admin)',
-    perms: ['quotes', 'invoices', 'receipts', 'customers', 'reports', 'settings', 'audit'],
+    label: 'Administrator',
+    user: 'Amina Yusuf',
+    can: ['quotes', 'invoices', 'payments', 'customers', 'settings', 'audit'],
   },
   accountant: {
-    label: 'Accountant (invoices, receipts, reports)',
-    user: 'Daniel K. (Accountant)',
-    perms: ['invoices', 'receipts', 'customers', 'reports'],
+    label: 'Accountant',
+    user: 'Hassan Ali',
+    can: ['invoices', 'payments'],
   },
   sales: {
-    label: 'Sales rep (quotes, customers, view inv)',
-    user: 'Amina O. (Sales)',
-    perms: ['quotes', 'customers'],
+    label: 'Sales Officer',
+    user: 'Faadumo Nur',
+    can: ['quotes', 'customers'],
   },
   viewer: {
-    label: 'Read-only viewer (auditor)',
-    user: 'Audit Officer (Read-only)',
-    perms: ['view_only'],
+    label: 'Viewer',
+    user: 'Guest Viewer',
+    can: [],
   },
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
+export function getAvatarInitials(userName: string): string {
+  return userName
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+interface AuthState {
+  role: UserRole;
   user: {
-    _id: 'usr_demo_admin',
-    name: 'Sarah M.',
-    email: 'admin@safetech.co.ke',
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+  };
+  token: string | null;
+  setRole: (role: UserRole) => void;
+  can: (permission: string) => boolean;
+  needs: (permission: string) => boolean;
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  role: 'admin',
+  user: {
+    id: 'usr_amina',
+    name: ROLES.admin.user,
+    email: 'amina@safetech.co.ke',
     role: 'admin',
   },
   token: localStorage.getItem('safetech_token') || 'demo_token',
-  role: 'admin',
-  setRole: (role) => {
-    set((state) => ({
-      role,
-      user: state.user
-        ? {
-            ...state.user,
-            role,
-            name: ROLE_CONFIG[role].user.split(' ')[0] + ' ' + ROLE_CONFIG[role].user.split(' ')[1],
-          }
-        : null,
-    }));
+
+  setRole: (newRole: UserRole) => {
+    const roleInfo = ROLES[newRole];
+    set({
+      role: newRole,
+      user: {
+        id: `usr_${newRole}`,
+        name: roleInfo.user,
+        email: `${roleInfo.user.toLowerCase().replace(/\s+/g, '.')}@safetech.co.ke`,
+        role: newRole,
+      },
+    });
+    toast(`Now viewing as ${roleInfo.label} (${roleInfo.user})`);
   },
-  setUser: (user, token) => {
-    if (token) localStorage.setItem('safetech_token', token);
-    else localStorage.removeItem('safetech_token');
-    set({ user, token: token || null, role: user?.role || 'admin' });
+
+  can: (permission: string) => {
+    const currentRole = get().role;
+    return ROLES[currentRole].can.includes(permission);
   },
-  logout: () => {
-    localStorage.removeItem('safetech_token');
-    set({ user: null, token: null, role: 'viewer' });
+
+  needs: (permission: string) => {
+    if (get().can(permission)) {
+      return true;
+    }
+    const currentRole = get().role;
+    toast(`${ROLES[currentRole].label}s can't do that. Switch role to try it.`, true);
+    return false;
   },
 }));
-

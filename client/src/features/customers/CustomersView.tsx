@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { IconPlus, IconEye } from '../../components/icons';
+import { IconPlus } from '../../components/icons';
+import { useAuthStore } from '../../store/useAuthStore';
 import { formatMoney } from '../../lib/formatters';
 
 interface MockCustomer {
@@ -12,11 +12,13 @@ interface MockCustomer {
   phone: string;
   email: string;
   currency: string;
+  invoiced_milli: number;
   balance_milli: number;
 }
 
 export const CustomersView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const { can } = useAuthStore();
 
   const mockCustomers: MockCustomer[] = [
     {
@@ -27,6 +29,7 @@ export const CustomersView: React.FC = () => {
       phone: '+254 712 345 678',
       email: 'accounts@acmeglobal.com',
       currency: 'USD',
+      invoiced_milli: 12500000,
       balance_milli: 0,
     },
     {
@@ -37,6 +40,7 @@ export const CustomersView: React.FC = () => {
       phone: '+254 722 987 654',
       email: 'billing@nairobiwater.co.ke',
       currency: 'USD',
+      invoiced_milli: 4850000,
       balance_milli: 2850000,
     },
     {
@@ -47,6 +51,7 @@ export const CustomersView: React.FC = () => {
       phone: '+254 733 456 789',
       email: 'procurement@apexlogistics.com',
       currency: 'USD',
+      invoiced_milli: 2200000,
       balance_milli: 2200000,
     },
     {
@@ -57,6 +62,7 @@ export const CustomersView: React.FC = () => {
       phone: '+254 701 112 233',
       email: 'finance@zenith.co.ke',
       currency: 'USD',
+      invoiced_milli: 850000,
       balance_milli: 850000,
     },
   ];
@@ -69,102 +75,90 @@ export const CustomersView: React.FC = () => {
   );
 
   return (
-    <div className="space-y-5">
+    <>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-head">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-text-primary">
-            Customer Accounts
-          </h1>
-          <p className="text-xs text-text-muted mt-0.5">
-            Client directory, contact details, currency & commercial balances
-          </p>
+          <h1>Customers</h1>
+          <p>Manage customer accounts, currency settings, and commercial ledger balances.</p>
         </div>
-        <Button variant="primary" size="md" leftIcon={<IconPlus size={15} />}>
-          New customer
-        </Button>
+        <div className="actions">
+          {can('customers') && (
+            <Button variant="primary" leftIcon={<IconPlus size={15} />}>
+              New customer
+            </Button>
+          )}
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="gap-3">
-          <div className="w-full sm:w-72">
-            <input
-              type="text"
-              placeholder="Search customer name, contact, code..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-8 px-3 text-xs bg-bg-subtle border border-border-strong rounded-lg text-text-primary placeholder:text-text-faint focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </div>
-        </CardHeader>
+      {/* Main Panel */}
+      <section className="panel">
+        <div className="filters">
+          <input
+            className="inp"
+            style={{ width: '100%', maxWidth: 320 }}
+            placeholder="Search customers..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <span
+            className="num"
+            style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: 13 }}
+          >
+            {mockCustomers.length} customers on file
+          </span>
+        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="tbl-wrap">
+          <table className="tbl">
             <thead>
-              <tr className="border-b border-border-subtle bg-bg-subtle/50 text-text-muted font-semibold uppercase tracking-wider text-[10.5px]">
-                <th className="py-2.5 px-4">Code</th>
-                <th className="py-2.5 px-4">Company Name</th>
-                <th className="py-2.5 px-4">Attention</th>
-                <th className="py-2.5 px-4">Phone / Email</th>
-                <th className="py-2.5 px-4">Currency</th>
-                <th className="py-2.5 px-4 text-right">Ledger Balance</th>
-                <th className="py-2.5 px-4 text-right">Actions</th>
+              <tr>
+                <th>Code</th>
+                <th>Customer</th>
+                <th>Attention</th>
+                <th>Contact</th>
+                <th>Currency</th>
+                <th className="r">Invoiced</th>
+                <th className="r">Balance</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
+            <tbody>
               {filteredCustomers.length > 0 ? (
                 filteredCustomers.map((c) => (
-                  <tr
-                    key={c._id}
-                    className="hover:bg-bg-subtle/40 transition-colors cursor-pointer"
-                  >
-                    <td className="py-3 px-4 font-mono font-bold text-accent">
+                  <tr key={c._id} className="link">
+                    <td className="mono strong" style={{ color: 'var(--accent)' }}>
                       #{c.code}
                     </td>
-                    <td className="py-3 px-4 font-semibold text-text-primary">
-                      {c.name}
+                    <td className="strong">{c.name}</td>
+                    <td className="muted">{c.attn}</td>
+                    <td className="muted">
+                      {c.phone} · {c.email}
                     </td>
-                    <td className="py-3 px-4 text-text-muted">{c.attn}</td>
-                    <td className="py-3 px-4 text-text-muted">
-                      <div>{c.phone}</div>
-                      <div className="text-[11px] text-text-faint">{c.email}</div>
-                    </td>
-                    <td className="py-3 px-4 font-mono text-text-faint">
-                      {c.currency}
+                    <td className="mono">{c.currency}</td>
+                    <td className="r font-mono">
+                      {formatMoney(c.invoiced_milli, c.currency)}
                     </td>
                     <td
-                      className={`py-3 px-4 text-right font-mono font-semibold ${
-                        c.balance_milli > 0 ? 'text-warn' : 'text-ok'
-                      }`}
+                      className="r strong font-mono"
+                      style={{
+                        color: c.balance_milli > 0 ? 'var(--warn)' : 'var(--ok)',
+                      }}
                     >
                       {formatMoney(c.balance_milli, c.currency)}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        type="button"
-                        className="p-1 text-text-muted hover:text-accent rounded"
-                        title="View Statement"
-                      >
-                        <IconEye size={15} />
-                      </button>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="py-10 text-center text-text-muted text-xs"
-                  >
-                    No customers found matching search criteria.
+                  <td colSpan={7}>
+                    <div className="empty">No customers found matching search criteria.</div>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </Card>
-    </div>
+      </section>
+    </>
   );
 };
-

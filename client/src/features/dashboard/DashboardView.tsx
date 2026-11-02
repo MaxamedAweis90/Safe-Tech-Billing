@@ -1,287 +1,387 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Icon, IconPlus, IconAlertTriangle } from '../../components/icons';
+import { IconPlus, IconArrow } from '../../components/icons';
 import { useNavStore } from '../../store/useNavStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { formatMoney } from '../../lib/formatters';
 
 export const DashboardView: React.FC = () => {
   const { setActiveTab } = useNavStore();
+  const { can, needs } = useAuthStore();
 
-  const kpis = [
-    {
-      label: 'Total Invoiced',
-      value: formatMoney(14520000, 'USD'),
-      meta: '+12.5% vs last month',
-      alert: false,
-    },
-    {
-      label: 'Total Settled',
-      value: formatMoney(11200000, 'USD'),
-      meta: '88.4% collection efficiency',
-      alert: false,
-      accent: true,
-    },
-    {
-      label: 'Outstanding Balance',
-      value: formatMoney(3320000, 'USD'),
-      meta: 'Pending customer clearance',
-      alert: false,
-      warn: true,
-    },
-    {
-      label: 'Overdue Amount',
-      value: formatMoney(850000, 'USD'),
-      meta: '2 invoices require action',
-      alert: true,
-    },
+  const months = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
+  const invoicedData = [2400, 3100, 2800, 4200, 3800, 5100, 4600, 6200, 5800, 7400, 8100, 9200];
+  const receivedData = [2100, 2700, 2500, 3600, 3400, 4800, 4100, 5900, 5200, 6900, 7600, 8400];
+
+  // SVG Bar Chart rendering matching prototype barChart()
+  const renderBarChart = () => {
+    const W = 640;
+    const H = 220;
+    const pl = 44;
+    const pr = 12;
+    const pt = 14;
+    const pb = 26;
+    const max = 10000;
+    const step = 2500;
+    const iw = W - pl - pr;
+    const ih = H - pt - pb;
+    const bw = iw / months.length;
+    const y = (v: number) => pt + ih - (v / max) * ih;
+
+    const gridLines = [];
+    for (let v = 0; v <= max; v += step) {
+      gridLines.push(
+        <g key={v}>
+          <line
+            x1={pl}
+            x2={W - pr}
+            y1={y(v)}
+            y2={y(v)}
+            stroke="var(--line)"
+            strokeWidth="1"
+          />
+          <text
+            x={pl - 6}
+            y={y(v) + 4}
+            textAnchor="end"
+            fontSize="10"
+            fill="var(--muted)"
+            fontFamily="var(--f-num)"
+          >
+            ${v >= 1000 ? `${v / 1000}k` : v}
+          </text>
+        </g>
+      );
+    }
+
+    const bars = months.map((m, i) => {
+      const x = pl + i * bw;
+      const barW = Math.max(4, bw * 0.32);
+      const isLast = i === months.length - 1;
+      return (
+        <g key={m}>
+          {/* Invoiced Bar */}
+          <rect
+            x={x + bw * 0.16}
+            y={y(invoicedData[i])}
+            width={barW}
+            height={ih + pt - y(invoicedData[i])}
+            rx="2"
+            fill="var(--line-strong)"
+          />
+          {/* Received Bar */}
+          <rect
+            x={x + bw * 0.16 + barW + 2}
+            y={y(receivedData[i])}
+            width={barW}
+            height={ih + pt - y(receivedData[i])}
+            rx="2"
+            fill="var(--accent)"
+            opacity={isLast ? 1 : 0.85}
+          />
+          {/* Month Label */}
+          <text
+            x={x + bw / 2}
+            y={H - 6}
+            textAnchor="middle"
+            fontSize="10"
+            fill="var(--muted)"
+            fontFamily="var(--f-ui)"
+          >
+            {m}
+          </text>
+        </g>
+      );
+    });
+
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Monthly invoiced and received">
+        {gridLines}
+        {bars}
+      </svg>
+    );
+  };
+
+  const statusBreakdown = [
+    { s: 'paid' as const, label: 'Paid', n: 4, pct: 40, amt: 12500000, color: 'var(--ok)' },
+    { s: 'partial' as const, label: 'Partial', n: 2, pct: 20, amt: 4850000, color: 'var(--warn)' },
+    { s: 'sent' as const, label: 'Sent', n: 2, pct: 20, amt: 2200000, color: 'var(--info)' },
+    { s: 'overdue' as const, label: 'Overdue', n: 2, pct: 20, amt: 850000, color: 'var(--bad)' },
   ];
 
   const recentTransactions = [
     {
-      date: '2026-10-30',
+      date: '30 Oct 2026',
       kind: 'Payment',
       ref: 'RCP-2026-0042',
       customer: 'Acme Global Ltd',
-      amount_milli: 1500000,
-      currency: 'USD',
       status: 'paid' as const,
+      amt: 1500000,
+      currency: 'USD',
+      isPayment: true,
     },
     {
-      date: '2026-10-28',
+      date: '28 Oct 2026',
       kind: 'Invoice',
       ref: 'INV-2026-0089',
       customer: 'Apex Logistics Inc',
-      amount_milli: 2200000,
-      currency: 'USD',
       status: 'sent' as const,
+      amt: 2200000,
+      currency: 'USD',
+      isPayment: false,
     },
     {
-      date: '2026-10-25',
+      date: '25 Oct 2026',
       kind: 'Quotation',
       ref: 'QT-2026-0104',
       customer: 'Nairobi Water Works',
-      amount_milli: 4850000,
-      currency: 'USD',
       status: 'accepted' as const,
+      amt: 4850000,
+      currency: 'USD',
+      isPayment: false,
     },
     {
-      date: '2026-10-20',
+      date: '20 Oct 2026',
       kind: 'Invoice',
       ref: 'INV-2026-0078',
       customer: 'Zenith Holdings Ltd',
-      amount_milli: 850000,
-      currency: 'USD',
       status: 'overdue' as const,
+      amt: 850000,
+      currency: 'USD',
+      isPayment: false,
     },
   ];
 
   return (
-    <div className="space-y-6">
+    <>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-head">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-text-primary">
-            Dashboard
-          </h1>
-          <p className="text-xs text-text-muted mt-0.5">
-            Commercial billing ledger overview · Base Currency: USD
-          </p>
+          <h1>Dashboard</h1>
+          <p>Commercial performance overview · figures in USD</p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <Button
-            variant="secondary"
-            size="md"
-            leftIcon={<IconPlus size={15} />}
-            onClick={() => setActiveTab('quotations')}
-          >
-            New quotation
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            leftIcon={<IconPlus size={15} />}
-            onClick={() => setActiveTab('invoices')}
-          >
-            New invoice
-          </Button>
+        <div className="actions">
+          {can('quotes') && (
+            <Button
+              variant="secondary"
+              leftIcon={<IconPlus size={15} />}
+              onClick={() => setActiveTab('quotations')}
+            >
+              New quotation
+            </Button>
+          )}
+          {can('invoices') && (
+            <Button
+              variant="primary"
+              leftIcon={<IconPlus size={15} />}
+              onClick={() => setActiveTab('invoices')}
+            >
+              New invoice
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((kpi, idx) => (
-          <div
-            key={idx}
-            className={`bg-bg-surface border rounded-xl p-4.5 relative shadow-sm transition-colors ${
-              kpi.alert
-                ? 'border-danger/40 bg-danger-soft/10'
-                : 'border-border-strong hover:border-border-strong/80'
-            }`}
-          >
-            {kpi.alert && (
-              <div className="absolute left-0 top-3 bottom-3 w-1 bg-danger rounded-r" />
-            )}
-            <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
-              {kpi.label}
+      {/* 5 KPIs matching prototype */}
+      <div className="kpis">
+        <a className="kpi" href="#quotations" onClick={(e) => { e.preventDefault(); setActiveTab('quotations'); }}>
+          <span className="k-label">Quotations</span>
+          <span className="k-value">5</span>
+          <span className="k-meta">60% accepted of decided</span>
+        </a>
+
+        <a className="kpi" href="#invoices" onClick={(e) => { e.preventDefault(); setActiveTab('invoices'); }}>
+          <span className="k-label">Invoices issued</span>
+          <span className="k-value">5</span>
+          <span className="k-meta">0 draft · 0 cancelled</span>
+        </a>
+
+        <a className="kpi" href="#receipts" onClick={(e) => { e.preventDefault(); setActiveTab('receipts'); }}>
+          <span className="k-label">Payments received</span>
+          <span className="k-value">{formatMoney(14500000, 'USD')}</span>
+          <span className="k-meta">{formatMoney(2000000, 'USD')} this month</span>
+        </a>
+
+        <a className="kpi" href="#reports" onClick={(e) => { e.preventDefault(); setActiveTab('reports'); }}>
+          <span className="k-label">Outstanding</span>
+          <span className="k-value">{formatMoney(7350000, 'USD')}</span>
+          <span className="k-meta">4 open invoices</span>
+        </a>
+
+        <a className="kpi alert" href="#invoices" onClick={(e) => { e.preventDefault(); setActiveTab('invoices'); }}>
+          <span className="k-label">Overdue</span>
+          <span className="k-value">{formatMoney(2300000, 'USD')}</span>
+          <span className="k-meta">2 invoices past due</span>
+        </a>
+      </div>
+
+      {/* Two Column Grid: Revenue Chart + Invoice Status */}
+      <div className="grid-2">
+        {/* Monthly Revenue Chart */}
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Monthly revenue</h2>
+              <span className="sub">Invoiced vs. cash received, last 12 months</span>
             </div>
-            <div
-              className={`text-2xl font-bold mt-2 mono ${
-                kpi.alert
-                  ? 'text-danger'
-                  : kpi.accent
-                  ? 'text-accent'
-                  : kpi.warn
-                  ? 'text-warn'
-                  : 'text-text-primary'
-              }`}
-            >
-              {kpi.value}
-            </div>
-            <div className="text-xs text-text-muted mt-1.5 flex items-center gap-1.5">
-              {kpi.alert && <IconAlertTriangle size={12} className="text-danger" />}
-              <span>{kpi.meta}</span>
+            <div className="legend">
+              <span>
+                <i style={{ background: 'var(--line-strong)' }} />
+                Invoiced
+              </span>
+              <span>
+                <i style={{ background: 'var(--accent)' }} />
+                Received
+              </span>
             </div>
           </div>
-        ))}
-      </div>
+          <div className="panel-body chart">
+            {renderBarChart()}
+          </div>
+        </section>
 
-      {/* Grid: Activity Ledger & Quick Links */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Commercial Ledger Activity */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <div>
-                <CardTitle>Recent Activity</CardTitle>
-                <div className="text-xs text-text-muted mt-0.5">
-                  Latest recorded invoices, receipts and quotes
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setActiveTab('invoices')}
-              >
-                View all &rarr;
-              </Button>
-            </CardHeader>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-border-subtle bg-bg-subtle/50 text-text-muted font-semibold uppercase tracking-wider text-[10.5px]">
-                    <th className="py-2.5 px-4">Date</th>
-                    <th className="py-2.5 px-4">Type</th>
-                    <th className="py-2.5 px-4">Ref Number</th>
-                    <th className="py-2.5 px-4">Customer</th>
-                    <th className="py-2.5 px-4 text-right">Amount</th>
-                    <th className="py-2.5 px-4 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle">
-                  {recentTransactions.map((tx, idx) => (
-                    <tr
-                      key={idx}
-                      className="hover:bg-bg-subtle/40 transition-colors cursor-pointer"
-                    >
-                      <td className="py-3 px-4 text-text-muted mono">{tx.date}</td>
-                      <td className="py-3 px-4 font-medium text-text-primary">
-                        {tx.kind}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-accent">
-                        {tx.ref}
-                      </td>
-                      <td className="py-3 px-4 text-text-primary">{tx.customer}</td>
-                      <td className="py-3 px-4 text-right font-mono font-medium text-text-primary">
-                        {formatMoney(tx.amount_milli, tx.currency)}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge variant={tx.status}>{tx.status}</Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Invoice Status & Quick Actions */}
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Invoice status</h2>
+            <span className="sub">5 issued</span>
+          </div>
+          <div className="panel-body">
+            {/* Horizontal Color Stack Bar */}
+            <div className="stack">
+              {statusBreakdown.map((item) => (
+                <i
+                  key={item.s}
+                  style={{ width: `${item.pct}%`, background: item.color }}
+                  title={`${item.label}: ${item.n}`}
+                />
+              ))}
             </div>
-          </Card>
-        </div>
 
-        {/* Quick Commercial Actions */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2.5 p-4">
+            {/* Status Breakdown Legend List */}
+            <div className="status-list">
+              {statusBreakdown.map((item) => (
+                <div key={item.s}>
+                  <span>
+                    <Badge variant={item.s}>{item.s}</Badge>
+                    <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
+                      × {item.n}
+                    </span>
+                  </span>
+                  <span className="num">{formatMoney(item.amt, 'USD')}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Quick Actions Grid */}
+            <h2
+              style={{
+                fontSize: 12.5,
+                margin: '22px 0 10px',
+                color: 'var(--muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '.07em',
+                fontWeight: 600,
+              }}
+            >
+              Quick actions
+            </h2>
+            <div className="quick">
+              <a
+                href="#quote-new"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (needs('quotes')) setActiveTab('quotations');
+                }}
+              >
+                <b>Create quotation</b>
+                <span>Price a job for a customer</span>
+              </a>
+              <a
+                href="#invoice-new"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (needs('invoices')) setActiveTab('invoices');
+                }}
+              >
+                <b>Create invoice</b>
+                <span>Bill without a quotation</span>
+              </a>
               <button
                 type="button"
-                onClick={() => setActiveTab('quotations')}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-border-strong bg-bg-subtle hover:border-accent hover:bg-accent/5 transition-all text-left cursor-pointer group"
+                onClick={() => {
+                  if (needs('payments')) setActiveTab('receipts');
+                }}
               >
-                <div>
-                  <div className="text-xs font-semibold text-text-primary group-hover:text-accent">
-                    Create Quotation
-                  </div>
-                  <div className="text-[11px] text-text-muted mt-0.5">
-                    Draft a proposal with line items & discounts
-                  </div>
-                </div>
-                <Icon name="quote" size={16} className="text-text-faint group-hover:text-accent" />
+                <b>Record payment</b>
+                <span>Issues a receipt automatically</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('invoices')}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-border-strong bg-bg-subtle hover:border-accent hover:bg-accent/5 transition-all text-left cursor-pointer group"
+              <a
+                href="#customers"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('customers');
+                }}
               >
-                <div>
-                  <div className="text-xs font-semibold text-text-primary group-hover:text-accent">
-                    Issue Tax Invoice
-                  </div>
-                  <div className="text-[11px] text-text-muted mt-0.5">
-                    Lock terms, generate serial number & balance
-                  </div>
-                </div>
-                <Icon name="inv" size={16} className="text-text-faint group-hover:text-accent" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('receipts')}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-border-strong bg-bg-subtle hover:border-accent hover:bg-accent/5 transition-all text-left cursor-pointer group"
-              >
-                <div>
-                  <div className="text-xs font-semibold text-text-primary group-hover:text-accent">
-                    Record Payment
-                  </div>
-                  <div className="text-[11px] text-text-muted mt-0.5">
-                    Log cash, M-Pesa or bank transfer receipt
-                  </div>
-                </div>
-                <Icon name="rec" size={16} className="text-text-faint group-hover:text-accent" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('customers')}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-border-strong bg-bg-subtle hover:border-accent hover:bg-accent/5 transition-all text-left cursor-pointer group"
-              >
-                <div>
-                  <div className="text-xs font-semibold text-text-primary group-hover:text-accent">
-                    Add Customer
-                  </div>
-                  <div className="text-[11px] text-text-muted mt-0.5">
-                    Create new client ledger account
-                  </div>
-                </div>
-                <Icon name="cust" size={16} className="text-text-faint group-hover:text-accent" />
-              </button>
-            </CardContent>
-          </Card>
-        </div>
+                <b>Customers</b>
+                <span>5 on file</span>
+              </a>
+            </div>
+          </div>
+        </section>
       </div>
-    </div>
+
+      {/* Recent Transactions Panel */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Recent transactions</h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveTab('reports')}
+            rightIcon={<IconArrow size={14} />}
+          >
+            All reports
+          </Button>
+        </div>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Number</th>
+                <th>Customer</th>
+                <th>Status</th>
+                <th className="r">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentTransactions.map((tx, idx) => (
+                <tr key={idx} className="link">
+                  <td className="muted mono">{tx.date}</td>
+                  <td>{tx.kind}</td>
+                  <td className="mono font-semibold" style={{ color: 'var(--accent)' }}>
+                    {tx.ref}
+                  </td>
+                  <td>{tx.customer}</td>
+                  <td>
+                    <Badge variant={tx.status}>{tx.status}</Badge>
+                  </td>
+                  <td
+                    className="r strong font-mono"
+                    style={{ color: tx.isPayment ? 'var(--ok)' : undefined }}
+                  >
+                    {tx.isPayment ? '+' : ''}
+                    {formatMoney(tx.amt, tx.currency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
   );
 };
-

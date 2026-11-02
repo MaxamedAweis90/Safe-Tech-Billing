@@ -1,9 +1,9 @@
 import React from 'react';
 import { useNavStore } from '../store/useNavStore';
-import { useAuthStore, ROLE_CONFIG } from '../store/useAuthStore';
+import { useAuthStore, ROLES } from '../store/useAuthStore';
+import { computeNavCounts } from '../lib/mockData';
 import { Icon, IconName } from '../components/icons';
 import { NavTab } from '../types';
-import { cn } from '../utils/cn';
 
 interface NavItemConfig {
   id: NavTab;
@@ -19,9 +19,10 @@ interface NavSectionConfig {
 }
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, navCounts } = useNavStore();
-  const { role } = useAuthStore();
-  const roleConfig = ROLE_CONFIG[role];
+  const { activeTab, setActiveTab, mobileDrawerOpen, setMobileDrawerOpen } = useNavStore();
+  const { role, can } = useAuthStore();
+  const roleInfo = ROLES[role];
+  const { openQ, overdue } = computeNavCounts();
 
   const sections: NavSectionConfig[] = [
     {
@@ -35,13 +36,13 @@ export const Sidebar: React.FC = () => {
           id: 'quotations',
           label: 'Quotations',
           icon: 'quote',
-          badge: navCounts.openQ,
+          badge: openQ,
         },
         {
           id: 'invoices',
           label: 'Invoices',
           icon: 'inv',
-          badge: navCounts.overdue,
+          badge: overdue,
           alert: true,
         },
         { id: 'receipts', label: 'Receipts', icon: 'rec' },
@@ -57,13 +58,17 @@ export const Sidebar: React.FC = () => {
     {
       title: 'System',
       items: [
-        ...(role === 'admin'
+        ...(can('settings')
           ? [
               {
                 id: 'settings' as NavTab,
                 label: 'Company & settings',
                 icon: 'set' as IconName,
               },
+            ]
+          : []),
+        ...(can('audit')
+          ? [
               {
                 id: 'audit' as NavTab,
                 label: 'Audit trail',
@@ -77,80 +82,54 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="w-60 bg-side-bg text-side-ink border-r border-line flex flex-col h-screen sticky top-0 shrink-0 select-none">
+    <aside id="side" className={`side ${mobileDrawerOpen ? 'open' : ''}`}>
       {/* Brand Header */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-line shrink-0">
-        <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center font-bold text-bg-base text-lg shadow-sm shrink-0">
-          <span className="text-accent font-black tracking-tighter">ST</span>
+      <div className="brand">
+        <div className="brand-mark">
+          <span style={{ color: '#1f3864', fontWeight: 800, fontSize: 16 }}>ST</span>
         </div>
-        <div className="min-w-0">
-          <div className="text-sm font-bold text-white truncate tracking-tight">
-            Safe Tech
-          </div>
-          <div className="text-[10.5px] uppercase tracking-wider text-side-muted font-semibold">
-            Commercial Billing
-          </div>
+        <div>
+          <b>Safe Tech</b>
+          <span>Billing</span>
         </div>
       </div>
 
       {/* Navigation Sections */}
-      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-5">
+      <nav id="nav" className="nav" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {sections.map((section) => (
           <div key={section.title}>
-            <div className="px-2.5 mb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-side-muted">
-              {section.title}
-            </div>
-            <ul className="space-y-0.5">
-              {section.items.map((item) => {
-                const isActive = activeTab === item.id;
-                return (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab(item.id)}
-                      className={cn(
-                        'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left cursor-pointer',
-                        isActive
-                          ? 'bg-side-active text-white font-semibold border-l-2 border-accent rounded-l-none'
-                          : 'text-side-ink hover:bg-side-active/60 hover:text-white'
-                      )}
-                    >
-                      <Icon
-                        name={item.icon}
-                        size={16}
-                        className={isActive ? 'text-accent' : 'text-side-muted'}
-                      />
-                      <span className="truncate flex-1">{item.label}</span>
-                      {item.badge !== undefined && item.badge > 0 && (
-                        <span
-                          className={cn(
-                            'px-1.5 py-0.2 rounded-full text-[10px] font-bold mono',
-                            item.alert
-                              ? 'bg-bad text-white'
-                              : 'bg-white/10 text-side-ink'
-                          )}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="nav-label">{section.title}</div>
+            {section.items.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={isActive ? 'on' : ''}
+                >
+                  <Icon name={item.icon} size={17} />
+                  <span>{item.label}</span>
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className={`count ${item.alert ? 'alert' : ''}`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         ))}
       </nav>
 
       {/* User Session Footer */}
-      <div className="p-3.5 border-t border-line bg-side-bg/60 text-xs shrink-0 text-side-muted">
-        <div className="text-[11px] text-side-muted">Signed in as</div>
-        <div className="font-semibold text-white truncate">
-          {roleConfig.user}
-        </div>
-        <div className="text-[11px] text-accent truncate mt-0.5">
-          {roleConfig.label}
-        </div>
+      <div id="sideFoot" className="side-foot">
+        Signed in as <b style={{ color: 'var(--side-ink)' }}>{roleInfo.user}</b>
+        <br />
+        {roleInfo.label}
       </div>
     </aside>
   );

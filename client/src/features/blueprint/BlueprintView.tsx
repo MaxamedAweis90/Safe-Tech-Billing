@@ -1,69 +1,98 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 
 export const BlueprintView: React.FC = () => {
+  const layers = [
+    {
+      title: 'Database & Models',
+      desc: 'MongoDB + Mongoose with 12 schemas and integer thousandths precision.',
+    },
+    {
+      title: 'Arithmetic Engine',
+      desc: 'Quantized roundToCents with zero floating-point accumulation errors.',
+    },
+    {
+      title: 'REST API & RBAC',
+      desc: 'Express 5 + Zod middleware guarding Admin, Accountant, Sales, and Viewer.',
+    },
+    {
+      title: 'Client Architecture',
+      desc: 'Vite React TypeScript + TanStack Query + Zustand with strict dark theme.',
+    },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Page Header */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-text-primary">
-          System Blueprint & Architecture
-        </h1>
-        <p className="text-xs text-text-muted mt-0.5">
-          Technical specifications, arithmetic engine rules and domain schema
-        </p>
+      <div className="page-head">
+        <div>
+          <h1>System Blueprint</h1>
+          <p>Technical architecture, database schema invariants, and arithmetic specifications.</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Financial Arithmetic Engine */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Decimal Arithmetic Engine</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs leading-relaxed text-text-muted">
-            <p>
-              <strong className="text-text-primary">Integer Thousandths Storage:</strong> All monetary
-              figures in Safe Tech Billing are strictly stored as integer thousandths of a unit
-              (e.g., $15.50 is stored as <code>15500</code>).
-            </p>
-            <p>
-              <strong className="text-text-primary">Round-to-Cent Rules:</strong> Half-up intermediate
-              calculations are quantized using <code>Math.round(milli / 10) * 10</code> to eliminate
-              IEEE 754 floating point precision drift.
-            </p>
-            <p>
-              <strong className="text-text-primary">Immutable History:</strong> Invoices, once issued,
-              lock their line items and customer address snapshots to guarantee statutory integrity.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid-2e">
+        {/* Layer Stack */}
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Architecture layers</h2>
+          </div>
+          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {layers.map((layer) => (
+              <div
+                key={layer.title}
+                style={{
+                  border: '1px solid var(--line)',
+                  borderRadius: 8,
+                  padding: '12px 14px',
+                  background: 'var(--surface-2)',
+                }}
+              >
+                <b style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                  {layer.title}
+                </b>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  {layer.desc}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* RBAC Matrix */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Role-Based Access Control</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs leading-relaxed text-text-muted">
-            <div className="flex justify-between py-1.5 border-b border-border-subtle">
-              <span className="font-semibold text-text-primary">Administrator</span>
-              <span>Full read/write access + Settings & Audit log</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-border-subtle">
-              <span className="font-semibold text-text-primary">Accountant</span>
-              <span>Invoices, Payments, Receipts, Credit Notes & Reports</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-border-subtle">
-              <span className="font-semibold text-text-primary">Sales Rep</span>
-              <span>Quotations, Customer Accounts & Read Invoices</span>
-            </div>
-            <div className="flex justify-between py-1.5">
-              <span className="font-semibold text-text-primary">Viewer</span>
-              <span>Read-only inspection across all modules</span>
-            </div>
-          </CardContent>
-        </Card>
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Role-based access matrix</h2>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Role</th>
+                  <th>Permitted domains</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="strong">Administrator</td>
+                  <td className="muted">Full system read/write, Settings, User administration, Audit trail</td>
+                </tr>
+                <tr>
+                  <td className="strong">Accountant</td>
+                  <td className="muted">Invoices, Receipts, Payments, Credit Notes, Financial Reports</td>
+                </tr>
+                <tr>
+                  <td className="strong">Sales Rep</td>
+                  <td className="muted">Quotations, Customer Accounts, Read-only Invoices</td>
+                </tr>
+                <tr>
+                  <td className="strong">Viewer</td>
+                  <td className="muted">Read-only view across all modules (Auditor)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   );
 };
-
