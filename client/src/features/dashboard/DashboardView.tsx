@@ -1,165 +1,81 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
 import { IconPlus, IconArrow } from '../../components/icons';
 import { useNavStore } from '../../store/useNavStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { formatMoney } from '../../lib/formatters';
+import { useUIStore } from '../../store/useUIStore';
+import { formatMoney, fmtLong, fmtD } from '../../lib/formatters';
+import {
+  TODAY,
+  MOCK_CUSTOMERS,
+  MOCK_INVOICES,
+  computeDashboardKPIs,
+  compute12MonthRevenue,
+  computeInvoiceStatusDistribution,
+  getRecentTransactions,
+  MockReceipt,
+} from '../../lib/mockData';
+import { MonthlyRevenueChart } from './MonthlyRevenueChart';
+import { PaymentModalContent } from './PaymentModal';
 
 export const DashboardView: React.FC = () => {
   const { setActiveTab } = useNavStore();
   const { can, needs } = useAuthStore();
+  const { openModal, closeModal, addToast } = useUIStore();
 
-  const months = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
-  const invoicedData = [2400, 3100, 2800, 4200, 3800, 5100, 4600, 6200, 5800, 7400, 8100, 9200];
-  const receivedData = [2100, 2700, 2500, 3600, 3400, 4800, 4100, 5900, 5200, 6900, 7600, 8400];
+  // Trigger state refresh when payments/data mutate
+  const [, setRefreshKey] = useState(0);
+  const triggerRefresh = () => setRefreshKey((k) => k + 1);
 
-  // SVG Bar Chart rendering matching prototype barChart()
-  const renderBarChart = () => {
-    const W = 640;
-    const H = 220;
-    const pl = 44;
-    const pr = 12;
-    const pt = 14;
-    const pb = 26;
-    const max = 10000;
-    const step = 2500;
-    const iw = W - pl - pr;
-    const ih = H - pt - pb;
-    const bw = iw / months.length;
-    const y = (v: number) => pt + ih - (v / max) * ih;
+  // 1. Live financial metrics
+  const kpis = computeDashboardKPIs();
 
-    const gridLines = [];
-    for (let v = 0; v <= max; v += step) {
-      gridLines.push(
-        <g key={v}>
-          <line
-            x1={pl}
-            x2={W - pr}
-            y1={y(v)}
-            y2={y(v)}
-            stroke="var(--line)"
-            strokeWidth="1"
-          />
-          <text
-            x={pl - 6}
-            y={y(v) + 4}
-            textAnchor="end"
-            fontSize="10"
-            fill="var(--muted)"
-            fontFamily="var(--f-num)"
-          >
-            ${v >= 1000 ? `${v / 1000}k` : v}
-          </text>
-        </g>
-      );
+  // 2. 12-month rolling revenue data
+  const revenueData = compute12MonthRevenue();
+
+  // 3. Invoice status breakdown
+  const statusDist = computeInvoiceStatusDistribution();
+
+  // 4. Recent transactions feed
+  const transactions = getRecentTransactions();
+
+  // Quick Action: Record Payment Modal
+  const handleQuickPay = () => {
+    if (!needs('payments')) return;
+
+    const openInvoices = MOCK_INVOICES.filter(
+      (i) => i.state === 'issued' && i.balance_milli > 0
+    );
+
+    if (!openInvoices.length) {
+      addToast('There are no invoices with an outstanding balance.');
+      return;
     }
 
-    const bars = months.map((m, i) => {
-      const x = pl + i * bw;
-      const barW = Math.max(4, bw * 0.32);
-      const isLast = i === months.length - 1;
-      return (
-        <g key={m}>
-          {/* Invoiced Bar */}
-          <rect
-            x={x + bw * 0.16}
-            y={y(invoicedData[i])}
-            width={barW}
-            height={ih + pt - y(invoicedData[i])}
-            rx="2"
-            fill="var(--line-strong)"
-          />
-          {/* Received Bar */}
-          <rect
-            x={x + bw * 0.16 + barW + 2}
-            y={y(receivedData[i])}
-            width={barW}
-            height={ih + pt - y(receivedData[i])}
-            rx="2"
-            fill="var(--accent)"
-            opacity={isLast ? 1 : 0.85}
-          />
-          {/* Month Label */}
-          <text
-            x={x + bw / 2}
-            y={H - 6}
-            textAnchor="middle"
-            fontSize="10"
-            fill="var(--muted)"
-            fontFamily="var(--f-ui)"
-          >
-            {m}
-          </text>
-        </g>
-      );
+    openModal({
+      title: 'Record payment',
+      body: (
+        <PaymentModalContent
+          initialInvoiceId={null}
+          onSuccess={(receipt: MockReceipt) => {
+            closeModal();
+            triggerRefresh();
+            addToast(`Receipt ${receipt.number} issued`);
+            setActiveTab('receipts');
+          }}
+          onCancel={closeModal}
+        />
+      ),
     });
-
-    return (
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Monthly invoiced and received">
-        {gridLines}
-        {bars}
-      </svg>
-    );
   };
-
-  const statusBreakdown = [
-    { s: 'paid' as const, label: 'Paid', n: 4, pct: 40, amt: 12500000, color: 'var(--ok)' },
-    { s: 'partial' as const, label: 'Partial', n: 2, pct: 20, amt: 4850000, color: 'var(--warn)' },
-    { s: 'sent' as const, label: 'Sent', n: 2, pct: 20, amt: 2200000, color: 'var(--info)' },
-    { s: 'overdue' as const, label: 'Overdue', n: 2, pct: 20, amt: 850000, color: 'var(--bad)' },
-  ];
-
-  const recentTransactions = [
-    {
-      date: '30 Oct 2026',
-      kind: 'Payment',
-      ref: 'RCP-2026-0042',
-      customer: 'Acme Global Ltd',
-      status: 'paid' as const,
-      amt: 1500000,
-      currency: 'USD',
-      isPayment: true,
-    },
-    {
-      date: '28 Oct 2026',
-      kind: 'Invoice',
-      ref: 'INV-2026-0089',
-      customer: 'Apex Logistics Inc',
-      status: 'sent' as const,
-      amt: 2200000,
-      currency: 'USD',
-      isPayment: false,
-    },
-    {
-      date: '25 Oct 2026',
-      kind: 'Quotation',
-      ref: 'QT-2026-0104',
-      customer: 'Nairobi Water Works',
-      status: 'accepted' as const,
-      amt: 4850000,
-      currency: 'USD',
-      isPayment: false,
-    },
-    {
-      date: '20 Oct 2026',
-      kind: 'Invoice',
-      ref: 'INV-2026-0078',
-      customer: 'Zenith Holdings Ltd',
-      status: 'overdue' as const,
-      amt: 850000,
-      currency: 'USD',
-      isPayment: false,
-    },
-  ];
 
   return (
     <>
-      {/* Page Header */}
+      {/* Page Header matching prototype */}
       <div className="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p>Commercial performance overview · figures in USD</p>
+          <p>{fmtLong(TODAY)} · figures in USD</p>
         </div>
         <div className="actions">
           {can('quotes') && (
@@ -183,42 +99,88 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5 KPIs matching prototype */}
+      {/* 5 Financial KPIs matching prototype */}
       <div className="kpis">
-        <a className="kpi" href="#quotations" onClick={(e) => { e.preventDefault(); setActiveTab('quotations'); }}>
+        {/* 1. Quotations */}
+        <a
+          className="kpi"
+          href="#quotations"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab('quotations');
+          }}
+        >
           <span className="k-label">Quotations</span>
-          <span className="k-value">5</span>
-          <span className="k-meta">60% accepted of decided</span>
+          <span className="k-value">{kpis.totalQuotes}</span>
+          <span className="k-meta">{kpis.winRate}% accepted of decided</span>
         </a>
 
-        <a className="kpi" href="#invoices" onClick={(e) => { e.preventDefault(); setActiveTab('invoices'); }}>
+        {/* 2. Invoices issued */}
+        <a
+          className="kpi"
+          href="#invoices"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab('invoices');
+          }}
+        >
           <span className="k-label">Invoices issued</span>
-          <span className="k-value">5</span>
-          <span className="k-meta">0 draft · 0 cancelled</span>
+          <span className="k-value">{kpis.issuedInvoices}</span>
+          <span className="k-meta">
+            {kpis.draftCount} draft · {kpis.cancelledCount} cancelled
+          </span>
         </a>
 
-        <a className="kpi" href="#receipts" onClick={(e) => { e.preventDefault(); setActiveTab('receipts'); }}>
+        {/* 3. Payments received */}
+        <a
+          className="kpi"
+          href="#receipts"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab('receipts');
+          }}
+        >
           <span className="k-label">Payments received</span>
-          <span className="k-value">{formatMoney(14500000, 'USD')}</span>
-          <span className="k-meta">{formatMoney(2000000, 'USD')} this month</span>
+          <span className="k-value">{formatMoney(kpis.received, 'USD')}</span>
+          <span className="k-meta">{formatMoney(kpis.thisMonth, 'USD')} this month</span>
         </a>
 
-        <a className="kpi" href="#reports" onClick={(e) => { e.preventDefault(); setActiveTab('reports'); }}>
+        {/* 4. Outstanding */}
+        <a
+          className="kpi"
+          href="#reports"
+          data-tab="outstanding"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab('reports');
+          }}
+        >
           <span className="k-label">Outstanding</span>
-          <span className="k-value">{formatMoney(7350000, 'USD')}</span>
-          <span className="k-meta">4 open invoices</span>
+          <span className="k-value">{formatMoney(kpis.outstanding, 'USD')}</span>
+          <span className="k-meta">{kpis.openInvoicesCount} open invoices</span>
         </a>
 
-        <a className="kpi alert" href="#invoices" onClick={(e) => { e.preventDefault(); setActiveTab('invoices'); }}>
+        {/* 5. Overdue (Alert KPI) */}
+        <a
+          className="kpi alert"
+          href="#invoices"
+          data-filter="overdue"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab('invoices');
+          }}
+        >
           <span className="k-label">Overdue</span>
-          <span className="k-value">{formatMoney(2300000, 'USD')}</span>
-          <span className="k-meta">2 invoices past due</span>
+          <span className="k-value">{formatMoney(kpis.overdueAmt, 'USD')}</span>
+          <span className="k-meta">
+            {kpis.overdueCount} invoice{kpis.overdueCount === 1 ? '' : 's'} past due
+          </span>
         </a>
       </div>
 
-      {/* Two Column Grid: Revenue Chart + Invoice Status */}
+      {/* Two-Column Grid: Monthly Revenue + Invoice Status */}
       <div className="grid-2">
-        {/* Monthly Revenue Chart */}
+        {/* Monthly Revenue Dual-Bar Chart */}
         <section className="panel">
           <div className="panel-head">
             <div>
@@ -237,47 +199,54 @@ export const DashboardView: React.FC = () => {
             </div>
           </div>
           <div className="panel-body chart">
-            {renderBarChart()}
+            <MonthlyRevenueChart
+              months={revenueData.months}
+              invoiced={revenueData.invoiced}
+              received={revenueData.received}
+            />
           </div>
         </section>
 
-        {/* Invoice Status & Quick Actions */}
+        {/* Invoice Status Distribution & Quick Actions */}
         <section className="panel">
           <div className="panel-head">
             <h2>Invoice status</h2>
-            <span className="sub">5 issued</span>
+            <span className="sub">{statusDist.totalIssued} issued</span>
           </div>
           <div className="panel-body">
-            {/* Horizontal Color Stack Bar */}
+            {/* Horizontal Stack Bar */}
             <div className="stack">
-              {statusBreakdown.map((item) => (
+              {statusDist.byStatus.map((x) => (
                 <i
-                  key={item.s}
-                  style={{ width: `${item.pct}%`, background: item.color }}
-                  title={`${item.label}: ${item.n}`}
+                  key={x.s}
+                  style={{
+                    width: `${(x.n / statusDist.totalN) * 100}%`,
+                    background: x.color,
+                  }}
+                  title={x.label}
                 />
               ))}
             </div>
 
             {/* Status Breakdown Legend List */}
             <div className="status-list">
-              {statusBreakdown.map((item) => (
-                <div key={item.s}>
+              {statusDist.byStatus.map((x) => (
+                <div key={x.s}>
                   <span>
-                    <Badge variant={item.s}>{item.s}</Badge>
-                    <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
-                      × {item.n}
+                    <span className={`chip c-${x.s}`}>{x.label}</span>
+                    <span className="muted" style={{ color: 'var(--muted)', marginLeft: 6 }}>
+                      × {x.n}
                     </span>
                   </span>
-                  <span className="num">{formatMoney(item.amt, 'USD')}</span>
+                  <span className="num">{formatMoney(x.amt, 'USD')}</span>
                 </div>
               ))}
             </div>
 
-            {/* Quick Actions Grid */}
+            {/* Quick Actions Header & Grid */}
             <h2
               style={{
-                fontSize: 12.5,
+                fontSize: 13,
                 margin: '22px 0 10px',
                 color: 'var(--muted)',
                 textTransform: 'uppercase',
@@ -298,6 +267,7 @@ export const DashboardView: React.FC = () => {
                 <b>Create quotation</b>
                 <span>Price a job for a customer</span>
               </a>
+
               <a
                 href="#invoice-new"
                 onClick={(e) => {
@@ -308,15 +278,12 @@ export const DashboardView: React.FC = () => {
                 <b>Create invoice</b>
                 <span>Bill without a quotation</span>
               </a>
-              <button
-                type="button"
-                onClick={() => {
-                  if (needs('payments')) setActiveTab('receipts');
-                }}
-              >
+
+              <button type="button" onClick={handleQuickPay}>
                 <b>Record payment</b>
                 <span>Issues a receipt automatically</span>
               </button>
+
               <a
                 href="#customers"
                 onClick={(e) => {
@@ -325,14 +292,14 @@ export const DashboardView: React.FC = () => {
                 }}
               >
                 <b>Customers</b>
-                <span>5 on file</span>
+                <span>{MOCK_CUSTOMERS.length} on file</span>
               </a>
             </div>
           </div>
         </section>
       </div>
 
-      {/* Recent Transactions Panel */}
+      {/* Recent Transactions Table */}
       <section className="panel">
         <div className="panel-head">
           <h2>Recent transactions</h2>
@@ -358,23 +325,28 @@ export const DashboardView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {recentTransactions.map((tx, idx) => (
-                <tr key={idx} className="link">
-                  <td className="muted mono">{tx.date}</td>
+              {transactions.map((tx, idx) => (
+                <tr
+                  key={`${tx.kind}-${tx.ref}-${idx}`}
+                  className="link"
+                  onClick={() => setActiveTab(tx.tab)}
+                >
+                  <td className="muted">{fmtD(tx.date)}</td>
                   <td>{tx.kind}</td>
-                  <td className="mono font-semibold" style={{ color: 'var(--accent)' }}>
+                  <td
+                    className="mono font-semibold"
+                    style={{ color: 'var(--accent)' }}
+                  >
                     {tx.ref}
                   </td>
-                  <td>{tx.customer}</td>
-                  <td>
-                    <Badge variant={tx.status}>{tx.status}</Badge>
-                  </td>
+                  <td>{tx.customerName}</td>
+                  <td className="muted">{tx.sub}</td>
                   <td
                     className="r strong font-mono"
                     style={{ color: tx.isPayment ? 'var(--ok)' : undefined }}
                   >
                     {tx.isPayment ? '+' : ''}
-                    {formatMoney(tx.amt, tx.currency)}
+                    {formatMoney(tx.amt, tx.cur)}
                   </td>
                 </tr>
               ))}

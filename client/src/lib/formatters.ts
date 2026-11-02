@@ -5,6 +5,7 @@
 
 export const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$',
+  SOS: 'Sh.So. ',
   KES: 'KSh ',
   EUR: '€',
   GBP: '£',
@@ -47,15 +48,41 @@ export function fromMilli(milli: number = 0): number {
 export function formatDate(isoStr?: string): string {
   if (!isoStr) return '—';
   try {
-    const d = new Date(isoStr);
+    const d = new Date(isoStr + (isoStr.length === 10 ? 'T00:00:00Z' : ''));
     return d.toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
+      timeZone: 'UTC',
     });
   } catch {
     return isoStr;
   }
+}
+
+/**
+ * Long date format matching prototype `fmtLong(d)` (e.g. "31 October 2026")
+ */
+export function fmtLong(isoStr?: string): string {
+  if (!isoStr) return '—';
+  try {
+    const d = new Date(isoStr + (isoStr.length === 10 ? 'T00:00:00Z' : ''));
+    return d.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  } catch {
+    return isoStr;
+  }
+}
+
+/**
+ * Short date format matching prototype `fmtD(d)` (e.g. "31 Oct 2026")
+ */
+export function fmtD(isoStr?: string): string {
+  return formatDate(isoStr);
 }
 
 /**
