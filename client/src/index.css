@@ -2,41 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Safe Tech Billing — Strict Dark Theme Token Bridge */
 :root {
-  --skullet-base: #111C15;
-  --skullet-highlight: #213328;
+  --bg: #0D121A;
+  --surface: #151C27;
+  --surface-2: #111823;
+  --side-bg: #0A0F17;
+  --side-ink: #B9C5DA;
+  --side-active: #18263D;
+  --side-muted: #66748C;
+
+  --line: #243042;
+  --line-strong: #33425A;
+
+  --accent: #6E9CF0;
+  --accent-ink: #0B1424;
+  --accent-soft: #18273F;
+  --accent-hover: #8FB3F5;
+
+  --ink: #E5EAF2;
+  --muted: #9AA6BA;
+  --faint: #6F7B90;
+
+  --ok: #5CC58C;
+  --ok-soft: #13291D;
+  --warn: #E3A54A;
+  --warn-soft: #2C2112;
+  --bad: #F07A70;
+  --bad-soft: #2E1614;
+  --info: #7EA6F0;
+  --info-soft: #18273F;
+  --neutral-soft: #1C2533;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+
+  --skullet-base: #151C27;
+  --skullet-highlight: #243042;
+
+  --f-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --f-doc: "Questrial", "Century Gothic", "Avenir Next", sans-serif;
+  --f-doc-title: "Poppins", "Century Gothic", sans-serif;
+
+  --r: 8px;
   color-scheme: dark;
 }
 
 body {
-  background-color: #000100;
-  color: #E8F3EB;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-ui);
+  font-size: 14px;
+  line-height: 1.45;
   margin: 0;
   padding: 0;
   min-height: 100vh;
 }
 
-/* Monospace tabular numbers for financial figures */
+/* Monospace & Tabular Numeric Alignments for Financial Figures */
 .mono, .num {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--f-num);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
-/* Custom minimal dark scrollbars */
+.font-doc {
+  font-family: var(--f-doc);
+}
+
+.font-doc-title {
+  font-family: var(--f-doc-title);
+}
+
+/* Custom Minimal Dark Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #000100;
+  background: var(--bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: #213328;
+  background: var(--line-strong);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #1fbf55;
+  background: var(--accent);
 }
-
