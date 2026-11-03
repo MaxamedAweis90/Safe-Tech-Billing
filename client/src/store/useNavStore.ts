@@ -4,6 +4,8 @@ import { NavTab } from '../types';
 interface NavState {
   activeTab: NavTab;
   selectedRecordId: string | null;
+  prefillCustomerId: string | null;
+  setPrefillCustomerId: (id: string | null) => void;
   setActiveTab: (tab: NavTab) => void;
   setSelectedRecord: (tab: NavTab, recordId?: string | null) => void;
   navCounts: {
@@ -21,6 +23,8 @@ interface NavState {
 export const useNavStore = create<NavState>((set) => ({
   activeTab: 'dashboard',
   selectedRecordId: null,
+  prefillCustomerId: null,
+  setPrefillCustomerId: (id) => set({ prefillCustomerId: id }),
   setActiveTab: (tab) =>
     set({ activeTab: tab, selectedRecordId: null, mobileDrawerOpen: false }),
   setSelectedRecord: (tab, recordId = null) =>

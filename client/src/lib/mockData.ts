@@ -4,6 +4,7 @@
  */
 
 import { totalsOf, addDays, fmtNumber, qStatus, formatMoney } from './formatters';
+import { PROTOTYPE_LOGO, PROTOTYPE_STAMP } from '../features/documents/brandingAssets';
 
 export const TODAY = '2026-10-31';
 
@@ -51,6 +52,7 @@ export interface MockCustomer {
   email: string;
   currency: string;
   taxId?: string;
+  since?: string;
 }
 
 export interface MockQuoteItem {
@@ -95,6 +97,9 @@ export const COMPANY_SETTINGS = {
   accountNo: '33354053',
   mobileMoney: 'EVC Plus: +252 61 4 324 507',
   signatory: 'Authorized Signatory',
+  logo: PROTOTYPE_LOGO,
+  stamp: PROTOTYPE_STAMP,
+  signature: '',
 };
 
 export const INVOICE_TERMS_PRESETS: [number, string][] = [
@@ -154,6 +159,11 @@ export interface MockReceipt {
   amount_milli: number;
   balanceAfter_milli: number;
   currency: string;
+  paymentId?: string;
+  amount?: number;
+  balanceAfter?: number;
+  invoiceTotal?: number;
+  prevPaid?: number;
 }
 
 export interface MockPayment {
@@ -181,6 +191,7 @@ export const MOCK_CUSTOMERS: MockCustomer[] = [
     email: '',
     currency: 'USD',
     taxId: '',
+    since: '2024-03-01',
   },
   {
     id: 'c39',
@@ -192,6 +203,7 @@ export const MOCK_CUSTOMERS: MockCustomer[] = [
     email: 'procurement@hodanmedical.example',
     currency: 'USD',
     taxId: 'TIN-118204',
+    since: '2026-04-12',
   },
   {
     id: 'c40',
@@ -203,6 +215,7 @@ export const MOCK_CUSTOMERS: MockCustomer[] = [
     email: 'accounts@shabelle-logistics.example',
     currency: 'USD',
     taxId: 'TIN-207719',
+    since: '2026-05-02',
   },
   {
     id: 'c41',
@@ -214,6 +227,7 @@ export const MOCK_CUSTOMERS: MockCustomer[] = [
     email: 'hello@jazeeracoffee.example',
     currency: 'USD',
     taxId: '',
+    since: '2026-05-20',
   },
   {
     id: 'c42',
@@ -225,6 +239,7 @@ export const MOCK_CUSTOMERS: MockCustomer[] = [
     email: 'finance@bakaaratraders.example',
     currency: 'USD',
     taxId: 'TIN-330051',
+    since: '2026-06-01',
   },
   {
     id: 'c43',
@@ -236,6 +251,7 @@ export const MOCK_CUSTOMERS: MockCustomer[] = [
     email: 'gm@lidoseaside.example',
     currency: 'USD',
     taxId: 'TIN-441903',
+    since: '2026-06-25',
   },
   {
     id: 'c44',
@@ -247,6 +263,7 @@ export const MOCK_CUSTOMERS: MockCustomer[] = [
     email: 'office@waaberischool.example',
     currency: 'USD',
     taxId: '',
+    since: '2026-08-01',
   },
   {
     id: 'c45',
@@ -258,6 +275,7 @@ export const MOCK_CUSTOMERS: MockCustomer[] = [
     email: 'mahad@benadireng.example',
     currency: 'USD',
     taxId: 'TIN-512276',
+    since: '2026-06-28',
   },
 ];
 
@@ -1502,13 +1520,15 @@ export function recordPayment(data: {
     receiptId: rid,
   };
 
-  const prevBalance = inv.balance_milli;
+  const f = invFin(inv);
+  const prevBalance = f.balance;
   const balanceAfter = Math.max(0, prevBalance - data.amount_milli);
 
   const receipt: MockReceipt = {
     id: rid,
     number: receiptNum,
     date: data.date,
+    paymentId: pid,
     invoiceId: inv.id,
     invoiceNumber: inv.number,
     customerId: inv.customerId,
@@ -1516,17 +1536,27 @@ export function recordPayment(data: {
     method: data.method,
     reference: data.reference,
     amount_milli: data.amount_milli,
+    amount: data.amount_milli,
     balanceAfter_milli: balanceAfter,
+    balanceAfter: balanceAfter,
+    prevPaid: f.paid + f.credit,
+    invoiceTotal: f.total,
     currency: inv.currency,
   };
 
   // Mutate state atomically
-  inv.paid_milli += data.amount_milli;
+  inv.paid_milli = (inv.paid_milli || 0) + data.amount_milli;
   inv.balance_milli = balanceAfter;
   inv.status = balanceAfter <= 0 ? 'paid' : 'partial';
 
   MOCK_PAYMENTS.unshift(payment);
   MOCK_RECEIPTS.unshift(receipt);
+
+  logAuditEvent(
+    `Recorded payment ${formatMoney(data.amount_milli, inv.currency)}`,
+    `${inv.number} → ${receiptNum}`,
+    `${data.method} ${data.reference || ''}`.trim()
+  );
 
   return receipt;
 }
@@ -2054,6 +2084,34 @@ export function issueCreditNote(
   return creditNote;
 }
 
+export interface CustFinResult {
+  invoiced: number;
+  paid: number;
+  bal: number;
+  overdue: boolean;
+  count: number;
+}
+
+export function custFin(cid: string): CustFinResult {
+  const invs = MOCK_INVOICES.filter((i) => i.customerId === cid && i.state === 'issued');
+  const invoiced = invs.reduce(
+    (a, i) => a + toBase(totalsOf({ items: i.items || [] }).total, i.currency),
+    0
+  );
+  const paid = MOCK_PAYMENTS.filter((p) => {
+    const inv = getInvoiceById(p.invoiceId);
+    return inv ? inv.customerId === cid : p.customerId === cid;
+  }).reduce((a, p) => {
+    const inv = getInvoiceById(p.invoiceId);
+    const cur = (inv && inv.currency) || p.currency || 'USD';
+    const amt = p.amount_milli ?? 0;
+    return a + toBase(amt, cur);
+  }, 0);
+  const bal = invs.reduce((a, i) => a + toBase(invFin(i).balance, i.currency), 0);
+  const overdue = invs.some((i) => invStatus(i) === 'overdue');
+  return { invoiced, paid, bal, overdue, count: invs.length };
+}
+
 export function addCustomer(data: {
   name: string;
   attn?: string;
@@ -2061,11 +2119,13 @@ export function addCustomer(data: {
   email?: string;
   taxId?: string;
   address?: string;
+  since?: string;
 }): MockCustomer {
-  const maxCode = Math.max(...MOCK_CUSTOMERS.map((c) => c.code), 1000);
+  const maxCode = Math.max(...MOCK_CUSTOMERS.map((c) => c.code || 0), 1000);
+  const code = maxCode + 1;
   const newCustomer: MockCustomer = {
-    id: `c${maxCode + 1}`,
-    code: maxCode + 1,
+    id: `c${code}`,
+    code,
     name: data.name,
     attn: data.attn || '',
     phone: data.phone,
@@ -2073,9 +2133,34 @@ export function addCustomer(data: {
     currency: 'USD',
     taxId: data.taxId || '',
     address: data.address || '',
+    since: data.since || TODAY,
   };
   MOCK_CUSTOMERS.push(newCustomer);
   logAuditEvent('Added customer', `${newCustomer.name} (${newCustomer.code})`);
   return newCustomer;
 }
+
+export function updateCustomer(
+  id: string,
+  data: {
+    name: string;
+    attn?: string;
+    phone: string;
+    email?: string;
+    taxId?: string;
+    address?: string;
+  }
+): MockCustomer | undefined {
+  const customer = MOCK_CUSTOMERS.find((c) => c.id === id);
+  if (!customer) return undefined;
+  customer.name = data.name;
+  if (data.attn !== undefined) customer.attn = data.attn;
+  customer.phone = data.phone;
+  if (data.email !== undefined) customer.email = data.email;
+  if (data.taxId !== undefined) customer.taxId = data.taxId;
+  if (data.address !== undefined) customer.address = data.address;
+  logAuditEvent('Updated customer', customer.name);
+  return customer;
+}
+
 

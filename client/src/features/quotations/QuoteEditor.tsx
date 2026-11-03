@@ -15,7 +15,6 @@ import {
   duplicateQuote,
   deleteDraftQuote,
   convertQuoteToInvoice,
-  addCustomer,
   getAuditEventsForRef,
 } from '../../lib/mockData';
 import {
@@ -27,11 +26,13 @@ import {
   totalsOf,
   formatMoney,
   priceStr,
-  plain,
   lineCalc,
 } from '../../lib/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useNavStore } from '../../store/useNavStore';
 import { confirmBox, toast, openModal, closeModal } from '../../store/useUIStore';
+import { DocumentScaleWrapper, DocumentSheet } from '../documents';
+import { openCustomerModal } from '../customers/CustomerModal';
 
 export interface QuoteEditorProps {
   quoteId: string | null;
@@ -60,11 +61,17 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     if (existingQuote) {
       return JSON.parse(JSON.stringify(existingQuote));
     }
+    const prefillId = useNavStore.getState().prefillCustomerId;
+    const prefillCust = prefillId ? getCustomerById(prefillId) : null;
+    if (prefillId) {
+      useNavStore.getState().setPrefillCustomerId(null);
+    }
+    const targetCust = prefillCust || MOCK_CUSTOMERS[0];
     return {
       id: 'new',
       number: 'New',
-      customerId: MOCK_CUSTOMERS[0]?.id || '',
-      customerName: MOCK_CUSTOMERS[0]?.name || '',
+      customerId: targetCust?.id || '',
+      customerName: targetCust?.name || '',
       date: TODAY,
       expiry: addDays(TODAY, 30),
       state: 'draft',
@@ -237,109 +244,12 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
 
   // Quick Customer Registration Modal
   const openNewCustomerModal = () => {
-    let nameVal = '';
-    let attnVal = '';
-    let phoneVal = '';
-    let emailVal = '';
-    let taxVal = '';
-    let addrVal = '';
-
-    openModal({
-      title: 'Add customer',
-      body: (
-        <div className="form-grid">
-          <div className="field wide">
-            <label htmlFor="cuName">Customer or company name *</label>
-            <input
-              id="cuName"
-              className="inp"
-              placeholder="e.g. Modern Tech Ltd"
-              onChange={(e) => (nameVal = e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cuAttn">Attention (contact person)</label>
-            <input
-              id="cuAttn"
-              className="inp"
-              placeholder="e.g. Finance Officer"
-              onChange={(e) => (attnVal = e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cuPhone">Phone *</label>
-            <input
-              id="cuPhone"
-              className="inp"
-              placeholder="252 61 …"
-              onChange={(e) => (phoneVal = e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cuEmail">Email</label>
-            <input
-              id="cuEmail"
-              className="inp"
-              type="email"
-              placeholder="billing@example.com"
-              onChange={(e) => (emailVal = e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cuTax">Tax ID (optional)</label>
-            <input
-              id="cuTax"
-              className="inp"
-              placeholder="TIN-..."
-              onChange={(e) => (taxVal = e.target.value)}
-            />
-          </div>
-          <div className="field wide">
-            <label htmlFor="cuAddr">Physical address</label>
-            <textarea
-              id="cuAddr"
-              className="inp"
-              rows={2}
-              placeholder="Street, District, City"
-              onChange={(e) => (addrVal = e.target.value)}
-            />
-          </div>
-        </div>
-      ),
-      foot: (
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" className="btn" onClick={closeModal}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => {
-              if (!nameVal.trim() || !phoneVal.trim()) {
-                toast('Enter a name and a phone number.', true);
-                return;
-              }
-              const created = addCustomer({
-                name: nameVal.trim(),
-                attn: attnVal.trim(),
-                phone: phoneVal.trim(),
-                email: emailVal.trim(),
-                taxId: taxVal.trim(),
-                address: addrVal.trim(),
-              });
-              setDoc((prev) => ({
-                ...prev,
-                customerId: created.id,
-                customerName: created.name,
-              }));
-              closeModal();
-              toast('Customer registered and selected');
-            }}
-          >
-            Add customer
-          </button>
-        </div>
-      ),
+    openCustomerModal(null, (created) => {
+      setDoc((prev) => ({
+        ...prev,
+        customerId: created.id,
+        customerName: created.name,
+      }));
     });
   };
 
@@ -365,85 +275,24 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     }
   };
 
-  // Preview Modal
+  // Preview Modal matching prototype line 796
   const handlePreview = () => {
     openModal({
-      title: `Quotation Preview — ${doc.number || 'New'}`,
+      title: 'Quotation preview',
       wide: true,
       body: (
-        <div style={{ background: '#fff', color: '#222', padding: 24, borderRadius: 6 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #2d8a3e', paddingBottom: 10 }}>
-            <div>
-              <h2 style={{ margin: 0, color: '#1f3864' }}>SAFE TECH SOLUTIONS</h2>
-              <p style={{ margin: 0, fontSize: 12, color: '#666' }}>Innovator in Electronics · Bakara Howlwadag, Mogadishu</p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <h1 style={{ margin: 0, color: '#a50f15', fontSize: 28 }}>QUOTATION</h1>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{doc.number || 'DRAFT'}</div>
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, margin: '16px 0', fontSize: 13 }}>
-            <div>
-              <strong>Quotation To:</strong>
-              <div>{selectedCustomer?.name || '—'}</div>
-              <div style={{ whiteSpace: 'pre-line', color: '#555' }}>{selectedCustomer?.address || ''}</div>
-              <div>Phone: {selectedCustomer?.phone || '—'}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div><strong>Date:</strong> {fmtLong(doc.date)}</div>
-              <div><strong>Valid Until:</strong> {fmtLong(doc.expiry)}</div>
-              <div><strong>Currency:</strong> {doc.currency}</div>
-            </div>
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}>
-            <thead>
-              <tr style={{ background: '#17505b', color: '#fff' }}>
-                <th style={{ padding: '6px 8px', textAlign: 'left' }}>Item</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Qty</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Price</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {doc.items.map((it, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
-                  <td style={{ padding: '6px 8px' }}>{it.desc}</td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right' }}>{it.qty}</td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right' }}>{priceStr(it.price)}</td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right' }}>{plain(lineCalc(it).total, doc.currency)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: 14 }}>
-            <div style={{ width: 240 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                <span>Subtotal:</span>
-                <span>{formatMoney(totals.sub, doc.currency)}</span>
-              </div>
-              {totals.disc > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#c00' }}>
-                  <span>Discount:</span>
-                  <span>-{formatMoney(totals.disc, doc.currency)}</span>
-                </div>
-              )}
-              {totals.tax > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                  <span>Tax:</span>
-                  <span>{formatMoney(totals.tax, doc.currency)}</span>
-                </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '2px solid #222', fontWeight: 'bold' }}>
-                <span>Total:</span>
-                <span>{formatMoney(totals.total, doc.currency)}</span>
-              </div>
-            </div>
-          </div>
+        <div>
+          <DocumentScaleWrapper>
+            <DocumentSheet kind="quote" document={doc} />
+          </DocumentScaleWrapper>
+          <p style={{ margin: '12px 0 0', fontSize: 12.5, color: 'var(--muted)' }}>
+            This is the exact A4 layout of the PDF, including your logo, stamp and signature line.
+          </p>
         </div>
       ),
       foot: (
         <button type="button" className="btn" onClick={closeModal}>
-          Close preview
+          Close
         </button>
       ),
     });

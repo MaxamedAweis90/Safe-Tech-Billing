@@ -13,7 +13,6 @@ import {
   persistInvoice,
   deleteDraftInvoice,
   peekNextInvoiceNumber,
-  addCustomer,
 } from '../../lib/mockData';
 import {
   fmtLong,
@@ -22,8 +21,10 @@ import {
   formatMoney,
 } from '../../lib/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useNavStore } from '../../store/useNavStore';
 import { confirmBox, toast, openModal, closeModal } from '../../store/useUIStore';
-import { InvoiceDocumentSheet } from './InvoiceDocumentSheet';
+import { DocumentScaleWrapper, DocumentSheet } from '../documents';
+import { openCustomerModal } from '../customers/CustomerModal';
 
 export interface InvoiceEditorProps {
   invoiceId: string | null;
@@ -44,12 +45,18 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
     if (existingInv) {
       return JSON.parse(JSON.stringify(existingInv));
     }
+    const prefillId = useNavStore.getState().prefillCustomerId;
+    const prefillCust = prefillId ? getCustomerById(prefillId) : null;
+    if (prefillId) {
+      useNavStore.getState().setPrefillCustomerId(null);
+    }
     const defaultTermsDays = 30;
+    const targetCust = prefillCust || MOCK_CUSTOMERS[0];
     return {
       id: 'new',
       number: '',
-      customerId: MOCK_CUSTOMERS[0]?.id || '',
-      customerName: MOCK_CUSTOMERS[0]?.name || '',
+      customerId: targetCust?.id || '',
+      customerName: targetCust?.name || '',
       date: TODAY,
       due: addDays(TODAY, defaultTermsDays),
       due_date: addDays(TODAY, defaultTermsDays),
@@ -211,127 +218,34 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
 
   // Quick Customer Registration Modal
   const openNewCustomerModal = () => {
-    let nameVal = '';
-    let attnVal = '';
-    let phoneVal = '';
-    let emailVal = '';
-    let taxVal = '';
-    let addrVal = '';
-
-    openModal({
-      title: 'Add customer',
-      body: (
-        <div className="form-grid">
-          <div className="field wide">
-            <label htmlFor="cuName">Customer or company name *</label>
-            <input
-              id="cuName"
-              className="inp"
-              placeholder="e.g. Modern Tech Ltd"
-              onChange={(e) => (nameVal = e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cuAttn">Attention (contact person)</label>
-            <input
-              id="cuAttn"
-              className="inp"
-              placeholder="e.g. Finance Officer"
-              onChange={(e) => (attnVal = e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cuPhone">Phone *</label>
-            <input
-              id="cuPhone"
-              className="inp"
-              placeholder="252 61 …"
-              onChange={(e) => (phoneVal = e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cuEmail">Email</label>
-            <input
-              id="cuEmail"
-              className="inp"
-              type="email"
-              placeholder="billing@example.com"
-              onChange={(e) => (emailVal = e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cuTax">Tax ID (optional)</label>
-            <input
-              id="cuTax"
-              className="inp"
-              placeholder="TIN-..."
-              onChange={(e) => (taxVal = e.target.value)}
-            />
-          </div>
-          <div className="field wide">
-            <label htmlFor="cuAddr">Physical address</label>
-            <textarea
-              id="cuAddr"
-              className="inp"
-              rows={2}
-              placeholder="Street, District, City"
-              onChange={(e) => (addrVal = e.target.value)}
-            />
-          </div>
-        </div>
-      ),
-      foot: (
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" className="btn" onClick={closeModal}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => {
-              if (!nameVal.trim() || !phoneVal.trim()) {
-                toast('Enter a name and a phone number.', true);
-                return;
-              }
-              const created = addCustomer({
-                name: nameVal.trim(),
-                attn: attnVal.trim(),
-                phone: phoneVal.trim(),
-                email: emailVal.trim(),
-                taxId: taxVal.trim(),
-                address: addrVal.trim(),
-              });
-              setDoc((prev) => ({
-                ...prev,
-                customerId: created.id,
-                customerName: created.name,
-              }));
-              closeModal();
-              toast('Customer registered and selected');
-            }}
-          >
-            Add customer
-          </button>
-        </div>
-      ),
+    openCustomerModal(null, (created) => {
+      setDoc((prev) => ({
+        ...prev,
+        customerId: created.id,
+        customerName: created.name,
+      }));
     });
   };
 
-  // Document Preview Modal
+  // Document Preview Modal matching prototype line 796
   const handlePreview = () => {
     openModal({
       title: 'Invoice preview',
       wide: true,
       body: (
-        <div className="sheet-wrap">
-          <div className="sheet-scale">
-            <InvoiceDocumentSheet
-              invoice={{
+        <div>
+          <DocumentScaleWrapper>
+            <DocumentSheet
+              kind="invoice"
+              document={{
                 ...doc,
                 number: doc.number || nextNumberPreview,
               }}
             />
-          </div>
+          </DocumentScaleWrapper>
+          <p style={{ margin: '12px 0 0', fontSize: 12.5, color: 'var(--muted)' }}>
+            This is the exact A4 layout of the PDF, including your logo, stamp and signature line.
+          </p>
         </div>
       ),
       foot: (

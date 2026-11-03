@@ -25,7 +25,7 @@ import {
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirmBox, toast, openModal, closeModal } from '../../store/useUIStore';
 import { PaymentModalContent } from '../dashboard/PaymentModal';
-import { InvoiceDocumentSheet } from './InvoiceDocumentSheet';
+import { DocumentScaleWrapper, DocumentSheet } from '../documents';
 
 export interface InvoiceDetailViewProps {
   invoiceId: string;
@@ -466,11 +466,9 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
       {/* Detail Layout: Sheet on Left, Sticky Sidebar on Right */}
       <div className="detail">
         {/* Printable Scaled A4 Sheet Canvas */}
-        <div className="sheet-wrap">
-          <div className="sheet-scale">
-            <InvoiceDocumentSheet invoice={inv} />
-          </div>
-        </div>
+        <DocumentScaleWrapper>
+          <DocumentSheet kind="invoice" document={inv} />
+        </DocumentScaleWrapper>
 
         {/* Sticky Sidebar */}
         <aside className="sticky-side">
