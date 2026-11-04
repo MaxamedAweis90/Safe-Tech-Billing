@@ -12,7 +12,15 @@ export type OnboardingStep =
   | 'STEP_2_COMPANY'
   | 'STEP_3_SUCCESS';
 
-export const AdminOnboardingView: React.FC = () => {
+export interface AdminOnboardingViewProps {
+  onSwitchMode?: (mode: 'login' | 'register') => void;
+  embedded?: boolean;
+}
+
+export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
+  onSwitchMode,
+  embedded = false,
+}) => {
   const { user, isAuthenticated, setUser } = useAuthStore();
   const { setActiveTab } = useNavStore();
 
@@ -200,12 +208,11 @@ export const AdminOnboardingView: React.FC = () => {
     }
   };
 
-  return (
-    <AuthLayout>
-      <div style={{ width: '100%', maxWidth: '440px', margin: '0 auto' }}>
-        {/* ========================================================================= */}
-        {/* STATE 1: ADMIN ACCOUNT SETUP                                              */}
-        {/* ========================================================================= */}
+  const content = (
+    <div style={{ width: '100%' }}>
+      {/* ========================================================================= */}
+      {/* STATE 1: ADMIN ACCOUNT SETUP                                              */}
+      {/* ========================================================================= */}
         {step === 'STEP_1_ACCOUNT' && (
           <div>
             <div style={{ marginBottom: '24px' }}>
@@ -346,7 +353,13 @@ export const AdminOnboardingView: React.FC = () => {
               >
                 <button
                   type="button"
-                  onClick={() => setActiveTab('login')}
+                  onClick={() => {
+                    if (onSwitchMode) {
+                      onSwitchMode('login');
+                    } else {
+                      setActiveTab('login');
+                    }
+                  }}
                   style={{
                     backgroundColor: 'transparent',
                     border: 0,
@@ -356,7 +369,7 @@ export const AdminOnboardingView: React.FC = () => {
                     padding: 0,
                   }}
                 >
-                  Already have an account? <span style={{ color: '#6E9CF0', textDecoration: 'underline' }}>Sign In</span>
+                  Already have an account? <span style={{ color: '#6E9CF0', textDecoration: 'underline' }}>Sign in</span>
                 </button>
 
                 <button
@@ -816,6 +829,15 @@ export const AdminOnboardingView: React.FC = () => {
           </div>
         )}
       </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <AuthLayout mode="register" onModeChange={onSwitchMode}>
+      {content}
     </AuthLayout>
   );
 };

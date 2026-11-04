@@ -1,5 +1,6 @@
 export { LoginView } from './LoginView';
 export { AdminOnboardingView } from './AdminOnboardingView';
+export { AuthContainer } from './AuthContainer';
 export { StaffAcceptInviteView } from './StaffAcceptInviteView';
 export { StaffAcceptInviteView as AcceptInviteView } from './StaffAcceptInviteView';
 export { AdminOnboardingView as SignupView } from './AdminOnboardingView';

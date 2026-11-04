@@ -6,9 +6,14 @@ import { toast } from '../../store/useUIStore';
 import { AuthLayout } from '../../components/auth/AuthLayout';
 import { OtpInput } from './OtpInput';
 
-type LoginChannel = 'email' | 'sms';
+export type LoginChannel = 'email' | 'sms';
 
-export const LoginView: React.FC = () => {
+export interface LoginViewProps {
+  onSwitchMode?: (mode: 'login' | 'register') => void;
+  embedded?: boolean;
+}
+
+export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = false }) => {
   const [channel, setChannel] = useState<LoginChannel>('email');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('+252 61');
@@ -105,10 +110,9 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  return (
-    <AuthLayout>
-      <div style={{ width: '100%', maxWidth: '440px', margin: '0 auto' }}>
-        {/* Header */}
+  const content = (
+    <div style={{ width: '100%' }}>
+      {/* Header */}
         <div style={{ marginBottom: '24px' }}>
           <h1
             style={{
@@ -293,7 +297,13 @@ export const LoginView: React.FC = () => {
             >
               <button
                 type="button"
-                onClick={() => setActiveTab('signup')}
+                onClick={() => {
+                  if (onSwitchMode) {
+                    onSwitchMode('register');
+                  } else {
+                    setActiveTab('signup');
+                  }
+                }}
                 style={{
                   backgroundColor: 'transparent',
                   border: 0,
@@ -303,7 +313,10 @@ export const LoginView: React.FC = () => {
                   padding: 0,
                 }}
               >
-                New business? <span style={{ color: '#6E9CF0', textDecoration: 'underline' }}>Create an admin account</span>
+                Need to create an enterprise account?{' '}
+                <span style={{ color: '#6E9CF0', textDecoration: 'underline' }}>
+                  Sign up as Administrator
+                </span>
               </button>
             </div>
           </form>
@@ -410,6 +423,15 @@ export const LoginView: React.FC = () => {
           </form>
         )}
       </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <AuthLayout mode="login" onModeChange={onSwitchMode}>
+      {content}
     </AuthLayout>
   );
 };

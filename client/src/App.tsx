@@ -17,8 +17,7 @@ import { SettingsView } from "./features/settings/SettingsView";
 import { AuditView } from "./features/audit/AuditView";
 import { BlueprintView } from "./features/blueprint/BlueprintView";
 import {
-  LoginView,
-  AdminOnboardingView,
+  AuthContainer,
   StaffAcceptInviteView,
   VerifyView,
 } from "./features/auth";
@@ -42,16 +41,15 @@ export const App: React.FC = () => {
   const renderAuthView = () => {
     switch (activeTab) {
       case "login":
-        return <LoginView />;
       case "signup":
       case "onboarding":
-        return <AdminOnboardingView />;
+        return <AuthContainer initialMode={activeTab === "login" ? "login" : "register"} />;
       case "verify":
         return <VerifyView />;
       case "accept-invite":
         return <StaffAcceptInviteView />;
       default:
-        return <LoginView />;
+        return <AuthContainer initialMode="login" />;
     }
   };
 
