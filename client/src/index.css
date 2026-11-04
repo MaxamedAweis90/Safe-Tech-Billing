@@ -1885,3 +1885,19 @@ textarea.inp {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Persistent Demo Mode Banner Layout Adjustments */
+.has-demo-banner .side {
+  top: 40px;
+  height: calc(100vh - 40px);
+}
+.has-demo-banner .top {
+  top: calc(40px + env(safe-area-inset-top, 0px));
+}
+@media (max-width: 860px) {
+  .has-demo-banner .side {
+    top: 0 !important;
+    height: 100% !important;
+  }
+}
+

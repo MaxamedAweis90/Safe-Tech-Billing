@@ -6,5 +6,6 @@ export { StaffAcceptInviteView as AcceptInviteView } from './StaffAcceptInviteVi
 export { AdminOnboardingView as SignupView } from './AdminOnboardingView';
 export { VerifyView } from './VerifyView';
 export { OtpInput } from './OtpInput';
+export { DemoButton } from '../../components/auth/DemoButton';
 export { AuthLayout } from '../../components/auth/AuthLayout';
 export { AuthTeaserPanel } from '../../components/auth/AuthTeaserPanel';
