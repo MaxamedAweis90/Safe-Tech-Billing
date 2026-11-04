@@ -3,27 +3,42 @@
  * Matches server database schemas and calculation specifications.
  */
 
-export type UserRole = 'admin' | 'accountant' | 'sales' | 'viewer';
+export type UserRole = "admin" | "accountant" | "sales" | "viewer";
 
 export interface User {
   _id: string;
+  id?: string;
   name: string;
+  fullName?: string;
   email: string;
+  phone?: string;
   role: UserRole;
+  isVerified?: boolean;
+  status?: string;
+  companyName?: string;
 }
 
-export type QuotationStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+export type QuotationStatus =
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "rejected"
+  | "expired";
 
 export type InvoiceStatus =
-  | 'draft'
-  | 'sent'
-  | 'unpaid'
-  | 'partial'
-  | 'paid'
-  | 'overdue'
-  | 'cancelled';
+  | "draft"
+  | "sent"
+  | "unpaid"
+  | "partial"
+  | "paid"
+  | "overdue"
+  | "cancelled";
 
-export type PaymentMethod = 'cash' | 'bank_transfer' | 'mobile_money' | 'cheque';
+export type PaymentMethod =
+  | "cash"
+  | "bank_transfer"
+  | "mobile_money"
+  | "cheque";
 
 export interface CustomerSnapshot {
   name: string;
@@ -203,7 +218,7 @@ export interface DashboardStats {
   }[];
   recent_activity: {
     date: string;
-    kind: 'Invoice' | 'Payment' | 'Quotation';
+    kind: "Invoice" | "Payment" | "Quotation";
     ref: string;
     customer: string;
     amount_milli: number;
@@ -214,13 +229,17 @@ export interface DashboardStats {
 }
 
 export type NavTab =
-  | 'dashboard'
-  | 'quotations'
-  | 'invoices'
-  | 'receipts'
-  | 'customers'
-  | 'reports'
-  | 'settings'
-  | 'audit'
-  | 'blueprint';
-
+  | "dashboard"
+  | "quotations"
+  | "invoices"
+  | "receipts"
+  | "customers"
+  | "reports"
+  | "settings"
+  | "audit"
+  | "blueprint"
+  | "login"
+  | "signup"
+  | "verify"
+  | "accept-invite"
+  | "onboarding";

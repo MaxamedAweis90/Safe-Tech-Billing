@@ -19,12 +19,15 @@ export const HashRouter: React.FC<HashRouterProps> = ({ children }) => {
 
     const handleHashChange = () => {
       const parsed = parseHash(window.location.hash);
+      const currentTab = useNavStore.getState().activeTab;
       useNavStore.setState({
         activeTab: parsed.tab,
         selectedRecordId: parsed.recordId,
         mobileDrawerOpen: false,
       });
-      window.scrollTo(0, 0);
+      if (currentTab !== parsed.tab) {
+        window.scrollTo(0, 0);
+      }
     };
 
     window.addEventListener('hashchange', handleHashChange);

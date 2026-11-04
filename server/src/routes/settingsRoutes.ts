@@ -2,12 +2,18 @@ import { Router } from 'express';
 import {
   getCompany,
   updateCompany,
+  onboardCompany,
   getCurrencies,
   upsertCurrency,
   getTaxRates,
   upsertTaxRate,
   resetSampleData,
   getNumberingPreview,
+  getEmailTemplates,
+  getEmailTemplateBySlug,
+  updateEmailTemplate,
+  sendTestEmailTemplate,
+  resetEmailTemplate,
 } from '../controllers/settingsController';
 import { authenticateToken, requireRole } from '../middleware/auth';
 
@@ -22,6 +28,7 @@ router.patch('/', requireRole(['admin']), updateCompany);
 router.get('/company', requireRole(['admin', 'accountant', 'sales', 'viewer']), getCompany);
 router.put('/company', requireRole(['admin']), updateCompany);
 router.patch('/company', requireRole(['admin']), updateCompany);
+router.post('/onboard-company', requireRole(['admin']), onboardCompany);
 
 // Currencies
 router.get('/currencies', requireRole(['admin', 'accountant', 'sales', 'viewer']), getCurrencies);
@@ -43,6 +50,13 @@ router.get(
   requireRole(['admin', 'accountant', 'sales', 'viewer']),
   getNumberingPreview
 );
+
+// Email templates (Admin only)
+router.get('/email-templates', requireRole(['admin']), getEmailTemplates);
+router.get('/email-templates/:slug', requireRole(['admin']), getEmailTemplateBySlug);
+router.patch('/email-templates/:slug', requireRole(['admin']), updateEmailTemplate);
+router.post('/email-templates/:slug/test', requireRole(['admin']), sendTestEmailTemplate);
+router.post('/email-templates/:slug/reset', requireRole(['admin']), resetEmailTemplate);
 
 export default router;
 

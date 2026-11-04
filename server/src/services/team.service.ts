@@ -290,6 +290,7 @@ export const acceptInvitation = async (params: AcceptInviteParams) => {
     isVerified: true, // Verified by virtue of token receipt via email
     status: 'active',
     invitedBy: invitation.invitedBy,
+    onboardingCompleted: true,
     lastLoginAt: new Date(),
   });
 
@@ -318,6 +319,7 @@ export const acceptInvitation = async (params: AcceptInviteParams) => {
       role: user.role,
       status: user.status,
       isVerified: user.isVerified,
+      onboardingCompleted: true,
     },
     tokens,
   };

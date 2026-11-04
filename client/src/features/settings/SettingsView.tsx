@@ -11,15 +11,64 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useNavStore } from '../../store/useNavStore';
 import { toast, confirmBox } from '../../store/useUIStore';
 import { CurrencyTaxSettings } from './CurrencyTaxSettings';
+import { EmailTemplatesView } from './EmailTemplatesView';
+import { TeamSettingsView } from '../team/TeamSettingsView';
 import {
   useCompanySettings,
   useUpdateCompanySettings,
   useResetSampleData,
 } from '../../hooks/useSettings';
 
+export type SettingsTab = 'company' | 'currencies' | 'numbering' | 'team' | 'templates';
+
+export const getSettingsTabFromHash = (hash: string): SettingsTab => {
+  const h = hash.toLowerCase();
+  if (h.includes('team')) return 'team';
+  if (h.includes('template')) return 'templates';
+  if (h.includes('currenc')) return 'currencies';
+  if (h.includes('numbering')) return 'numbering';
+  return 'company';
+};
+
 export const SettingsView: React.FC = () => {
-  const { can } = useAuthStore();
+  const { role, can } = useAuthStore();
+  const isAdmin = role === 'admin';
   const { setActiveTab } = useNavStore();
+
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>(() => {
+    if (typeof window !== 'undefined') {
+      return getSettingsTabFromHash(window.location.hash);
+    }
+    return 'company';
+  });
+
+  const switchTab = (tab: SettingsTab) => {
+    setActiveSettingsTab(tab);
+    if (typeof window !== 'undefined') {
+      window.location.hash = `#settings/${tab}`;
+    }
+  };
+
+  // Guard: non-admins cannot access team or email templates tabs
+  useEffect(() => {
+    if (!isAdmin && (activeSettingsTab === 'team' || activeSettingsTab === 'templates')) {
+      switchTab('company');
+    }
+  }, [isAdmin, activeSettingsTab]);
+
+  // Sync hash changes
+  useEffect(() => {
+    const handleHash = () => {
+      const target = getSettingsTabFromHash(window.location.hash);
+      if ((target === 'team' || target === 'templates') && !isAdmin) {
+        setActiveSettingsTab('company');
+      } else {
+        setActiveSettingsTab(target);
+      }
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, [isAdmin]);
 
   const [company, setCompany] = useState({ ...SYSTEM_SETTINGS.company });
   const [currencies, setCurrencies] = useState([
@@ -189,22 +238,76 @@ export const SettingsView: React.FC = () => {
       <div className="page-head">
         <div>
           <h1>Company &amp; settings</h1>
-          <p>These details print on every quotation, invoice and receipt.</p>
+          <p>
+            {activeSettingsTab === 'company' && 'These details print on every quotation, invoice and receipt.'}
+            {activeSettingsTab === 'currencies' && 'Manage business currencies, exchange rates, and standard sales tax rates.'}
+            {activeSettingsTab === 'numbering' && 'Configure automatic sequential numbering patterns and default document terms.'}
+            {activeSettingsTab === 'team' && 'Manage organization staff members, assign roles, and issue team invites.'}
+            {activeSettingsTab === 'templates' && 'Customize transactional notification email templates and preview layouts.'}
+          </p>
         </div>
-        <div className="actions">
-          <button
-            type="button"
-            className="btn primary"
-            data-act="save-settings"
-            onClick={handleSave}
-          >
-            Save settings
-          </button>
-        </div>
+        {(activeSettingsTab === 'company' || activeSettingsTab === 'numbering') && (
+          <div className="actions">
+            <button
+              type="button"
+              className="btn primary"
+              data-act="save-settings"
+              onClick={handleSave}
+            >
+              Save settings
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* 1. Company Profile Panel */}
-      <section className="panel">
+      {/* Settings Navigation Tabs */}
+      <div className="tabs" style={{ marginBottom: '24px' }}>
+        <button
+          type="button"
+          className={activeSettingsTab === 'company' ? 'on' : ''}
+          onClick={() => switchTab('company')}
+        >
+          Company profile
+        </button>
+        <button
+          type="button"
+          className={activeSettingsTab === 'currencies' ? 'on' : ''}
+          onClick={() => switchTab('currencies')}
+        >
+          Currencies &amp; taxes
+        </button>
+        <button
+          type="button"
+          className={activeSettingsTab === 'numbering' ? 'on' : ''}
+          onClick={() => switchTab('numbering')}
+        >
+          Numbering &amp; terms
+        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            className={activeSettingsTab === 'team' ? 'on' : ''}
+            onClick={() => switchTab('team')}
+          >
+            Team &amp; staff
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            type="button"
+            className={activeSettingsTab === 'templates' ? 'on' : ''}
+            onClick={() => switchTab('templates')}
+          >
+            Email templates
+          </button>
+        )}
+      </div>
+
+      {/* Tab 1: Company Profile */}
+      {activeSettingsTab === 'company' && (
+        <>
+          {/* 1. Company Profile Panel */}
+          <section className="panel">
         <div className="panel-head">
           <h2>Company profile</h2>
         </div>
@@ -548,16 +651,53 @@ export const SettingsView: React.FC = () => {
         </div>
       </section>
 
-      {/* 4. Currencies & Tax Rates Panel */}
-      <CurrencyTaxSettings
-        currencies={currencies}
-        defaultCurrency={defaultCurrency}
-        taxes={taxes}
-        onCurrenciesChange={setCurrencies}
-        onDefaultCurrencyChange={setDefaultCurrency}
-        onTaxesChange={setTaxes}
-      />
+      {/* 7. Prototype Data Panel */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Prototype data</h2>
+        </div>
+        <div
+          className="panel-body"
+          style={{
+            display: 'flex',
+            gap: 14,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span style={{ color: 'var(--muted)', maxWidth: '60ch' }}>
+            Everything you create is kept in this browser only. Reset to restore
+            invoice 10456 and the sample records.
+          </span>
+          <button
+            type="button"
+            className="btn danger"
+            data-act="reset"
+            onClick={handleReset}
+          >
+            Reset sample data
+          </button>
+        </div>
+      </section>
+    </>
+  )}
 
+  {/* Tab 2: Currencies & Taxes */}
+  {activeSettingsTab === 'currencies' && (
+    <CurrencyTaxSettings
+      currencies={currencies}
+      defaultCurrency={defaultCurrency}
+      taxes={taxes}
+      onCurrenciesChange={setCurrencies}
+      onDefaultCurrencyChange={setDefaultCurrency}
+      onTaxesChange={setTaxes}
+    />
+  )}
+
+  {/* Tab 3: Numbering & Terms */}
+  {activeSettingsTab === 'numbering' && (
+    <>
       {/* 5. Document Numbering Panel with Live Reactivity */}
       <section className="panel">
         <div className="panel-head">
@@ -635,36 +775,14 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       </section>
-
-      {/* 7. Prototype Data Panel */}
-      <section className="panel">
-        <div className="panel-head">
-          <h2>Prototype data</h2>
-        </div>
-        <div
-          className="panel-body"
-          style={{
-            display: 'flex',
-            gap: 14,
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={{ color: 'var(--muted)', maxWidth: '60ch' }}>
-            Everything you create is kept in this browser only. Reset to restore
-            invoice 10456 and the sample records.
-          </span>
-          <button
-            type="button"
-            className="btn danger"
-            data-act="reset"
-            onClick={handleReset}
-          >
-            Reset sample data
-          </button>
-        </div>
-      </section>
     </>
-  );
+  )}
+
+  {/* Tab 4: Team & Staff Management (Admin only) */}
+  {activeSettingsTab === 'team' && isAdmin && <TeamSettingsView />}
+
+  {/* Tab 5: Transactional Email Templates (Admin only) */}
+  {activeSettingsTab === 'templates' && isAdmin && <EmailTemplatesView />}
+</>
+);
 };

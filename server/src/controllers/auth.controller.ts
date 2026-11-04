@@ -343,6 +343,7 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
         fullName: user.fullName,
         email: user.email,
         role: user.role,
+        onboardingCompleted: user.onboardingCompleted ?? (user.role !== 'admin'),
       },
     });
   } catch (err) {
@@ -574,6 +575,7 @@ export const verifyOtp = async (req: Request, res: Response, next: NextFunction)
         email: user.email,
         phone: user.phone,
         role: user.role,
+        onboardingCompleted: user.onboardingCompleted ?? (user.role !== 'admin'),
       },
     });
   } catch (err) {
@@ -605,6 +607,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
           role: req.user.role,
           isVerified: true,
           status: 'active',
+          onboardingCompleted: true,
         },
         permissions,
       });
@@ -630,6 +633,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
         role: user.role,
         isVerified: user.isVerified,
         status: user.status,
+        onboardingCompleted: user.onboardingCompleted ?? (user.role !== 'admin'),
       },
       permissions,
     });
@@ -679,6 +683,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
         fullName: user.fullName,
         email: user.email,
         role: user.role,
+        onboardingCompleted: user.onboardingCompleted ?? (user.role !== 'admin'),
       },
     });
   } catch (err) {

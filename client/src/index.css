@@ -735,6 +735,10 @@ table.tbl {
 .c-partial { background: var(--warn-soft); color: var(--warn); }
 .c-rejected, .c-overdue { background: var(--bad-soft); color: var(--bad); }
 .c-expired, .c-cancelled { background: var(--neutral-soft); color: var(--faint); text-decoration: line-through; }
+.c-blue { background: rgba(110, 156, 240, 0.15); color: #6E9CF0; }
+.c-teal { background: rgba(92, 197, 140, 0.15); color: #5CC58C; }
+.c-purple { background: rgba(180, 130, 240, 0.15); color: #B482F0; }
+.c-muted { background: var(--neutral-soft); color: var(--muted); }
 
 /* Tabs & Filter Bars */
 .tabs {

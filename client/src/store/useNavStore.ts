@@ -25,8 +25,22 @@ export function tabToHash(tab: NavTab, recordId?: string | null): string {
 }
 
 export function parseHash(hashStr: string): { tab: NavTab; recordId: string | null } {
-  const h = hashStr.replace(/^#/, '') || 'dashboard';
+  // If hash is empty, inspect window pathname for direct path routing (/login, /signup, etc.)
+  let raw = hashStr.replace(/^#/, '');
+  if (!raw && typeof window !== 'undefined' && window.location.pathname && window.location.pathname !== '/') {
+    raw = window.location.pathname.replace(/^\//, '');
+  }
+  
+  // Strip query string when determining tab
+  const [cleanRoute] = (raw || 'dashboard').split('?');
+  const h = cleanRoute.toLowerCase();
   let m: RegExpMatchArray | null;
+
+  if (h === 'login') return { tab: 'login', recordId: null };
+  if (h === 'signup') return { tab: 'signup', recordId: null };
+  if (h === 'verify') return { tab: 'verify', recordId: null };
+  if (h === 'accept-invite') return { tab: 'accept-invite', recordId: null };
+  if (h === 'onboarding') return { tab: 'onboarding', recordId: null };
 
   if (h === 'dashboard') return { tab: 'dashboard', recordId: null };
   if (h === 'quotes') return { tab: 'quotations', recordId: null };
@@ -40,7 +54,16 @@ export function parseHash(hashStr: string): { tab: NavTab; recordId: string | nu
   if (h === 'customers') return { tab: 'customers', recordId: null };
   if ((m = h.match(/^customer-([\w-]+)$/))) return { tab: 'customers', recordId: m[1] };
   if (h === 'reports') return { tab: 'reports', recordId: null };
-  if (h === 'settings') return { tab: 'settings', recordId: null };
+  if (
+    h === 'settings' ||
+    h.startsWith('settings/') ||
+    h.startsWith('settings#') ||
+    h.startsWith('settings-') ||
+    h === 'team' ||
+    h === 'templates'
+  ) {
+    return { tab: 'settings', recordId: null };
+  }
   if (h === 'audit') return { tab: 'audit', recordId: null };
   if (h === 'blueprint') return { tab: 'blueprint', recordId: null };
 
@@ -76,7 +99,11 @@ export const useNavStore = create<NavState>((set) => ({
   setActiveTab: (tab) => {
     if (typeof window !== 'undefined') {
       const targetHash = '#' + tabToHash(tab, null);
-      if (window.location.hash !== targetHash) {
+      const currentHash = window.location.hash.toLowerCase();
+      const isAlreadyOnSettingsSubroute =
+        tab === 'settings' &&
+        (currentHash.startsWith('#settings/') || currentHash.startsWith('#settings#'));
+      if (window.location.hash !== targetHash && !isAlreadyOnSettingsSubroute) {
         window.location.hash = targetHash;
       }
       window.scrollTo(0, 0);

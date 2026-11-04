@@ -15,6 +15,7 @@ export interface IUser extends Document {
   status: UserStatus;
   invitedBy?: Types.ObjectId | null;
   lastLoginAt?: Date | null;
+  onboardingCompleted?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -77,6 +78,10 @@ export const UserSchema = new Schema<IUser>(
     lastLoginAt: {
       type: Date,
       default: null,
+    },
+    onboardingCompleted: {
+      type: Boolean,
+      default: false,
     },
   },
   {

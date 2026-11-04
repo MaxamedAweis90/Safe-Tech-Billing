@@ -47,8 +47,12 @@ export const MobileDrawer: React.FC = () => {
       >
         <div className="flex items-center justify-between pb-3 border-b border-line mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-bold text-accent text-sm">
-              <span style={{ color: '#1f3864', fontWeight: 800 }}>ST</span>
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden flex-none">
+              <img
+                src="/logo.png"
+                alt="Safe Tech Logo"
+                className="w-full h-full object-contain"
+              />
             </div>
             <span className="font-bold text-sm text-white">Safe Tech</span>
           </div>
