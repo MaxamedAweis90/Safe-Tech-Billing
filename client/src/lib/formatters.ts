@@ -86,6 +86,24 @@ export function fmtD(isoStr?: string): string {
 }
 
 /**
+ * Formats a timestamp into British English localized datetime (e.g. "31 Oct 2026, 09:15").
+ * Matches prototype fmtTs(ts).
+ */
+export function fmtTs(ts: number | string | Date): string {
+  try {
+    return new Date(ts).toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return String(ts);
+  }
+}
+
+/**
  * Formats a percentage value (e.g. 18 -> "18%").
  */
 export function formatPercent(pct: number = 0): string {
@@ -196,5 +214,21 @@ export function qStatus(q: { state: string; expiry?: string; expiry_date?: strin
   }
   return q.state;
 }
+
+/**
+ * Converts integer milli-units into a standard decimal string (e.g. 1500.00) without currency symbol.
+ * Matches prototype milliStr(m, dec = 2).
+ */
+export function milliStr(m: number, dec = 2): string {
+  const neg = m < 0;
+  m = Math.abs(m);
+  const i = Math.floor(m / 1000);
+  const f = String(m % 1000).padStart(3, '0');
+  return (neg ? '-' : '') + i + (dec ? '.' + f.slice(0, dec) : '');
+}
+
+export { toBase } from './math';
+
+
 
 

@@ -162,14 +162,15 @@ export const issueCreditNote = async (
     );
   }
 
-  const creditNumber = await getNextNumber('credit', input.date);
+  const creditDate = input.date || new Date().toISOString().slice(0, 10);
+  const creditNumber = await getNextNumber('credit', creditDate);
 
   const creditNote = new CreditNote({
     number: creditNumber,
     invoice_id: invoice._id,
     amount_milli: input.amount_milli,
     reason: input.reason.trim(),
-    date: input.date,
+    date: creditDate,
   });
 
   return await creditNote.save();

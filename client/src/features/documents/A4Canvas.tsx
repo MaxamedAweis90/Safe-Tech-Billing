@@ -43,7 +43,8 @@ export const A4Canvas: React.FC<A4DocumentProps> = ({
   useEffect(() => {
     const fitSheets = () => {
       if (!wrapRef.current || !scaleRef.current) return;
-      const avail = wrapRef.current.clientWidth - 40; // 20px padding left + right
+      const computedPadding = parseFloat(window.getComputedStyle(wrapRef.current).paddingLeft) || 10;
+      const avail = wrapRef.current.clientWidth - computedPadding * 2;
       const k = Math.min(1, avail / 794);
       scaleRef.current.style.transform = `scale(${k})`;
       scaleRef.current.style.width = '794px';

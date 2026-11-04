@@ -89,6 +89,11 @@ export default {
         DEFAULT: "8px",
         lg: "10px",
       },
+      screens: {
+        tablet: { max: "1080px" },
+        mobile: { max: "860px" },
+        smMobile: { max: "520px" },
+      },
     },
   },
   plugins: [],

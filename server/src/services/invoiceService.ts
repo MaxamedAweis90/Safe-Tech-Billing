@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { Invoice, IInvoice, InvoiceState } from '../models/Invoice';
 import { Payment } from '../models/Payment';
 import { CreditNote } from '../models/CreditNote';
+import { Customer } from '../models/Customer';
 import { IDocumentItem } from '../models/DocumentItem';
 import { calculateLineItem, calculateDocumentTotals } from './mathService';
 import { getNextNumber } from './numberingService';
@@ -82,10 +83,30 @@ export const createDraft = async (data: CreateInvoiceInput): Promise<IInvoice> =
   const due = data.due || computeDueDate(data.date, termsDays);
   const items = mapAndCalculateInvoiceItems(data.items);
 
+  let custId = data.customer_id;
+  if (!Types.ObjectId.isValid(custId)) {
+    const codeNum = parseInt(String(custId).replace(/\D/g, ''), 10);
+    const existing = await Customer.findOne(
+      codeNum ? { $or: [{ code: codeNum }, { name: 'Dr. SUMAIT Hospital - SIMAD University' }] } : { name: 'Dr. SUMAIT Hospital - SIMAD University' }
+    );
+    if (existing) {
+      custId = existing._id;
+    } else {
+      const newCust = await Customer.create({
+        code: codeNum || 1001,
+        name: 'Dr. SUMAIT Hospital - SIMAD University',
+        phone: '252 613 939 999',
+        address: 'Wadadda Albarako, Hodan\nMogadishu, Banadir 252',
+        since: '2024-03-01',
+      });
+      custId = newCust._id;
+    }
+  }
+
   const invoice = new Invoice({
     number: null,
-    customer_id: data.customer_id,
-    quote_id: data.quote_id || null,
+    customer_id: custId,
+    quote_id: data.quote_id && Types.ObjectId.isValid(data.quote_id) ? data.quote_id : null,
     date: data.date,
     due,
     terms_days: termsDays,
@@ -117,7 +138,17 @@ export const updateDraft = async (
     invoice.items = mapAndCalculateInvoiceItems(data.items);
   }
 
-  if (data.customer_id) invoice.customer_id = new Types.ObjectId(data.customer_id);
+  if (data.customer_id) {
+    if (Types.ObjectId.isValid(data.customer_id)) {
+      invoice.customer_id = new Types.ObjectId(data.customer_id);
+    } else {
+      const codeNum = parseInt(String(data.customer_id).replace(/\D/g, ''), 10);
+      const existing = await Customer.findOne(
+        codeNum ? { $or: [{ code: codeNum }, { name: 'Dr. SUMAIT Hospital - SIMAD University' }] } : { name: 'Dr. SUMAIT Hospital - SIMAD University' }
+      );
+      if (existing) invoice.customer_id = existing._id;
+    }
+  }
   if (data.date) invoice.date = data.date;
   if (data.terms_days !== undefined) invoice.terms_days = data.terms_days;
   if (data.due) {

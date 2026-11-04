@@ -1,107 +1,106 @@
 import React from 'react';
-
-interface MockAuditLog {
-  id: string;
-  action: string;
-  resource: string;
-  ref: string;
-  user: string;
-  role: string;
-  timestamp: string;
-}
+import { SkeletonBox } from 'skullet/react';
+import { MOCK_AUDIT } from '../../lib/mockData';
+import { fmtTs } from '../../lib/formatters';
+import { useAuthStore, ROLES } from '../../store/useAuthStore';
+import { useNavStore } from '../../store/useNavStore';
+import { useAuditLog } from '../../hooks/useAudit';
 
 export const AuditView: React.FC = () => {
-  const auditLogs: MockAuditLog[] = [
-    {
-      id: 'a1',
-      action: 'PAYMENT_RECORDED',
-      resource: 'Payment',
-      ref: 'RCP-2026-0002',
-      user: 'Daniel K.',
-      role: 'Accountant',
-      timestamp: '2026-10-22 14:32:10 UTC',
-    },
-    {
-      id: 'a2',
-      action: 'INVOICE_ISSUED',
-      resource: 'Invoice',
-      ref: 'INV-2026-0003',
-      user: 'Sarah M.',
-      role: 'Administrator',
-      timestamp: '2026-10-12 09:15:44 UTC',
-    },
-    {
-      id: 'a3',
-      action: 'QUOTATION_ACCEPTED',
-      resource: 'Quotation',
-      ref: 'QT-2026-0104',
-      user: 'Amina O.',
-      role: 'Sales',
-      timestamp: '2026-10-15 11:42:01 UTC',
-    },
-    {
-      id: 'a4',
-      action: 'CUSTOMER_CREATED',
-      resource: 'Customer',
-      ref: 'Code #1004',
-      user: 'Amina O.',
-      role: 'Sales',
-      timestamp: '2026-09-15 08:20:19 UTC',
-    },
-  ];
+  const { can, role } = useAuthStore();
+  const { setActiveTab } = useNavStore();
+
+  const { data: apiData, isLoading } = useAuditLog();
+
+  if (!can('audit')) {
+    const roleLabel = ROLES[role]?.label || role;
+    return (
+      <div className="panel">
+        <div className="empty">
+          That page isn't available for the {roleLabel} role.{' '}
+          <a
+            href="#dashboard"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveTab('dashboard');
+            }}
+          >
+            Go to the dashboard
+          </a>.
+        </div>
+      </div>
+    );
+  }
+
+  const hasLogs = Boolean(apiData?.logs && apiData.logs.length > 0);
+  const entries = hasLogs && apiData
+    ? apiData.logs.map((a) => ({
+        ts: a.ts || (a as any).createdAt,
+        user: a.user_name || (a as any).user || 'System',
+        role: a.role || 'admin',
+        action: a.action,
+        ref: a.ref || '',
+        detail: a.detail || '',
+      }))
+    : MOCK_AUDIT.slice(0, 200);
 
   return (
     <>
-      {/* Page Header */}
       <div className="page-head">
         <div>
-          <h1>Audit Trail</h1>
-          <p>Immutable log of all financial modifications, status changes, and operator actions.</p>
+          <h1>Audit trail</h1>
+          <p>Every financial action, who did it and when. Entries can't be edited or removed.</p>
         </div>
       </div>
 
       <section className="panel">
-        <div className="panel-head">
-          <h2>Forensic activity log</h2>
-        </div>
         <div className="tbl-wrap">
           <table className="tbl">
             <thead>
               <tr>
-                <th>Timestamp (UTC)</th>
+                <th>When</th>
+                <th>User</th>
                 <th>Action</th>
-                <th>Resource</th>
                 <th>Reference</th>
-                <th>Operator</th>
-                <th>Role guard</th>
+                <th>Detail</th>
               </tr>
             </thead>
             <tbody>
-              {auditLogs.map((log) => (
-                <tr key={log.id}>
-                  <td className="muted mono">{log.timestamp}</td>
-                  <td className="mono font-semibold" style={{ color: 'var(--accent)' }}>
-                    {log.action}
-                  </td>
-                  <td>{log.resource}</td>
-                  <td className="mono muted">{log.ref}</td>
-                  <td className="strong">{log.user}</td>
-                  <td>
-                    <span
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: 10,
-                        background: 'var(--surface-2)',
-                        border: '1px solid var(--line)',
-                        fontSize: 11.5,
-                        color: 'var(--muted)',
-                      }}
-                    >
-                      {log.role}
-                    </span>
+              {isLoading && !hasLogs ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={`skel-${idx}`}>
+                    <td><SkeletonBox width={110} height={18} /></td>
+                    <td>
+                      <SkeletonBox width={90} height={16} />
+                      <SkeletonBox width={50} height={12} style={{ marginTop: 4 }} />
+                    </td>
+                    <td><SkeletonBox width={140} height={18} /></td>
+                    <td><SkeletonBox width={80} height={18} /></td>
+                    <td><SkeletonBox width={160} height={18} /></td>
+                  </tr>
+                ))
+              ) : entries.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="empty">
+                    No audit events recorded yet.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                entries.map((a, idx) => (
+                  <tr key={`${a.ts}-${idx}`}>
+                    <td className="muted" style={{ whiteSpace: 'nowrap' }}>
+                      {fmtTs(a.ts)}
+                    </td>
+                    <td>
+                      {a.user}
+                      <div style={{ fontSize: '11.5px', color: 'var(--faint)' }}>{a.role}</div>
+                    </td>
+                    <td>{a.action}</td>
+                    <td className="mono">{a.ref}</td>
+                    <td className="muted">{a.detail || ''}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

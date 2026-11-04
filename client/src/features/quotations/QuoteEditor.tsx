@@ -2,6 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Icon } from '../../components/icons';
 import { QuoteItemsTable } from './QuoteItemsTable';
 import {
+  useQuotationDetail,
+  useSaveQuotation,
+  useSendQuotation,
+  useAcceptQuotation,
+  useRejectQuotation,
+  useDuplicateQuotation,
+  useDeleteQuotation,
+  useConvertQuotation,
+} from '../../hooks/useQuotations';
+import { useCustomers } from '../../hooks/useCustomers';
+import {
   MOCK_CUSTOMERS,
   MOCK_QUOTES,
   MockQuote,
@@ -19,20 +30,18 @@ import {
 } from '../../lib/mockData';
 import {
   fmtD,
-  fmtLong,
   daysBetween,
   addDays,
   qStatus,
   totalsOf,
   formatMoney,
-  priceStr,
-  lineCalc,
 } from '../../lib/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useNavStore } from '../../store/useNavStore';
 import { confirmBox, toast, openModal, closeModal } from '../../store/useUIStore';
-import { DocumentScaleWrapper, DocumentSheet } from '../documents';
+import { DocumentScaleWrapper, DocumentSheet, downloadPdf } from '../documents';
 import { openCustomerModal } from '../customers/CustomerModal';
+import { openShareModal } from '../documents/ShareModal';
 
 export interface QuoteEditorProps {
   quoteId: string | null;
@@ -54,7 +63,22 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
   onNavigateInvoice,
 }) => {
   const { can, role } = useAuthStore();
-  const existingQuote = quoteId && quoteId !== 'new' ? getQuoteById(quoteId) : undefined;
+  const isNew = !quoteId || quoteId === 'new';
+
+  // Live queries
+  const { data: detailData } = useQuotationDetail(isNew ? null : quoteId);
+  const { data: customersData } = useCustomers();
+
+  // Mutations
+  const saveMutation = useSaveQuotation();
+  const sendMutation = useSendQuotation();
+  const acceptMutation = useAcceptQuotation();
+  const rejectMutation = useRejectQuotation();
+  const duplicateMutation = useDuplicateQuotation();
+  const deleteMutation = useDeleteQuotation();
+  const convertMutation = useConvertQuotation();
+
+  const existingQuote = !isNew ? getQuoteById(quoteId!) : undefined;
 
   // Local form state
   const [doc, setDoc] = useState<MockQuote>(() => {
@@ -86,18 +110,65 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
 
   const [itemError, setItemError] = useState<string | null>(null);
 
+  // Sync state when detail data arrives from Express backend
   useEffect(() => {
-    if (quoteId && quoteId !== 'new') {
+    if (detailData?.quotation) {
+      const q = detailData.quotation;
+      const custObj: any = q.customer_id;
+      const custId = typeof custObj === 'object' ? custObj?._id || custObj?.id : custObj;
+      const custName = q.customerName || (typeof custObj === 'object' ? custObj?.name : undefined) || 'Customer';
+
+      setDoc({
+        id: q._id || q.id || '',
+        number: q.number || 'Draft',
+        customerId: custId || '',
+        customerName: custName,
+        date: q.date,
+        expiry: q.expiry,
+        state: q.state,
+        currency: q.currency || 'USD',
+        items: (q.items || []).map((it: any) => ({
+          desc: it.desc,
+          qty: it.qty,
+          price: it.price_milli ?? it.price ?? 0,
+          disc: it.disc_pct ?? it.disc ?? 0,
+          taxRate: it.tax_rate ?? it.taxRate ?? 0,
+          taxName: it.tax_name ?? it.taxName ?? '',
+        })),
+        terms: q.terms || QUOTE_TERMS,
+        notes: q.notes || '',
+        total_milli: q.total_milli || 0,
+        createdAt: q.created_at || TODAY,
+        invoiceId: q.invoice_id,
+        invoiceNumber: q.invoiceNumber,
+        rejectReason: q.reject_reason,
+      });
+    } else if (quoteId && quoteId !== 'new') {
       const q = getQuoteById(quoteId);
       if (q) setDoc(JSON.parse(JSON.stringify(q)));
     }
-  }, [quoteId]);
+  }, [detailData, quoteId]);
 
-  const isExisting = Boolean(existingQuote && doc.id !== 'new');
+  const isExisting = Boolean(!isNew && doc.id !== 'new');
   const resolvedStatus = isExisting ? qStatus(doc, TODAY) : 'draft';
   const readOnly = !(can('quotes') && (!isExisting || doc.state === 'draft'));
 
-  const selectedCustomer = getCustomerById(doc.customerId);
+  // Resolve customer list from API or mock
+  const customersList = customersData?.customers && customersData.customers.length > 0
+    ? customersData.customers.map((c: any) => ({
+        id: c._id || c.id,
+        code: c.code,
+        name: c.name,
+        phone: c.phone || '',
+        address: c.address || '',
+        email: c.email || '',
+      }))
+    : MOCK_CUSTOMERS;
+
+  const selectedCustomer =
+    customersList.find((c) => c.id === doc.customerId) ||
+    getCustomerById(doc.customerId);
+
   const totals = totalsOf({ items: doc.items });
   const auditEvents = isExisting ? getAuditEventsForRef(doc.number) : [];
 
@@ -153,31 +224,76 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
   };
 
   // Actions
-  const handleSave = (markSent = false) => {
+  const handleSave = async (markSent = false) => {
     if (!can('quotes')) {
       toast('You do not have permission to edit quotations.', true);
       return;
     }
     if (!validateForm()) return;
 
-    const saved = saveQuote(
-      {
-        ...doc,
+    try {
+      const payload = {
         id: isExisting ? doc.id : undefined,
+        customer_id: doc.customerId,
+        customerName: selectedCustomer?.name || doc.customerName,
+        date: doc.date,
+        expiry: doc.expiry,
+        currency: doc.currency,
+        terms: doc.terms,
+        notes: doc.notes,
+        state: (markSent ? 'sent' : doc.state || 'draft') as any,
+        items: doc.items.map((it) => ({
+          desc: it.desc,
+          qty: +it.qty,
+          price_milli: +it.price,
+          disc_pct: +it.disc || 0,
+          tax_rate: +it.taxRate || 0,
+          tax_name: it.taxName || '',
+        })),
+      };
+
+      const result = await saveMutation.mutateAsync(payload);
+      const saved = result.quotation;
+      const savedId = saved._id || saved.id || '';
+
+      if (markSent && savedId) {
+        await sendMutation.mutateAsync(savedId);
+      }
+
+      setDoc((prev) => ({
+        ...prev,
+        id: savedId,
+        number: saved.number || prev.number,
+        state: markSent ? 'sent' : saved.state || prev.state,
         total_milli: totals.total,
-      },
-      markSent
-    );
-    setDoc(JSON.parse(JSON.stringify(saved)));
-    toast(markSent ? `${saved.number} marked as sent` : 'Draft saved');
+      }));
+    } catch {
+      const saved = saveQuote(
+        {
+          ...doc,
+          id: isExisting ? doc.id : undefined,
+          total_milli: totals.total,
+        },
+        markSent
+      );
+      setDoc(JSON.parse(JSON.stringify(saved)));
+      toast(markSent ? `${saved.number} marked as sent` : 'Draft saved');
+    }
   };
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
     if (!can('quotes')) return;
-    const accepted = acceptQuote(doc.id);
-    if (accepted) {
-      setDoc({ ...doc, state: 'accepted' });
-      toast(`${accepted.number} accepted. It can now be converted to an invoice.`);
+    try {
+      if (isExisting) {
+        await acceptMutation.mutateAsync(doc.id);
+      }
+      setDoc((prev) => ({ ...prev, state: 'accepted' }));
+    } catch {
+      const accepted = acceptQuote(doc.id);
+      if (accepted) {
+        setDoc({ ...doc, state: 'accepted' });
+        toast(`${accepted.number} accepted. It can now be converted to an invoice.`);
+      }
     }
   };
 
@@ -192,20 +308,38 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     });
 
     if (typeof res === 'string' && res.trim()) {
-      const rejected = rejectQuote(doc.id, res.trim());
-      if (rejected) {
-        setDoc({ ...doc, state: 'rejected', rejectReason: res.trim() });
-        toast(`${rejected.number} marked rejected`);
+      try {
+        if (isExisting) {
+          await rejectMutation.mutateAsync({ id: doc.id, reason: res.trim() });
+        }
+        setDoc((prev) => ({ ...prev, state: 'rejected', rejectReason: res.trim() }));
+      } catch {
+        const rejected = rejectQuote(doc.id, res.trim());
+        if (rejected) {
+          setDoc({ ...doc, state: 'rejected', rejectReason: res.trim() });
+          toast(`${rejected.number} marked rejected`);
+        }
       }
     }
   };
 
-  const handleDuplicate = () => {
+  const handleDuplicate = async () => {
     if (!can('quotes')) return;
-    const duplicated = duplicateQuote(doc.id);
-    if (duplicated) {
-      toast(`${duplicated.number} created as a draft copy`);
-      setDoc(JSON.parse(JSON.stringify(duplicated)));
+    try {
+      const res = await duplicateMutation.mutateAsync(doc.id);
+      const duplicated = res.quotation;
+      setDoc((prev) => ({
+        ...prev,
+        id: duplicated._id || duplicated.id || '',
+        number: duplicated.number || 'Draft Copy',
+        state: 'draft',
+      }));
+    } catch {
+      const duplicated = duplicateQuote(doc.id);
+      if (duplicated) {
+        toast(`${duplicated.number} created as a draft copy`);
+        setDoc(JSON.parse(JSON.stringify(duplicated)));
+      }
     }
   };
 
@@ -218,27 +352,48 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
       danger: true,
     });
     if (confirmed) {
-      deleteDraftQuote(doc.id);
-      toast('Draft deleted');
+      try {
+        if (isExisting) {
+          await deleteMutation.mutateAsync(doc.id);
+        } else {
+          deleteDraftQuote(doc.id);
+        }
+      } catch {
+        deleteDraftQuote(doc.id);
+        toast('Draft deleted');
+      }
       onBack();
     }
   };
 
-  const handleConvert = () => {
+  const handleConvert = async () => {
     if (!can('invoices')) {
       toast('Accountant or Administrator role required to convert quotations.', true);
       return;
     }
     try {
-      const res = convertQuoteToInvoice(doc.id);
-      toast(`Draft invoice created from ${doc.number}`);
-      if (onNavigateInvoice) {
-        onNavigateInvoice(res.invoiceId);
-      } else {
-        toast(`Invoice #${res.invoiceNumber || res.invoiceId} created`);
+      const res = await convertMutation.mutateAsync(doc.id);
+      const invId = res.invoice?.id || (res.invoice as any)?._id;
+      if (invId) {
+        if (onNavigateInvoice) {
+          onNavigateInvoice(invId);
+        } else {
+          useNavStore.getState().setSelectedRecord('invoices', invId);
+        }
+        return;
       }
-    } catch (e: any) {
-      toast(e.message || 'Failed to convert quotation', true);
+    } catch {
+      try {
+        const res = convertQuoteToInvoice(doc.id);
+        toast(`Draft invoice created from ${doc.number}`);
+        if (onNavigateInvoice) {
+          onNavigateInvoice(res.invoiceId);
+        } else {
+          toast(`Invoice #${res.invoiceNumber || res.invoiceId} created`);
+        }
+      } catch (e: any) {
+        toast(e.message || 'Failed to convert quotation', true);
+      }
     }
   };
 
@@ -253,26 +408,25 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     });
   };
 
-  // Share Modal / Clipboard helper
+  // Share Modal matching prototype lines 881-893
   const handleShare = () => {
-    const cust = selectedCustomer;
-    const lines = doc.items
-      .map(
-        (it) =>
-          `  ${it.qty} x ${it.desc} @ ${priceStr(it.price)}${
-            +it.disc ? ` (-${it.disc}%)` : ''
-          } = ${formatMoney(lineCalc(it).total, doc.currency)}`
-      )
-      .join('\n');
+    openShareModal('quote', doc, () => {
+      if (doc.state === 'draft') {
+        setDoc((prev) => ({ ...prev, state: 'sent' }));
+      }
+    });
+  };
 
-    const shareText = `Dear ${cust?.attn && cust.attn !== 'N/A' ? cust.attn : cust?.name || 'Customer'},\n\nThank you for your enquiry. Please find our quotation ${doc.number} dated ${fmtLong(doc.date)}:\n\n${lines}\n\n${totals.disc ? `Discount: -${formatMoney(totals.disc, doc.currency)}\n` : ''}${totals.tax ? `Tax: ${formatMoney(totals.tax, doc.currency)}\n` : ''}Total: ${formatMoney(totals.total, doc.currency)}\nValid until: ${fmtLong(doc.expiry)}\n\n${doc.terms ? `Terms:\n${doc.terms}\n\n` : ''}Reply to this message to accept.\n\nSAFE TECH SOLUTIONS`;
-
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(shareText);
-      toast('Quotation summary copied to clipboard');
-    } else {
-      toast('Preview available in dialog');
-    }
+  // Download PDF matching prototype lines 685, 1099
+  const handleDownloadPdf = (btn?: HTMLElement | null) => {
+    const currentDoc =
+      doc.state === 'draft' && can('quotes')
+        ? {
+            ...doc,
+            items: doc.items.filter((i) => i.desc.trim() || i.price > 0),
+          }
+        : doc;
+    downloadPdf('quote', currentDoc, btn);
   };
 
   // Preview Modal matching prototype line 796
@@ -291,9 +445,19 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
         </div>
       ),
       foot: (
-        <button type="button" className="btn" onClick={closeModal}>
-          Close
-        </button>
+        <>
+          <button type="button" className="btn" onClick={closeModal}>
+            Close
+          </button>
+          <button
+            type="button"
+            className="btn dl-btn primary"
+            onClick={(e) => downloadPdf('quote', doc, e.currentTarget)}
+          >
+            <Icon name="down" />
+            Download PDF
+          </button>
+        </>
       ),
     });
   };
@@ -334,13 +498,21 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
         <div className="actions">
           {isExisting && (
             <>
-              <button type="button" className="btn" onClick={handlePreview}>
-                <Icon name="eye" />
-                Preview
+              <button
+                type="button"
+                className="btn dl-btn"
+                onClick={(e) => handleDownloadPdf(e.currentTarget)}
+              >
+                <Icon name="down" />
+                Download PDF
               </button>
               <button type="button" className="btn" onClick={handleShare}>
                 <Icon name="send" />
                 Share
+              </button>
+              <button type="button" className="btn" onClick={handlePreview}>
+                <Icon name="eye" />
+                Preview
               </button>
               {can('quotes') && (
                 <button type="button" className="btn" onClick={handleDuplicate}>
@@ -471,7 +643,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
                         if (e.target.value === '__new') {
                           openNewCustomerModal();
                         } else {
-                          const c = getCustomerById(e.target.value);
+                          const c = customersList.find((x) => x.id === e.target.value) || getCustomerById(e.target.value);
                           setDoc((prev) => ({
                             ...prev,
                             customerId: e.target.value,
@@ -481,7 +653,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
                       }}
                     >
                       <option value="">Select a customer…</option>
-                      {MOCK_CUSTOMERS.map((c) => (
+                      {customersList.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name} ({c.code})
                         </option>

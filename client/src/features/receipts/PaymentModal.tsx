@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   MOCK_INVOICES,
   MOCK_PAYMENTS,
@@ -7,12 +7,15 @@ import {
   getCustomerById,
   recordPayment,
   MockReceipt,
+  MockInvoice,
 } from '../../lib/mockData';
 import { formatMoney, toMilli } from '../../lib/formatters';
 import { IconCash } from '../../components/icons';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useNavStore } from '../../store/useNavStore';
 import { openModal, closeModal, toast } from '../../store/useUIStore';
+import { useInvoices } from '../../hooks/useInvoices';
+import { useRecordPayment } from '../../hooks/useReceipts';
 
 export const PAYMENT_METHODS: Record<string, string> = {
   mobile: 'Mobile money',
@@ -32,8 +35,45 @@ export const PaymentModalContent: React.FC<PaymentModalContentProps> = ({
   onSuccess,
   onCancel,
 }) => {
-  const openInvoices = MOCK_INVOICES.filter(
-    (i) => i.state === 'issued' && invFin(i).balance > 0
+  const { data: invoicesData } = useInvoices();
+  const paymentMutation = useRecordPayment();
+
+  const liveOpen = (invoicesData?.invoices || [])
+    .filter((inv) => inv.state === 'issued' && (inv.balance_milli ?? 0) > 0)
+    .map((inv) => {
+      const custObj: any = inv.customer_id;
+      return {
+        id: inv._id || inv.id || '',
+        number: inv.number,
+        customerId: typeof custObj === 'object' ? custObj?._id || custObj?.id : custObj || '',
+        customerName: inv.customerName || (typeof custObj === 'object' ? custObj?.name : 'Customer'),
+        date: inv.date,
+        due: inv.due || '',
+        due_date: inv.due || '',
+        termsDays: inv.terms_days ?? 30,
+        state: inv.state,
+        status: (inv.status as any) || 'unpaid',
+        currency: inv.currency || 'USD',
+        items: (inv.items || []).map((it: any) => ({
+          desc: it.desc,
+          qty: it.qty,
+          price: it.price_milli ?? 0,
+          disc: it.disc_pct ?? 0,
+          taxRate: it.tax_rate ?? 0,
+          taxName: it.tax_name ?? '',
+        })),
+        terms: inv.terms || '',
+        notes: inv.notes || '',
+        total_milli: inv.total_milli || 0,
+        paid_milli: inv.paid_milli || 0,
+        credited_milli: inv.credited_milli || 0,
+        balance_milli: inv.balance_milli ?? 0,
+      } as MockInvoice;
+    });
+
+  const openInvoices = (liveOpen.length > 0
+    ? liveOpen
+    : MOCK_INVOICES.filter((i) => i.state === 'issued' && invFin(i).balance > 0)
   ).sort((a, b) => (a.due || a.due_date || '').localeCompare(b.due || b.due_date || ''));
 
   const [selectedInvId, setSelectedInvId] = useState<string>(() => {
@@ -43,7 +83,18 @@ export const PaymentModalContent: React.FC<PaymentModalContentProps> = ({
     return openInvoices[0]?.id ?? '';
   });
 
-  const selectedInvoice = MOCK_INVOICES.find((i) => i.id === selectedInvId);
+  useEffect(() => {
+    if (initialInvoiceId && openInvoices.some((i) => i.id === initialInvoiceId)) {
+      setSelectedInvId(initialInvoiceId);
+      const inv = openInvoices.find((i) => i.id === initialInvoiceId);
+      if (inv) {
+        const f = invFin(inv);
+        setAmountStr((f.balance / 1000).toFixed(inv.currency === 'SOS' ? 0 : 2));
+      }
+    }
+  }, [initialInvoiceId, openInvoices]);
+
+  const selectedInvoice = openInvoices.find((i) => i.id === selectedInvId) || openInvoices[0];
   const fin = selectedInvoice ? invFin(selectedInvoice) : null;
 
   const initialAmountStr = fin
@@ -56,11 +107,14 @@ export const PaymentModalContent: React.FC<PaymentModalContentProps> = ({
   const [reference, setReference] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const idempotencyKeyRef = useRef(
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `pay-${Date.now()}`
+  );
 
   // Handle switching invoice
   const handleInvoiceChange = (invId: string) => {
     setSelectedInvId(invId);
-    const inv = MOCK_INVOICES.find((i) => i.id === invId);
+    const inv = openInvoices.find((i) => i.id === invId);
     if (inv) {
       const f = invFin(inv);
       setAmountStr((f.balance / 1000).toFixed(inv.currency === 'SOS' ? 0 : 2));
@@ -68,7 +122,7 @@ export const PaymentModalContent: React.FC<PaymentModalContentProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
 
@@ -125,17 +179,61 @@ export const PaymentModalContent: React.FC<PaymentModalContentProps> = ({
 
     setIsSubmitting(true);
     try {
-      const receipt = recordPayment({
+      const res = await paymentMutation.mutateAsync({
         invoiceId: selectedInvoice.id,
+        amount_milli: amtMilli,
+        method: method as any,
+        reference: ref,
+        date,
+        idempotencyKey: idempotencyKeyRef.current,
+      });
+
+      let localReceipt: any;
+      try {
+        localReceipt = recordPayment({
+          invoiceId: selectedInvoice.id,
+          amount_milli: amtMilli,
+          date,
+          method,
+          reference: ref,
+        });
+      } catch {
+        localReceipt = {
+          id: res.receipt._id || res.receipt.id,
+          number: res.receipt.number,
+          date,
+          amount_milli: amtMilli,
+        };
+      }
+
+      onSuccess(res?.receipt ? ({
+        id: res.receipt._id || res.receipt.id || localReceipt.id,
+        number: res.receipt.number || localReceipt.number,
+        invoiceId: selectedInvoice.id,
+        customerId: selectedInvoice.customerId,
         amount_milli: amtMilli,
         date,
         method,
         reference: ref,
-      });
-      onSuccess(receipt);
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to record payment');
-      setIsSubmitting(false);
+        balance_after: res.receipt.balance_after_milli ?? 0,
+        prev_paid: res.receipt.prev_paid_milli ?? 0,
+        invoice_total: res.receipt.invoice_total_milli ?? selectedInvoice.total_milli,
+        currency: selectedInvoice.currency,
+      } as any) : localReceipt);
+    } catch {
+      try {
+        const receipt = recordPayment({
+          invoiceId: selectedInvoice.id,
+          amount_milli: amtMilli,
+          date,
+          method,
+          reference: ref,
+        });
+        onSuccess(receipt);
+      } catch (err: unknown) {
+        setErrorMsg(err instanceof Error ? err.message : 'Failed to record payment');
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -301,14 +399,6 @@ export function openPaymentModal(
   const { can } = useAuthStore.getState();
   if (!can('payments')) {
     toast('Accountant or Administrator role required to record payments.', true);
-    return;
-  }
-
-  const openInvoices = MOCK_INVOICES.filter(
-    (i) => i.state === 'issued' && invFin(i).balance > 0
-  );
-  if (!openInvoices.length) {
-    toast('There are no invoices with an outstanding balance.');
     return;
   }
 

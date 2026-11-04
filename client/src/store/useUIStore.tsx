@@ -1,11 +1,8 @@
 import React from 'react';
 import { create } from 'zustand';
+import { useToastStore, toast as toastFn, ToastItem } from './useToastStore';
 
-export interface ToastItem {
-  id: string;
-  message: string;
-  bad?: boolean;
-}
+export type { ToastItem };
 
 export interface ModalConfig {
   title: string;
@@ -25,46 +22,95 @@ export interface ConfirmBoxOptions {
 }
 
 interface UIState {
+  // Mobile Drawer Toggle State
+  isDrawerOpen: boolean;
+  setDrawerOpen: (open: boolean) => void;
+  toggleDrawer: () => void;
+
+  // Global Search Query
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+
+  // Document Sheet Scale Value
+  sheetScale: number;
+  setSheetScale: (scale: number) => void;
+
+  // Modal Stack & Active Modal
+  activeModal: ModalConfig | null;
+  modalStack: ModalConfig[];
+  openModal: (config: ModalConfig) => void;
+  closeModal: () => void;
+  closeAllModals: () => void;
+
+  // Legacy Toasts compatibility
   toasts: ToastItem[];
   addToast: (message: string, bad?: boolean) => void;
   removeToast: (id: string) => void;
-
-  activeModal: ModalConfig | null;
-  openModal: (config: ModalConfig) => void;
-  closeModal: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  toasts: [],
-  addToast: (message, bad = false) => {
-    const id = `t_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    set((state) => ({ toasts: [...state.toasts, { id, message, bad }] }));
-    setTimeout(() => {
-      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
-    }, 3600);
-  },
-  removeToast: (id) => {
-    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
-  },
+  // Drawer
+  isDrawerOpen: false,
+  setDrawerOpen: (isDrawerOpen) => set({ isDrawerOpen }),
+  toggleDrawer: () => set((state) => ({ isDrawerOpen: !state.isDrawerOpen })),
 
+  // Search
+  searchQuery: '',
+  setSearchQuery: (searchQuery) => set({ searchQuery }),
+
+  // Sheet Scale
+  sheetScale: 1,
+  setSheetScale: (sheetScale) => set({ sheetScale }),
+
+  // Modal Stack
   activeModal: null,
-  openModal: (config) => set({ activeModal: config }),
+  modalStack: [],
+  openModal: (config) =>
+    set((state) => ({
+      activeModal: config,
+      modalStack: [...state.modalStack, config],
+    })),
   closeModal: () => {
     set((state) => {
-      if (state.activeModal?.onClose) {
-        state.activeModal.onClose();
+      const topModal = state.activeModal;
+      if (topModal?.onClose) {
+        topModal.onClose();
       }
-      return { activeModal: null };
+      const newStack = state.modalStack.slice(0, -1);
+      return {
+        activeModal: newStack.length > 0 ? newStack[newStack.length - 1] : null,
+        modalStack: newStack,
+      };
     });
   },
+  closeAllModals: () => {
+    set((state) => {
+      state.modalStack.forEach((m) => m.onClose?.());
+      return { activeModal: null, modalStack: [] };
+    });
+  },
+
+  // Legacy Toasts delegation
+  toasts: [],
+  addToast: (message, bad = false) => {
+    useToastStore.getState().addToast(message, bad);
+    set({ toasts: useToastStore.getState().toasts });
+  },
+  removeToast: (id) => {
+    useToastStore.getState().removeToast(id);
+    set({ toasts: useToastStore.getState().toasts });
+  },
 }));
+
+// Sync toasts subscription
+useToastStore.subscribe((state) => {
+  useUIStore.setState({ toasts: state.toasts });
+});
 
 /**
  * Global toast trigger matching prototype `toast(msg, bad)`
  */
-export function toast(message: string, bad: boolean = false) {
-  useUIStore.getState().addToast(message, bad);
-}
+export const toast = toastFn;
 
 /**
  * Universal modal opening helper matching prototype `openModal()`
@@ -147,3 +193,5 @@ export function confirmBox({
     });
   });
 }
+
+export default useUIStore;

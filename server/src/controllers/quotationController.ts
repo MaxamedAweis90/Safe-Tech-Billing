@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Types } from 'mongoose';
 import { Quotation, QuotationState } from '../models/Quotation';
 import * as quotationService from '../services/quotationService';
 import { calculateDocumentTotals } from '../services/mathService';
@@ -54,6 +55,10 @@ export const listQuotations = async (req: Request, res: Response, next: NextFunc
 export const getQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: 'Quotation not found' });
+      return;
+    }
     const quotation = await Quotation.findById(id).populate('customer_id');
 
     if (!quotation) {
@@ -100,6 +105,10 @@ export const createQuotation = async (req: Request, res: Response, next: NextFun
 export const updateQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: 'Quotation not found' });
+      return;
+    }
     const quote = await quotationService.updateDraft(id, req.body);
 
     if (req.user) {
@@ -115,7 +124,11 @@ export const updateQuotation = async (req: Request, res: Response, next: NextFun
       success: true,
       quotation: quote,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && err.message.includes('Only drafts are editable')) {
+      res.status(409).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 };
@@ -123,6 +136,10 @@ export const updateQuotation = async (req: Request, res: Response, next: NextFun
 export const sendQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: 'Quotation not found' });
+      return;
+    }
     const quote = await quotationService.markSent(id);
 
     if (req.user) {
@@ -138,7 +155,11 @@ export const sendQuotation = async (req: Request, res: Response, next: NextFunct
       success: true,
       quotation: quote,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && err.message.includes('Only drafts are editable')) {
+      res.status(409).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 };
@@ -146,6 +167,10 @@ export const sendQuotation = async (req: Request, res: Response, next: NextFunct
 export const acceptQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: 'Quotation not found' });
+      return;
+    }
     const quote = await quotationService.markAccepted(id);
 
     if (req.user) {
@@ -161,7 +186,11 @@ export const acceptQuotation = async (req: Request, res: Response, next: NextFun
       success: true,
       quotation: quote,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && err.message.includes('Only drafts are editable')) {
+      res.status(409).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 };
@@ -169,6 +198,10 @@ export const acceptQuotation = async (req: Request, res: Response, next: NextFun
 export const rejectQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: 'Quotation not found' });
+      return;
+    }
     const { reason } = req.body;
     const quote = await quotationService.markRejected(id, reason);
 
@@ -186,7 +219,11 @@ export const rejectQuotation = async (req: Request, res: Response, next: NextFun
       success: true,
       quotation: quote,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && err.message.includes('Only drafts are editable')) {
+      res.status(409).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 };
@@ -194,6 +231,10 @@ export const rejectQuotation = async (req: Request, res: Response, next: NextFun
 export const convertQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: 'Quotation not found' });
+      return;
+    }
     const invoice = await quotationService.convertToInvoice(id);
 
     if (req.user) {
@@ -218,6 +259,10 @@ export const convertQuotation = async (req: Request, res: Response, next: NextFu
 export const duplicateQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: 'Quotation not found' });
+      return;
+    }
     const quote = await quotationService.duplicateQuote(id);
 
     if (req.user) {
@@ -242,6 +287,10 @@ export const duplicateQuotation = async (req: Request, res: Response, next: Next
 export const deleteQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: 'Quotation not found' });
+      return;
+    }
     const existing = await Quotation.findById(id);
     await quotationService.deleteDraft(id);
 

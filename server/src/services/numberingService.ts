@@ -61,3 +61,18 @@ export const getNextNumber = async (
   return formatNumber(pattern, sequenceDoc.current_seq, dateISO);
 };
 
+/**
+ * Previews the upcoming sequential number without incrementing the persistent sequence counter.
+ */
+export const peekNextNumber = async (
+  kind: SequenceKind,
+  dateISO: string = new Date().toISOString()
+): Promise<string> => {
+  const defaultPattern = DEFAULT_NUMBER_PATTERNS[kind] || '{SEQ}';
+  const sequenceDoc = await NumberSequence.findOne({ kind });
+  const currentSeq = sequenceDoc ? sequenceDoc.current_seq : (kind === 'invoice' ? 10471 : 0);
+  const pattern = sequenceDoc?.format || defaultPattern;
+  return formatNumber(pattern, currentSeq + 1, dateISO);
+};
+
+

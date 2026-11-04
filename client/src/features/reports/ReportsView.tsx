@@ -1,103 +1,230 @@
-import React from 'react';
-import { formatMoney } from '../../lib/formatters';
+import React, { useState, useMemo, useCallback } from 'react';
+import { MOCK_CUSTOMERS, TODAY, getCustomerById } from '../../lib/mockData';
+import { fmtD, addDays } from '../../lib/formatters';
+import { IconCopy } from '../../components/icons';
+import { useCustomers } from '../../hooks/useCustomers';
+import { exportCSV } from './csvExport';
+import { RevenueReport } from './RevenueReport';
+import { AgingReport } from './AgingReport';
+import { PaymentReport } from './PaymentReport';
+import { ConversionReport } from './ConversionReport';
+import { PaidUnpaidReport } from './PaidUnpaidReport';
+
+type ReportTab =
+  | 'revenue'
+  | 'outstanding'
+  | 'payments'
+  | 'conversion'
+  | 'paidunpaid';
+
+type RangePreset = 'month' | '30' | 'year' | 'all' | 'custom';
+type GroupBy = 'day' | 'month' | 'year';
+
+const TABS: [ReportTab, string][] = [
+  ['revenue', 'Revenue'],
+  ['outstanding', 'Outstanding & aging'],
+  ['payments', 'Payment history'],
+  ['conversion', 'Quotation conversion'],
+  ['paidunpaid', 'Paid vs unpaid'],
+];
+
+const RANGE_PRESETS: [RangePreset, string][] = [
+  ['month', 'This month'],
+  ['30', 'Last 30 days'],
+  ['year', 'This year'],
+  ['all', 'All time'],
+  ['custom', 'Custom'],
+];
 
 export const ReportsView: React.FC = () => {
-  const agingBuckets = [
-    { label: 'Current (0-30 days)', amount: 2200000, count: 1, color: 'var(--ok)' },
-    { label: '31-60 days', amount: 2850000, count: 1, color: 'var(--warn)' },
-    { label: '61-90 days', amount: 850000, count: 1, color: 'var(--bad)' },
-    { label: '90+ days overdue', amount: 0, count: 0, color: 'var(--faint)' },
-  ];
+  const [tab, setTab] = useState<ReportTab>('revenue');
+  const [range, setRange] = useState<RangePreset>('year');
+  const [from, setFrom] = useState(TODAY.slice(0, 4) + '-01-01');
+  const [to, setTo] = useState(TODAY);
+  const [cust, setCust] = useState('all');
+  const [group, setGroup] = useState<GroupBy>('month');
+
+  // Active report CSV matrix
+  const [currentCSV, setCurrentCSV] = useState<(string | number)[][]>([]);
+
+  const handleUpdateCSV = useCallback((matrix: (string | number)[][]) => {
+    setCurrentCSV(matrix);
+  }, []);
+
+  // Compute active date boundaries matching prototype rangeDates()
+  const [activeFrom, activeTo] = useMemo(() => {
+    const y = TODAY.slice(0, 4);
+    if (range === 'month') return [TODAY.slice(0, 8) + '01', TODAY];
+    if (range === '30') return [addDays(TODAY, -29), TODAY];
+    if (range === 'year') return [y + '-01-01', TODAY];
+    if (range === 'all') return ['2000-01-01', TODAY];
+    return [from || y + '-01-01', to || TODAY];
+  }, [range, from, to]);
+
+  const { data: customersData } = useCustomers();
+  const customerList = customersData?.customers && customersData.customers.length > 0
+    ? customersData.customers.map((c: any) => ({
+        id: c._id || c.id || String(c.code),
+        name: c.name,
+      }))
+    : MOCK_CUSTOMERS.map((c) => ({ id: c.id, name: c.name }));
+
+  const selectedCustomer = cust !== 'all'
+    ? customerList.find((c) => c.id === cust) || getCustomerById(cust)
+    : null;
+
+  const handleCopyCSV = () => {
+    exportCSV(currentCSV);
+  };
 
   return (
     <>
       {/* Page Header */}
       <div className="page-head">
         <div>
-          <h1>Financial Reports</h1>
-          <p>Accounts receivable aging schedule, tax reconciliation, and collection efficiency.</p>
+          <h1>Reports &amp; analytics</h1>
+          <p>
+            {fmtD(activeFrom)} – {fmtD(activeTo)}
+            {selectedCustomer ? ` · ${selectedCustomer.name}` : ' · all customers'}
+            {' · amounts in USD'}
+          </p>
+        </div>
+        <div className="actions">
+          <button
+            type="button"
+            className="btn"
+            data-act="copy-csv"
+            onClick={handleCopyCSV}
+          >
+            <IconCopy size={15} />
+            Copy as CSV
+          </button>
         </div>
       </div>
 
-      {/* AR Aging Buckets */}
+      {/* Main Panel */}
       <section className="panel">
-        <div className="panel-head">
-          <div>
-            <h2>Accounts receivable aging schedule</h2>
-            <span className="sub">Outstanding invoice balances bucketed by payment due date</span>
-          </div>
+        {/* Sub-Navigation Tabs */}
+        <div className="tabs" data-rep="tab">
+          {TABS.map(([k, l]) => (
+            <button
+              key={k}
+              type="button"
+              data-v={k}
+              className={tab === k ? 'on' : ''}
+              onClick={() => setTab(k)}
+            >
+              {l}
+            </button>
+          ))}
         </div>
-        <div className="panel-body">
-          <div className="kpis">
-            {agingBuckets.map((bucket, idx) => (
-              <div key={idx} className="kpi">
-                <span className="k-label">{bucket.label}</span>
-                <span className="k-value" style={{ color: bucket.color }}>
-                  {formatMoney(bucket.amount, 'USD')}
-                </span>
-                <span className="k-meta">{bucket.count} open invoice(s)</span>
-              </div>
+
+        {/* Global Report Filters Bar */}
+        <div className="filters">
+          <div className="seg" data-rep="range">
+            {RANGE_PRESETS.map(([v, l]) => (
+              <button
+                key={v}
+                type="button"
+                data-v={v}
+                className={range === v ? 'on' : ''}
+                onClick={() => setRange(v)}
+              >
+                {l}
+              </button>
             ))}
           </div>
+
+          {range === 'custom' && (
+            <>
+              <input
+                type="date"
+                className="inp"
+                id="rFrom"
+                value={from}
+                aria-label="From"
+                onChange={(e) => setFrom(e.target.value)}
+              />
+              <input
+                type="date"
+                className="inp"
+                id="rTo"
+                value={to}
+                aria-label="To"
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </>
+          )}
+
+          <select
+            className="sel"
+            id="rCust"
+            aria-label="Customer"
+            value={cust}
+            onChange={(e) => setCust(e.target.value)}
+          >
+            <option value="all">All customers</option>
+            {customerList.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {/* Dynamic Report Content */}
+        {tab === 'revenue' && (
+          <RevenueReport
+            from={activeFrom}
+            to={activeTo}
+            cust={cust}
+            group={group}
+            onGroupChange={setGroup}
+            onUpdateCSV={handleUpdateCSV}
+          />
+        )}
+
+        {tab === 'outstanding' && (
+          <AgingReport
+            to={activeTo}
+            cust={cust}
+            onUpdateCSV={handleUpdateCSV}
+          />
+        )}
+
+        {tab === 'payments' && (
+          <PaymentReport
+            from={activeFrom}
+            to={activeTo}
+            cust={cust}
+            onUpdateCSV={handleUpdateCSV}
+          />
+        )}
+
+        {tab === 'conversion' && (
+          <ConversionReport
+            from={activeFrom}
+            to={activeTo}
+            cust={cust}
+            onUpdateCSV={handleUpdateCSV}
+          />
+        )}
+
+        {tab === 'paidunpaid' && (
+          <PaidUnpaidReport
+            from={activeFrom}
+            to={activeTo}
+            cust={cust}
+            onUpdateCSV={handleUpdateCSV}
+          />
+        )}
       </section>
 
-      {/* Grid 2: Tax Reconciliation & Collection Efficiency */}
-      <div className="grid-2e">
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Tax reconciliation summary</h2>
-          </div>
-          <div className="tbl-wrap">
-            <table className="tbl">
-              <tbody>
-                <tr>
-                  <td className="muted">Standard Rate VAT (16%)</td>
-                  <td className="r strong font-mono">{formatMoney(1960000, 'USD')}</td>
-                </tr>
-                <tr>
-                  <td className="muted">Zero-Rated Supplies (0%)</td>
-                  <td className="r font-mono">{formatMoney(0, 'USD')}</td>
-                </tr>
-                <tr style={{ background: 'var(--surface-2)' }}>
-                  <td className="strong">Total Output Tax Accrued</td>
-                  <td className="r strong font-mono" style={{ color: 'var(--accent)' }}>
-                    {formatMoney(1960000, 'USD')}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Collection efficiency & KPI</h2>
-          </div>
-          <div className="tbl-wrap">
-            <table className="tbl">
-              <tbody>
-                <tr>
-                  <td className="muted">Collection Rate</td>
-                  <td className="r strong font-mono" style={{ color: 'var(--ok)' }}>
-                    88.4%
-                  </td>
-                </tr>
-                <tr>
-                  <td className="muted">Average Days to Pay (DSO)</td>
-                  <td className="r strong font-mono">18.2 Days</td>
-                </tr>
-                <tr style={{ background: 'var(--surface-2)' }}>
-                  <td className="strong">Disputed / Credit Note Ratio</td>
-                  <td className="r strong font-mono" style={{ color: 'var(--muted)' }}>
-                    0.0%
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
+      {/* Export hint */}
+      <p style={{ margin: 0, color: 'var(--muted)', fontSize: 12.5 }}>
+        Copy as CSV pastes straight into Excel or Google Sheets. In production,
+        the server also exports PDF and .xlsx.
+      </p>
     </>
   );
 };

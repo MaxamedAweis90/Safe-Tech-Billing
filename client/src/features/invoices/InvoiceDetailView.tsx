@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { SkeletonBox } from 'skullet/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '../../components/icons';
 import {
   getInvoiceById,
@@ -13,11 +15,11 @@ import {
   getCreditNotesForInvoice,
   getReceiptsForInvoice,
   getAuditEventsForRef,
-  COMPANY_SETTINGS,
+  MockInvoice,
+  TODAY,
 } from '../../lib/mockData';
 import {
   fmtD,
-  fmtLong,
   daysBetween,
   formatMoney,
   toMilli,
@@ -25,7 +27,16 @@ import {
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirmBox, toast, openModal, closeModal } from '../../store/useUIStore';
 import { PaymentModalContent } from '../dashboard/PaymentModal';
-import { DocumentScaleWrapper, DocumentSheet } from '../documents';
+import { DocumentScaleWrapper, DocumentSheet, downloadPdf } from '../documents';
+import { openShareModal } from '../documents/ShareModal';
+import {
+  useInvoiceDetail,
+  useMarkInvoiceSent,
+  useCancelInvoice,
+  useCreditNote,
+} from '../../hooks/useInvoices';
+import { useAuditLog } from '../../hooks/useAudit';
+import { invoiceKeys, receiptKeys } from '../../lib/queryClient';
 
 export interface InvoiceDetailViewProps {
   invoiceId: string;
@@ -52,6 +63,106 @@ const METHOD_LABELS: Record<string, string> = {
   card: 'Credit / debit card',
 };
 
+interface CreditNoteModalContentProps {
+  invoiceId: string;
+  balance: number;
+  currency: string;
+  onSuccess: (creditNoteNumber: string) => void;
+  onCancel: () => void;
+}
+
+const CreditNoteModalContent: React.FC<CreditNoteModalContentProps> = ({
+  invoiceId,
+  balance,
+  currency,
+  onSuccess,
+  onCancel,
+}) => {
+  const [amt, setAmt] = useState('');
+  const [reason, setReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const creditNoteMutation = useCreditNote();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const a = toMilli(amt);
+    const why = reason.trim();
+    if (!(a > 0)) {
+      toast('Enter an amount greater than zero.', true);
+      return;
+    }
+    if (a > balance) {
+      toast("A credit note can't exceed the outstanding balance.", true);
+      return;
+    }
+    if (!why) {
+      toast(
+        'Give a reason; it is printed on the credit note and kept in the audit trail.',
+        true
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await creditNoteMutation.mutateAsync({
+        invoiceId,
+        amount_milli: a,
+        reason: why,
+        date: TODAY,
+      });
+      onSuccess(res.credit_note?.number || '');
+    } catch {
+      const cn = issueCreditNote(invoiceId, a, why);
+      onSuccess(cn.number);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>
+        A credit note reduces what the customer owes without editing the issued invoice. Up to{' '}
+        <b>{formatMoney(balance, currency)}</b> can be credited.
+      </p>
+      <div className="form-grid">
+        <div className="field">
+          <label htmlFor="cnAmt">Amount</label>
+          <input
+            id="cnAmt"
+            className="inp"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={amt}
+            onChange={(e) => setAmt(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <div className="field wide">
+          <label htmlFor="cnReason">Reason *</label>
+          <textarea
+            id="cnReason"
+            className="inp"
+            rows={2}
+            placeholder="e.g. 2 units returned damaged"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+        <button type="button" className="btn" onClick={onCancel} disabled={isSubmitting}>
+          Cancel
+        </button>
+        <button type="submit" className="btn primary" disabled={isSubmitting}>
+          {isSubmitting ? 'Issuing...' : 'Issue credit note'}
+        </button>
+      </div>
+    </form>
+  );
+};
+
 export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   invoiceId,
   onBack,
@@ -60,12 +171,35 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   onNavigateQuote,
 }) => {
   const { can } = useAuthStore();
-  const [, setTick] = useState(0); // For forcing re-render after mutations
+  const queryClient = useQueryClient();
+  const [, setTick] = useState(0); // For forcing re-render after local fallback mutations
   const triggerUpdate = () => setTick((t) => t + 1);
 
-  const inv = getInvoiceById(invoiceId);
+  // Live queries
+  const { data: detailData, isLoading: detailLoading } = useInvoiceDetail(invoiceId);
 
-  if (!inv) {
+  // Mutations
+  const sendMutation = useMarkInvoiceSent();
+  const cancelMutation = useCancelInvoice();
+
+  const mockInv = getInvoiceById(invoiceId);
+  const liveInv = detailData?.invoice;
+
+  // Audit logs query for this invoice
+  const invNumber = liveInv?.number || mockInv?.number || '';
+  const { data: auditData } = useAuditLog(invNumber ? { ref: invNumber } : undefined);
+
+  if (!liveInv && !mockInv) {
+    if (detailLoading) {
+      return (
+        <div className="panel" style={{ padding: 32 }}>
+          <SkeletonBox width="50%" height={28} />
+          <div style={{ marginTop: 16 }}>
+            <SkeletonBox width="100%" height={260} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="panel">
         <div className="empty">
@@ -84,14 +218,114 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
     );
   }
 
-  const f = invFin(inv);
-  const s = invStatus(inv);
-  const c = getCustomerById(inv.customerId);
-  const pays = getPaymentsForInvoice(inv.id);
-  const cns = getCreditNotesForInvoice(inv.id);
+  // Synthesize invoice object
+  const custObj: any = liveInv?.customer_id;
+  const custId = typeof custObj === 'object' ? custObj?._id || custObj?.id : custObj;
+  const custName = liveInv?.customerName || (typeof custObj === 'object' ? custObj?.name : undefined);
+  const quoteObj: any = liveInv?.quote_id;
+  const quoteId = typeof quoteObj === 'object' ? quoteObj?._id || quoteObj?.id : quoteObj;
+  const quoteNumber = typeof quoteObj === 'object' ? quoteObj?.number : undefined;
+
+  const inv: MockInvoice = liveInv
+    ? {
+        id: liveInv._id || liveInv.id || invoiceId,
+        number: liveInv.number,
+        customerId: custId || mockInv?.customerId || '',
+        customerName: custName || mockInv?.customerName || 'Customer',
+        quoteId: quoteId || mockInv?.quoteId,
+        date: liveInv.date,
+        due: liveInv.due || (liveInv as any).due_date || mockInv?.due || '',
+        due_date: liveInv.due || (liveInv as any).due_date || mockInv?.due_date || '',
+        termsDays: liveInv.terms_days ?? mockInv?.termsDays ?? 30,
+        state: liveInv.state,
+        status: (liveInv.status as any) || mockInv?.status || 'draft',
+        currency: liveInv.currency || 'USD',
+        items: (liveInv.items || []).map((it: any) => ({
+          desc: it.desc,
+          qty: it.qty,
+          price: it.price_milli ?? it.price ?? 0,
+          disc: it.disc_pct ?? it.disc ?? 0,
+          taxRate: it.tax_rate ?? it.taxRate ?? 0,
+          taxName: it.tax_name ?? it.taxName ?? '',
+        })),
+        terms: liveInv.terms || mockInv?.terms || '',
+        notes: liveInv.notes || mockInv?.notes || '',
+        total_milli: liveInv.total_milli ?? mockInv?.total_milli ?? 0,
+        paid_milli: liveInv.paid_milli ?? mockInv?.paid_milli ?? 0,
+        credited_milli: liveInv.credited_milli ?? (mockInv as any)?.credited_milli ?? 0,
+        balance_milli: liveInv.balance_milli ?? mockInv?.balance_milli ?? 0,
+        sentAt: liveInv.sent_at || mockInv?.sentAt,
+        cancelledAt: liveInv.cancelled_at || mockInv?.cancelledAt,
+        cancelReason: liveInv.cancel_reason || mockInv?.cancelReason,
+      }
+    : mockInv!;
+
+  const f = liveInv
+    ? {
+        total: liveInv.total_milli ?? invFin(inv).total,
+        paid: liveInv.paid_milli ?? invFin(inv).paid,
+        credit: liveInv.credited_milli ?? invFin(inv).credit,
+        balance: liveInv.balance_milli ?? invFin(inv).balance,
+        overdue: liveInv.status === 'overdue',
+      }
+    : {
+        ...invFin(inv),
+        overdue: invStatus(inv) === 'overdue',
+      };
+
+  const s = (liveInv?.status as string) || invStatus(inv);
+
+  const c = (custObj && typeof custObj === 'object')
+    ? {
+        id: custObj._id || custObj.id,
+        name: custObj.name,
+        code: custObj.code,
+        phone: custObj.phone || '',
+        address: custObj.address || '',
+      }
+    : getCustomerById(inv.customerId);
+
+  const pays = detailData?.payments
+    ? detailData.payments.map((p: any) => {
+        const rObj = p.receipt_id;
+        const rId = typeof rObj === 'object' ? rObj?._id || rObj?.id : rObj;
+        const rNum = typeof rObj === 'object' ? rObj?.number : undefined;
+        return {
+          id: p._id || p.id,
+          invoiceId: inv.id,
+          receiptId: rId || p.receiptId,
+          receiptNumber: rNum,
+          amount_milli: p.amount_milli,
+          date: p.date,
+          method: p.method,
+          reference: p.reference,
+        };
+      })
+    : getPaymentsForInvoice(inv.id);
+
+  const cns = detailData?.credit_notes
+    ? detailData.credit_notes.map((cn: any) => ({
+        id: cn._id || cn.id,
+        number: cn.number,
+        invoiceId: inv.id,
+        date: cn.date,
+        amount: cn.amount_milli,
+        reason: cn.reason,
+      }))
+    : getCreditNotesForInvoice(inv.id);
+
   const receipts = getReceiptsForInvoice(inv.id);
-  const auditEvents = getAuditEventsForRef(inv.number);
-  const q = inv.quoteId ? getQuoteById(inv.quoteId) : undefined;
+
+  const auditEvents = (auditData?.logs && auditData.logs.length > 0)
+    ? auditData.logs.map((a) => ({
+        ts: a.ts,
+        action: a.action,
+        ref: a.ref,
+        user: a.user_name || (a as any).user || 'User',
+      }))
+    : getAuditEventsForRef(inv.number);
+
+  const q = inv.quoteId ? (getQuoteById(inv.quoteId) || (quoteNumber ? { id: inv.quoteId, number: quoteNumber } : undefined)) : undefined;
 
   const pct = f.total
     ? Math.min(100, Math.round(((f.paid + f.credit) / f.total) * 100))
@@ -99,22 +333,26 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
 
   const dueDate = inv.due || inv.due_date || '';
   const isOverdue = s === 'overdue';
-  const overdueDays = isOverdue && dueDate ? daysBetween(dueDate, '2026-10-31') : 0;
+  const overdueDays = isOverdue && dueDate ? daysBetween(dueDate, TODAY) : 0;
 
   // Workflow steps
   const flowSteps = [
     { label: 'Quotation', done: Boolean(inv.quoteId) },
     { label: 'Invoice', done: true },
     { label: 'Payment', done: f.paid > 0 },
-    { label: 'Receipt', done: receipts.length > 0 },
+    { label: 'Receipt', done: receipts.length > 0 || pays.some((p: any) => p.receiptId || p.receiptNumber) },
   ];
 
   // Actions
-  const handleMarkSent = () => {
+  const handleMarkSent = async () => {
     if (!can('invoices')) return;
-    markInvoiceSent(inv.id);
-    toast(`Invoice ${inv.number} marked as sent`);
-    triggerUpdate();
+    try {
+      await sendMutation.mutateAsync(inv.id);
+    } catch {
+      markInvoiceSent(inv.id);
+      toast(`Invoice ${inv.number} marked as sent`);
+      triggerUpdate();
+    }
   };
 
   const handleCancel = async () => {
@@ -133,84 +371,35 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
     });
 
     if (typeof res === 'string' && res.trim()) {
-      cancelInvoice(inv.id, res.trim());
-      toast(`Invoice ${inv.number} cancelled`);
-      triggerUpdate();
+      try {
+        await cancelMutation.mutateAsync({ id: inv.id, reason: res.trim() });
+      } catch {
+        cancelInvoice(inv.id, res.trim());
+        toast(`Invoice ${inv.number} cancelled`);
+        triggerUpdate();
+      }
     }
   };
 
   const openCreditModal = () => {
     if (!can('invoices')) return;
-    let amtInput = '';
-    let reasonInput = '';
 
     openModal({
       title: `Credit note for invoice ${inv.number}`,
       body: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>
-            A credit note reduces what the customer owes without editing the issued
-            invoice. Up to <b>{formatMoney(f.balance, inv.currency)}</b> can be credited.
-          </p>
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="cnAmt">Amount</label>
-              <input
-                id="cnAmt"
-                className="inp"
-                inputMode="decimal"
-                placeholder="0.00"
-                onChange={(e) => (amtInput = e.target.value)}
-              />
-            </div>
-            <div className="field wide">
-              <label htmlFor="cnReason">Reason *</label>
-              <textarea
-                id="cnReason"
-                className="inp"
-                rows={2}
-                placeholder="e.g. 2 units returned damaged"
-                onChange={(e) => (reasonInput = e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-      ),
-      foot: (
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" className="btn" onClick={closeModal}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => {
-              const a = toMilli(amtInput);
-              const why = reasonInput.trim();
-              if (!(a > 0)) {
-                toast('Enter an amount greater than zero.', true);
-                return;
-              }
-              if (a > f.balance) {
-                toast("A credit note can't exceed the outstanding balance.", true);
-                return;
-              }
-              if (!why) {
-                toast(
-                  'Give a reason; it is printed on the credit note and kept in the audit trail.',
-                  true
-                );
-                return;
-              }
-              const cn = issueCreditNote(inv.id, a, why);
-              closeModal();
-              toast(`${cn.number} issued`);
-              triggerUpdate();
-            }}
-          >
-            Issue credit note
-          </button>
-        </div>
+        <CreditNoteModalContent
+          invoiceId={inv.id}
+          balance={f.balance}
+          currency={inv.currency}
+          onSuccess={(cnNumber) => {
+            closeModal();
+            queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+            queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(inv.id) });
+            toast(`Credit note ${cnNumber} issued`);
+            triggerUpdate();
+          }}
+          onCancel={closeModal}
+        />
       ),
     });
   };
@@ -224,6 +413,9 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
           initialInvoiceId={inv.id}
           onSuccess={(receipt) => {
             closeModal();
+            queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+            queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(inv.id) });
+            queryClient.invalidateQueries({ queryKey: receiptKeys.all });
             toast(`Receipt ${receipt.number} issued`);
             triggerUpdate();
             if (onNavigateReceipt) {
@@ -237,109 +429,13 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   };
 
   const handleShare = () => {
-    const co = COMPANY_SETTINGS;
-    const cust = c;
-    const cur = inv.currency;
-    const text = `Dear ${cust?.attn && cust.attn !== 'N/A' ? cust.attn : cust?.name || 'Customer'},\n\nPlease find invoice ${inv.number} dated ${fmtLong(inv.date)} for ${formatMoney(f.total, cur)}. Balance due: ${formatMoney(f.balance, cur)} by ${fmtLong(dueDate)}.\n\nPay to ${co.bankName}, account ${co.accountNo} (${co.accountName})${co.mobileMoney ? ', or ' + co.mobileMoney : ''}. Please quote ${inv.number} as the reference.\n\nThank you for your business,\n${co.name}\n${co.phone}`;
-
-    let msg = text;
-    let markSentAfter = true;
-
-    openModal({
-      title: `Share invoice ${inv.number}`,
-      body: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="field">
-            <label>Customer</label>
-            <div style={{ fontWeight: 600 }}>{cust?.name}</div>
-            <div
-              style={{
-                display: 'flex',
-                gap: '6px 16px',
-                flexWrap: 'wrap',
-                fontSize: 13,
-                color: 'var(--muted)',
-              }}
-            >
-              <span>
-                Phone:{' '}
-                <span style={{ userSelect: 'all', color: 'var(--ink)' }}>
-                  {cust?.phone || 'none on file'}
-                </span>
-              </span>
-              <span>
-                Email:{' '}
-                <span style={{ userSelect: 'all', color: 'var(--ink)' }}>
-                  {cust?.email || 'none on file'}
-                </span>
-              </span>
-            </div>
-          </div>
-
-          <div className="field">
-            <label htmlFor="shTxt">Message</label>
-            <textarea
-              id="shTxt"
-              className="inp"
-              rows={8}
-              defaultValue={text}
-              onChange={(e) => (msg = e.target.value)}
-            />
-            <span className="hint">
-              Edit the message if you like, then copy it into WhatsApp, email or SMS.
-            </span>
-          </div>
-
-          {!inv.sentAt && can('invoices') && (
-            <label
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'center',
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                defaultChecked={markSentAfter}
-                onChange={(e) => (markSentAfter = e.target.checked)}
-              />
-              Mark as sent after sharing
-            </label>
-          )}
-        </div>
-      ),
-      foot: (
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" className="btn" onClick={closeModal}>
-            Close
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => {
-              if (navigator.clipboard) {
-                navigator.clipboard.writeText(msg);
-                toast('Invoice summary copied to clipboard');
-              }
-              if (markSentAfter && !inv.sentAt && can('invoices')) {
-                markInvoiceSent(inv.id);
-                triggerUpdate();
-              }
-              closeModal();
-            }}
-          >
-            <Icon name="copy" />
-            Copy message
-          </button>
-        </div>
-      ),
+    openShareModal('invoice', inv, () => {
+      triggerUpdate();
     });
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownloadPdf = (btn?: HTMLElement | null) => {
+    downloadPdf('invoice', inv, btn);
   };
 
   return (
@@ -388,10 +484,16 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
 
         {/* Action Toolbar */}
         <div className="actions">
-          <button type="button" className="btn" onClick={handlePrint}>
-            <Icon name="down" />
-            Print / PDF
-          </button>
+          {inv.state !== 'draft' && (
+            <button
+              type="button"
+              className="btn dl-btn"
+              onClick={(e) => handleDownloadPdf(e.currentTarget)}
+            >
+              <Icon name="down" />
+              Download PDF
+            </button>
+          )}
 
           <button type="button" className="btn" onClick={handleShare}>
             <Icon name="send" />
@@ -522,21 +624,23 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
               <div className="tbl-wrap">
                 <table className="tbl">
                   <tbody>
-                    {pays.map((p) => {
+                    {pays.map((p: any) => {
                       const r = receipts.find((x) => x.id === p.receiptId);
+                      const recNumber = r ? r.number : (p.receiptNumber || p.receiptId || 'Receipt');
+                      const targetReceiptId = r ? r.id : (p.receiptId || p.id);
                       return (
                         <tr
                           key={p.id}
                           className="link"
                           onClick={() => {
-                            if (r && onNavigateReceipt) {
-                              onNavigateReceipt(r.id);
+                            if (targetReceiptId && onNavigateReceipt) {
+                              onNavigateReceipt(targetReceiptId);
                             }
                           }}
                         >
                           <td>
                             <div className="mono font-semibold" style={{ color: 'var(--accent)' }}>
-                              {r ? r.number : p.receiptId}
+                              {recNumber}
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                               {fmtD(p.date)} · {METHOD_LABELS[p.method] || p.method}

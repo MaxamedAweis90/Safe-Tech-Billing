@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { Types } from "mongoose";
 import { Payment } from "../models/Payment";
 import { Receipt } from "../models/Receipt";
 import { recordPayment } from "../services/paymentService";
@@ -11,6 +12,11 @@ export const postPayment = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string; // invoiceId
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
     const result = await recordPayment(id, req.body);
 
     if (req.user) {
@@ -79,12 +85,17 @@ export const listReceipts = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { method, customer_id, limit, skip } = req.query;
+    const { method, customer_id, q, limit, skip } = req.query;
 
     const filter: Record<string, unknown> = {};
-    if (method && typeof method === "string") filter.method = method;
-    if (customer_id && typeof customer_id === "string")
+    if (method && typeof method === "string" && method !== "all")
+      filter.method = method;
+    if (customer_id && typeof customer_id === "string" && customer_id !== "all")
       filter.customer_id = customer_id;
+    if (q && typeof q === "string" && q.trim()) {
+      const regex = new RegExp(q.trim(), "i");
+      filter.$or = [{ number: regex }, { reference: regex }];
+    }
 
     const parsedLimit = limit
       ? Math.min(100, Math.max(1, parseInt(limit as string, 10)))
@@ -120,6 +131,11 @@ export const getReceipt = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Receipt not found" });
+      return;
+    }
+
     const receipt = await Receipt.findById(id)
       .populate("customer_id")
       .populate("invoice_id")

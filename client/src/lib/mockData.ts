@@ -5,8 +5,10 @@
 
 import { totalsOf, addDays, fmtNumber, qStatus, formatMoney } from './formatters';
 import { PROTOTYPE_LOGO, PROTOTYPE_STAMP } from '../features/documents/brandingAssets';
+import { useAuthStore, ROLES } from '../store/useAuthStore';
 
-export const TODAY = '2026-10-31';
+const realDateStr = new Date().toISOString().slice(0, 10);
+export const TODAY = realDateStr > '2026-10-31' ? realDateStr : '2026-10-31';
 
 export const CATALOG_ITEMS: [string, number][] = [
   ['Premium Office Tissue Holder', 11500],
@@ -84,6 +86,56 @@ export interface MockQuote {
   createdAt?: string;
 }
 
+export interface SystemCurrency {
+  code: string;
+  symbol: string;
+  decimals: number;
+  rate: number;
+}
+
+export interface SystemTax {
+  id: string;
+  name: string;
+  rate: number;
+}
+
+export interface SystemSettings {
+  company: {
+    name: string;
+    tagline: string;
+    address: string;
+    phone: string;
+    email: string;
+    website: string;
+    taxId: string;
+    bankName: string;
+    accountName: string;
+    accountNo: string;
+    mobileMoney: string;
+    signatory: string;
+    logo: string;
+    stamp: string;
+    signature: string;
+  };
+  currencies: SystemCurrency[];
+  defaultCurrency: string;
+  numbering: {
+    quote: string;
+    invoice: string;
+    receipt: string;
+    credit: string;
+  };
+  seq: {
+    quote: number;
+    invoice: number;
+    receipt: number;
+    credit: number;
+  };
+  taxes: SystemTax[];
+  quoteTerms: string;
+  invoiceTerms: string;
+}
+
 export const COMPANY_SETTINGS = {
   name: 'SAFE TECH SOLUTIONS',
   tagline: 'Innovator in Electronics',
@@ -100,6 +152,34 @@ export const COMPANY_SETTINGS = {
   logo: PROTOTYPE_LOGO,
   stamp: PROTOTYPE_STAMP,
   signature: '',
+};
+
+export const SYSTEM_SETTINGS: SystemSettings = {
+  company: COMPANY_SETTINGS,
+  currencies: [
+    { code: 'USD', symbol: '$', decimals: 2, rate: 1 },
+    { code: 'SOS', symbol: 'Sh.So.', decimals: 0, rate: 571 },
+  ],
+  defaultCurrency: 'USD',
+  numbering: {
+    quote: 'QT-{YYYY}-{SEQ4}',
+    invoice: '{SEQ}',
+    receipt: 'RC-{SEQ5}',
+    credit: 'CN-{SEQ4}',
+  },
+  seq: {
+    quote: 10,
+    invoice: 10471,
+    receipt: 12,
+    credit: 1,
+  },
+  taxes: [
+    { id: 'none', name: 'No tax', rate: 0 },
+    { id: 'st5', name: 'Sales tax 5%', rate: 5 },
+    { id: 'svc10', name: 'Service tax 10%', rate: 10 },
+  ],
+  quoteTerms: QUOTE_TERMS,
+  invoiceTerms: INVOICE_TERMS,
 };
 
 export const INVOICE_TERMS_PRESETS: [number, string][] = [
@@ -128,6 +208,7 @@ export interface MockInvoice {
   currency: string;
   total_milli: number;
   paid_milli: number;
+  credited_milli?: number;
   balance_milli: number;
   daysLate?: number;
   quoteId?: string;
@@ -1256,8 +1337,6 @@ export const MOCK_RECEIPTS: MockReceipt[] = [
   },
 ];
 
-let nextReceiptSeq = 13;
-
 export function toBase(amount_milli: number, currency = 'USD'): number {
   if (currency === 'SOS') {
     return Math.round(amount_milli / 571);
@@ -1504,7 +1583,7 @@ export function recordPayment(data: {
 
   const pid = `p_${Date.now()}`;
   const rid = `r_${Date.now()}`;
-  const receiptNum = `RC-${String(nextReceiptSeq++).padStart(5, '0')}`;
+  const receiptNum = nextReceiptNumber(data.date || TODAY);
 
   const payment: MockPayment = {
     id: pid,
@@ -1658,13 +1737,27 @@ export function logAuditEvent(
   action: string,
   ref: string,
   detail = '',
-  user = 'Faadumo Nur',
-  role = 'Sales Officer'
+  user?: string,
+  role?: string
 ) {
+  let resolvedUser = user;
+  let resolvedRole = role;
+  if (!resolvedUser || !resolvedRole) {
+    try {
+      const auth = useAuthStore.getState();
+      const r = ROLES[auth.role];
+      if (r) {
+        resolvedUser = resolvedUser || r.user;
+        resolvedRole = resolvedRole || r.label;
+      }
+    } catch {
+      // fallback
+    }
+  }
   MOCK_AUDIT.unshift({
     ts: Date.now(),
-    user,
-    role,
+    user: resolvedUser || 'Amina Yusuf',
+    role: resolvedRole || 'Administrator',
     action,
     ref,
     detail,
@@ -1685,11 +1778,13 @@ export function getCustomerById(id: string): MockCustomer | undefined {
   return MOCK_CUSTOMERS.find((c) => c.id === id);
 }
 
-let quoteSeq = 10;
-
 export function nextQuoteNumber(dateStr = TODAY): string {
-  quoteSeq++;
-  return fmtNumber('QT-{YYYY}-{SEQ4}', quoteSeq, dateStr);
+  SYSTEM_SETTINGS.seq.quote++;
+  return fmtNumber(SYSTEM_SETTINGS.numbering.quote, SYSTEM_SETTINGS.seq.quote, dateStr);
+}
+
+export function peekQuoteNumber(dateStr = TODAY): string {
+  return fmtNumber(SYSTEM_SETTINGS.numbering.quote, SYSTEM_SETTINGS.seq.quote + 1, dateStr);
 }
 
 export function saveQuote(
@@ -1732,7 +1827,7 @@ export function saveQuote(
 
   // Create new quotation
   const newNum = nextQuoteNumber(data.date || TODAY);
-  const newId = `q${quoteSeq}`;
+  const newId = `q${SYSTEM_SETTINGS.seq.quote}`;
   const newQuote: MockQuote = {
     id: newId,
     number: newNum,
@@ -1782,7 +1877,7 @@ export function duplicateQuote(id: string): MockQuote | undefined {
   if (!quote) return undefined;
 
   const newNum = nextQuoteNumber(TODAY);
-  const newId = `q${quoteSeq}`;
+  const newId = `q${SYSTEM_SETTINGS.seq.quote}`;
   const duplicate: MockQuote = {
     ...JSON.parse(JSON.stringify(quote)),
     id: newId,
@@ -1874,6 +1969,12 @@ export function getReceiptsForInvoice(invoiceId: string): MockReceipt[] {
 
 export function invFin(inv: MockInvoice) {
   const t = totalsOf({ items: inv.items || [] });
+  const liveBalance = (inv as any).balance_milli;
+  if (typeof liveBalance === 'number') {
+    const livePaid = (inv as any).paid_milli ?? 0;
+    const liveCredit = (inv as any).credited_milli ?? 0;
+    return { ...t, paid: livePaid, credit: liveCredit, balance: liveBalance };
+  }
   const paid = MOCK_PAYMENTS.filter((p) => p.invoiceId === inv.id).reduce(
     (a, p) => a + p.amount_milli,
     0
@@ -1902,21 +2003,23 @@ export function invStatus(
   return inv.sentAt ? 'sent' : 'unpaid';
 }
 
-let invoiceSeq = 10471;
-let creditSeq = 1;
-
-export function nextInvoiceNumber(_dateStr = TODAY): string {
-  invoiceSeq++;
-  return String(invoiceSeq);
+export function nextInvoiceNumber(dateStr = TODAY): string {
+  SYSTEM_SETTINGS.seq.invoice++;
+  return fmtNumber(SYSTEM_SETTINGS.numbering.invoice, SYSTEM_SETTINGS.seq.invoice, dateStr);
 }
 
-export function peekNextInvoiceNumber(_dateStr = TODAY): string {
-  return String(invoiceSeq + 1);
+export function peekNextInvoiceNumber(dateStr = TODAY): string {
+  return fmtNumber(SYSTEM_SETTINGS.numbering.invoice, SYSTEM_SETTINGS.seq.invoice + 1, dateStr);
+}
+
+export function nextReceiptNumber(dateStr = TODAY): string {
+  SYSTEM_SETTINGS.seq.receipt++;
+  return fmtNumber(SYSTEM_SETTINGS.numbering.receipt, SYSTEM_SETTINGS.seq.receipt, dateStr);
 }
 
 export function nextCreditNumber(dateStr = TODAY): string {
-  creditSeq++;
-  return fmtNumber('CN-{SEQ4}', creditSeq, dateStr);
+  SYSTEM_SETTINGS.seq.credit++;
+  return fmtNumber(SYSTEM_SETTINGS.numbering.credit, SYSTEM_SETTINGS.seq.credit, dateStr);
 }
 
 export function persistInvoice(
@@ -2066,7 +2169,7 @@ export function issueCreditNote(
   if (!inv) throw new Error('Invoice not found');
   const cnNumber = nextCreditNumber(TODAY);
   const creditNote: MockCreditNote = {
-    id: `cn${creditSeq}`,
+    id: `cn${SYSTEM_SETTINGS.seq.credit}`,
     number: cnNumber,
     invoiceId: inv.id,
     amount,
@@ -2162,5 +2265,43 @@ export function updateCustomer(
   logAuditEvent('Updated customer', customer.name);
   return customer;
 }
+
+const INITIAL_CUSTOMERS = JSON.parse(JSON.stringify(MOCK_CUSTOMERS));
+const INITIAL_QUOTES = JSON.parse(JSON.stringify(MOCK_QUOTES));
+const INITIAL_INVOICES = JSON.parse(JSON.stringify(MOCK_INVOICES));
+const INITIAL_PAYMENTS = JSON.parse(JSON.stringify(MOCK_PAYMENTS));
+const INITIAL_RECEIPTS = JSON.parse(JSON.stringify(MOCK_RECEIPTS));
+const INITIAL_CREDITS = JSON.parse(JSON.stringify(MOCK_CREDITS));
+const INITIAL_AUDIT = JSON.parse(JSON.stringify(MOCK_AUDIT));
+const INITIAL_SETTINGS = JSON.parse(JSON.stringify(SYSTEM_SETTINGS));
+
+export function resetSampleData(): void {
+  MOCK_CUSTOMERS.length = 0;
+  MOCK_CUSTOMERS.push(...JSON.parse(JSON.stringify(INITIAL_CUSTOMERS)));
+
+  MOCK_QUOTES.length = 0;
+  MOCK_QUOTES.push(...JSON.parse(JSON.stringify(INITIAL_QUOTES)));
+
+  MOCK_INVOICES.length = 0;
+  MOCK_INVOICES.push(...JSON.parse(JSON.stringify(INITIAL_INVOICES)));
+
+  MOCK_PAYMENTS.length = 0;
+  MOCK_PAYMENTS.push(...JSON.parse(JSON.stringify(INITIAL_PAYMENTS)));
+
+  MOCK_RECEIPTS.length = 0;
+  MOCK_RECEIPTS.push(...JSON.parse(JSON.stringify(INITIAL_RECEIPTS)));
+
+  MOCK_CREDITS.length = 0;
+  MOCK_CREDITS.push(...JSON.parse(JSON.stringify(INITIAL_CREDITS)));
+
+  MOCK_AUDIT.length = 0;
+  MOCK_AUDIT.push(...JSON.parse(JSON.stringify(INITIAL_AUDIT)));
+
+  Object.assign(COMPANY_SETTINGS, JSON.parse(JSON.stringify(INITIAL_SETTINGS.company)));
+  Object.assign(SYSTEM_SETTINGS, JSON.parse(JSON.stringify(INITIAL_SETTINGS)));
+
+  logAuditEvent('Restored sample data', 'System', 'All records restored to original sample');
+}
+
 
 

@@ -118,6 +118,8 @@ export const DocumentSheet: React.FC<DocumentSheetProps> = ({
     }
     // Receipt
     const linkedInvoice = d.invoiceId ? getInvoiceById(d.invoiceId) : undefined;
+    const invNumber = linkedInvoice?.number || (d as any)?.invoiceNumber || '—';
+    const custCode = c?.code || (d as any)?.customerCode || '—';
     return (
       <dl className="meta">
         <dt>Date:</dt>
@@ -125,9 +127,9 @@ export const DocumentSheet: React.FC<DocumentSheetProps> = ({
         <dt>Receipt #:</dt>
         <dd className="font-mono">{d.number}</dd>
         <dt>Invoice #:</dt>
-        <dd className="font-mono">{linkedInvoice ? linkedInvoice.number : '—'}</dd>
+        <dd className="font-mono">{invNumber}</dd>
         <dt>Customer ID:</dt>
-        <dd>{c.code}</dd>
+        <dd>{custCode}</dd>
       </dl>
     );
   };
@@ -218,8 +220,8 @@ export const DocumentSheet: React.FC<DocumentSheetProps> = ({
   // If kind === 'receipt', render specialized receipt document matching lines 776-780
   if (kind === 'receipt') {
     const linkedInvoice = d.invoiceId ? getInvoiceById(d.invoiceId) : undefined;
-    const invNumber = linkedInvoice?.number || d.invoiceNumber || '—';
-    const invDateStr = linkedInvoice ? fmtLong(linkedInvoice.date) : '—';
+    const invNumber = linkedInvoice?.number || (d as any)?.invoiceNumber || '—';
+    const invDateStr = linkedInvoice ? fmtLong(linkedInvoice.date) : (d as any)?.invoiceDate ? fmtLong((d as any).invoiceDate) : '—';
     const receiptAmount = d.amount_milli ?? d.amount ?? 0;
     const balanceAfter = d.balanceAfter_milli ?? d.balanceAfter ?? 0;
     const linkedFin = linkedInvoice ? invFin(linkedInvoice) : undefined;

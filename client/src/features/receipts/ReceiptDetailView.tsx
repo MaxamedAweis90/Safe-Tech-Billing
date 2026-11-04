@@ -1,179 +1,130 @@
 import React from 'react';
+import { SkeletonBox } from 'skullet/react';
 import { Icon } from '../../components/icons';
-import { DocumentSheet, DocumentScaleWrapper } from '../documents';
+import { DocumentSheet, DocumentScaleWrapper, downloadPdf } from '../documents';
+import { openShareModal } from '../documents/ShareModal';
 import {
   MockReceipt,
-  COMPANY_SETTINGS,
   getInvoiceById,
   getCustomerById,
-  logAuditEvent,
+  MOCK_RECEIPTS,
 } from '../../lib/mockData';
-import { fmtLong, formatMoney } from '../../lib/formatters';
+import { formatMoney } from '../../lib/formatters';
 import { useNavStore } from '../../store/useNavStore';
-import { openModal, closeModal, toast } from '../../store/useUIStore';
+import { useReceiptDetail } from '../../hooks/useReceipts';
 
 export interface ReceiptDetailViewProps {
-  receipt: MockReceipt;
+  receiptId?: string;
+  receipt?: MockReceipt;
   onBack: () => void;
   onNavigateInvoice?: (invoiceId: string) => void;
   onNavigateCustomer?: (customerId: string) => void;
 }
 
-const METHOD_LABELS: Record<string, string> = {
-  cash: 'Cash',
-  bank: 'Bank transfer',
-  mobile: 'Mobile money',
-  card: 'Card',
-};
-
 export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
-  receipt: r,
+  receiptId,
+  receipt: propReceipt,
   onBack,
   onNavigateInvoice,
   onNavigateCustomer,
 }) => {
   const { setSelectedRecord } = useNavStore();
+
+  const targetId = receiptId || propReceipt?.id;
+  const { data: detailData, isLoading } = useReceiptDetail(targetId);
+
+  const liveReceipt = detailData?.receipt;
+  const mockReceipt = propReceipt || (targetId ? MOCK_RECEIPTS.find((r) => r.id === targetId) : undefined);
+
+  if (isLoading && !mockReceipt) {
+    return (
+      <div className="panel" style={{ padding: 32 }}>
+        <SkeletonBox width="50%" height={28} />
+        <div style={{ marginTop: 16 }}>
+          <SkeletonBox width="100%" height={320} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!liveReceipt && !mockReceipt) {
+    return (
+      <div className="panel">
+        <div className="empty">
+          Receipt not found.{' '}
+          <a
+            href="#receipts"
+            onClick={(e) => {
+              e.preventDefault();
+              onBack();
+            }}
+          >
+            Back to receipts
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  const custObj: any = liveReceipt?.customer_id;
+  const custId = typeof custObj === 'object' ? custObj?._id || custObj?.id : custObj;
+  const custName = (liveReceipt as any)?.customerName || (typeof custObj === 'object' ? custObj?.name : undefined);
+  const custCode = typeof custObj === 'object' ? custObj?.code : undefined;
+  const invObj: any = liveReceipt?.invoice_id;
+  const invId = typeof invObj === 'object' ? invObj?._id || invObj?.id : invObj;
+  const invNumber = typeof invObj === 'object' ? invObj?.number : (liveReceipt as any)?.invoiceNumber;
+  const invDate = typeof invObj === 'object' ? invObj?.date : undefined;
+
+  const r: MockReceipt = liveReceipt
+    ? {
+        id: liveReceipt._id || liveReceipt.id || targetId || '',
+        number: liveReceipt.number,
+        date: liveReceipt.date,
+        customerId: custId || mockReceipt?.customerId || '',
+        customerName: custName || mockReceipt?.customerName || 'Customer',
+        customerCode: custCode || (mockReceipt as any)?.customerCode,
+        invoiceId: invId || mockReceipt?.invoiceId,
+        invoiceNumber: invNumber || mockReceipt?.invoiceNumber,
+        invoiceDate: invDate || (mockReceipt as any)?.invoiceDate,
+        amount_milli: liveReceipt.amount_milli ?? mockReceipt?.amount_milli ?? 0,
+        amount: liveReceipt.amount_milli ?? mockReceipt?.amount ?? 0,
+        currency: liveReceipt.currency || mockReceipt?.currency || 'USD',
+        method: liveReceipt.method || mockReceipt?.method || 'mobile',
+        reference: liveReceipt.reference || mockReceipt?.reference || '',
+        balanceAfter_milli: liveReceipt.balance_after_milli ?? mockReceipt?.balanceAfter_milli ?? 0,
+        balanceAfter: liveReceipt.balance_after_milli ?? mockReceipt?.balanceAfter ?? 0,
+        prevPaid: liveReceipt.prev_paid_milli ?? mockReceipt?.prevPaid ?? 0,
+        invoiceTotal: liveReceipt.invoice_total_milli ?? mockReceipt?.invoiceTotal ?? 0,
+      } as any
+    : mockReceipt!;
+
   const linkedInvoice = r.invoiceId ? getInvoiceById(r.invoiceId) : undefined;
   const customer = getCustomerById(r.customerId);
-  const co = COMPANY_SETTINGS;
   const cur = r.currency || 'USD';
 
   // Share Modal matching prototype lines 881-893
   const handleShareReceipt = () => {
-    const custName = customer?.name || r.customerName;
-    const invNum = linkedInvoice?.number || r.invoiceNumber;
-    const methodStr = METHOD_LABELS[r.method] || r.method;
-    const refStr = r.reference ? ` (ref ${r.reference})` : '';
-    const dateLong = fmtLong(r.date);
-    const amtStr = formatMoney(r.amount_milli ?? r.amount ?? 0, cur);
-    const balStr = formatMoney(r.balanceAfter_milli ?? r.balanceAfter ?? 0, cur);
-
-    const defaultMsg = `Dear ${custName},\n\nWe confirm receipt of ${amtStr} by ${methodStr}${refStr} on ${dateLong} against invoice ${invNum}. Receipt number: ${r.number}. Remaining balance: ${balStr}.\n\nThank you,\n${co.name}`;
-
-    let currentMsg = defaultMsg;
-    const digits = String(customer?.phone || '').replace(/\D/g, '');
-    const waUrl = (text: string) =>
-      `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
-
-    openModal({
-      title: `Share receipt ${r.number}`,
-      body: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="field">
-            <label>Customer</label>
-            <div>
-              <b>{custName}</b>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                gap: '6px 16px',
-                flexWrap: 'wrap',
-                fontSize: 13,
-                color: 'var(--muted)',
-              }}
-            >
-              <span>
-                Phone:{' '}
-                <span style={{ userSelect: 'all', color: 'var(--ink)' }}>
-                  {customer?.phone || 'none on file'}
-                </span>
-              </span>
-              <span>
-                Email:{' '}
-                <span style={{ userSelect: 'all', color: 'var(--ink)' }}>
-                  {customer?.email || 'none on file'}
-                </span>
-              </span>
-            </div>
-          </div>
-
-          <div className="field">
-            <label htmlFor="shTxt">Message</label>
-            <textarea
-              id="shTxt"
-              className="inp"
-              rows={8}
-              defaultValue={defaultMsg}
-              onChange={(e) => {
-                currentMsg = e.target.value;
-              }}
-            />
-            <span className="hint">
-              Edit the message if you like, then send it by WhatsApp or copy it into email or SMS.
-            </span>
-          </div>
-        </div>
-      ),
-      foot: (
-        <>
-          <button type="button" className="btn" onClick={closeModal}>
-            Close
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              window.print();
-            }}
-          >
-            <Icon name="pdf" size={15} />
-            PDF
-          </button>
-          {digits ? (
-            <a
-              className="btn"
-              href={waUrl(defaultMsg)}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => {
-                logAuditEvent('Shared via WhatsApp', r.number, customer?.phone || '');
-              }}
-            >
-              <Icon name="send" size={15} />
-              Open in WhatsApp
-            </a>
-          ) : null}
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => {
-              if (navigator.clipboard?.writeText) {
-                navigator.clipboard.writeText(currentMsg).then(() => {
-                  toast('Message copied');
-                  logAuditEvent('Copied share message', r.number);
-                  closeModal();
-                });
-              } else {
-                toast('Message copied');
-                closeModal();
-              }
-            }}
-          >
-            <Icon name="copy" size={15} />
-            Copy message
-          </button>
-        </>
-      ),
-    });
+    openShareModal('receipt', r);
   };
 
   const handleOpenInvoice = () => {
-    if (linkedInvoice) {
+    const navId = linkedInvoice?.id || r.invoiceId;
+    if (navId) {
       if (onNavigateInvoice) {
-        onNavigateInvoice(linkedInvoice.id);
+        onNavigateInvoice(navId);
       } else {
-        setSelectedRecord('invoices', linkedInvoice.id);
+        setSelectedRecord('invoices', navId);
       }
     }
   };
 
   const handleOpenCustomer = () => {
-    if (customer) {
+    const navId = customer?.id || r.customerId;
+    if (navId) {
       if (onNavigateCustomer) {
-        onNavigateCustomer(customer.id);
+        onNavigateCustomer(navId);
       } else {
-        setSelectedRecord('customers', customer.id);
+        setSelectedRecord('customers', navId);
       }
     }
   };
@@ -199,17 +150,17 @@ export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
           <p>
             {formatMoney(r.amount_milli ?? r.amount ?? 0, cur)} from{' '}
             <a
-              href={`#customer-${customer?.id}`}
+              href={`#customer-${r.customerId || customer?.id}`}
               onClick={(e) => {
                 e.preventDefault();
                 handleOpenCustomer();
               }}
             >
-              {customer?.name || r.customerName}
+              {r.customerName || customer?.name}
             </a>{' '}
             against invoice{' '}
             <a
-              href={`#invoice-${linkedInvoice?.id}`}
+              href={`#invoice-${r.invoiceId || linkedInvoice?.id}`}
               className="mono font-semibold"
               style={{ color: 'var(--accent)' }}
               onClick={(e) => {
@@ -217,25 +168,25 @@ export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
                 handleOpenInvoice();
               }}
             >
-              {linkedInvoice?.number || r.invoiceNumber}
+              {r.invoiceNumber || linkedInvoice?.number}
             </a>
           </p>
         </div>
         <div className="actions">
           <button
             type="button"
-            className="btn primary"
-            onClick={() => window.print()}
+            className="btn dl-btn primary"
+            onClick={(e) => downloadPdf('receipt', r, e.currentTarget)}
           >
-            <Icon name="pdf" size={15} />
-            PDF
+            <Icon name="down" />
+            Download PDF
           </button>
           <button
             type="button"
             className="btn"
             onClick={handleShareReceipt}
           >
-            <Icon name="send" size={15} />
+            <Icon name="send" />
             Share
           </button>
           {linkedInvoice && (

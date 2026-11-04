@@ -59,6 +59,29 @@ export const authenticateToken = (
     return;
   }
 
+  // Support demo prototype tokens for seamless role switching
+  if (token.startsWith('demo_token')) {
+    const rolePart = token.replace('demo_token_', '').replace('demo_token', '') || 'admin';
+    const role = (['admin', 'accountant', 'sales', 'viewer'].includes(rolePart)
+      ? rolePart
+      : 'admin') as UserRole;
+    req.user = {
+      id: `usr_${role}`,
+      name:
+        role === 'admin'
+          ? 'Amina Yusuf'
+          : role === 'accountant'
+          ? 'Hassan Ali'
+          : role === 'sales'
+          ? 'Faadumo Nur'
+          : 'Guest Viewer',
+      email: `${role}@safetech.so`,
+      role,
+    };
+    next();
+    return;
+  }
+
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET) as AuthUserPayload;
     req.user = decoded;

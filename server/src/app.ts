@@ -13,6 +13,7 @@ import receiptRoutes from './routes/receiptRoutes';
 import settingsRoutes from './routes/settingsRoutes';
 import reportRoutes from './routes/reportRoutes';
 import auditRoutes from './routes/auditRoutes';
+import dashboardRoutes from './routes/dashboardRoutes';
 
 const app: Express = express();
 
@@ -47,6 +48,8 @@ app.use('/api/v1/receipts', receiptRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/audit', auditRoutes);
+app.use('/api/v1/audit-log', auditRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 
 // 404 Route Catch-all
 app.use((req: Request, res: Response) => {

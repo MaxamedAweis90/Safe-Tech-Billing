@@ -1,178 +1,670 @@
-import React, { useState } from 'react';
-import { Button } from '../../components/ui/Button';
+import React, { useState, useEffect } from 'react';
+import {
+  SYSTEM_SETTINGS,
+  COMPANY_SETTINGS,
+  TODAY,
+  logAuditEvent,
+  resetSampleData,
+} from '../../lib/mockData';
+import { fmtNumber } from '../../lib/formatters';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useNavStore } from '../../store/useNavStore';
+import { toast, confirmBox } from '../../store/useUIStore';
+import { CurrencyTaxSettings } from './CurrencyTaxSettings';
+import {
+  useCompanySettings,
+  useUpdateCompanySettings,
+  useResetSampleData,
+} from '../../hooks/useSettings';
 
 export const SettingsView: React.FC = () => {
-  const [company, setCompany] = useState({
-    name: 'Safe Tech Solutions Ltd',
-    tagline: 'Enterprise Safety & Telecommunications Engineering',
-    address: 'Commercial Plaza, Westlands, P.O. Box 48201-00100 Nairobi',
-    phone: '+254 20 234 5678',
-    email: 'billing@safetech.co.ke',
-    website: 'https://safetech.co.ke',
-    tax_id: 'P051234567Z',
-    bank_name: 'Standard Chartered Bank',
-    account_number: '0102030405060',
-    account_name: 'Safe Tech Solutions Ltd',
-    swift_code: 'SCBLKENX',
-    mobile_provider: 'Safaricom M-Pesa (Buy Goods Till)',
-    mobile_number: '567890',
-    default_currency: 'USD',
-  });
+  const { can } = useAuthStore();
+  const { setActiveTab } = useNavStore();
 
-  const [saved, setSaved] = useState(false);
+  const [company, setCompany] = useState({ ...SYSTEM_SETTINGS.company });
+  const [currencies, setCurrencies] = useState([
+    ...SYSTEM_SETTINGS.currencies.map((c) => ({ ...c })),
+  ]);
+  const [defaultCurrency, setDefaultCurrency] = useState(
+    SYSTEM_SETTINGS.defaultCurrency
+  );
+  const [numbering, setNumbering] = useState({ ...SYSTEM_SETTINGS.numbering });
+  const [taxes, setTaxes] = useState([
+    ...SYSTEM_SETTINGS.taxes.map((t) => ({ ...t })),
+  ]);
+  const [quoteTerms, setQuoteTerms] = useState(SYSTEM_SETTINGS.quoteTerms);
+  const [invoiceTerms, setInvoiceTerms] = useState(SYSTEM_SETTINGS.invoiceTerms);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const { data: companyData } = useCompanySettings();
+  const updateCompanyMutation = useUpdateCompanySettings();
+  const resetSampleMutation = useResetSampleData();
+
+  useEffect(() => {
+    if (companyData?.company) {
+      const c = companyData.company;
+      setCompany((prev) => ({
+        ...prev,
+        name: c.name || prev.name,
+        tagline: c.tagline !== undefined ? c.tagline : prev.tagline,
+        address: c.address !== undefined ? c.address : prev.address,
+        phone: c.phone !== undefined ? c.phone : prev.phone,
+        email: c.email !== undefined ? c.email : prev.email,
+        website: c.website !== undefined ? c.website : prev.website,
+        taxId: c.tax_id !== undefined ? c.tax_id : prev.taxId,
+        bankName: c.bank_name !== undefined ? c.bank_name : prev.bankName,
+        accountName: c.account_name !== undefined ? c.account_name : prev.accountName,
+        accountNo: c.account_no !== undefined ? c.account_no : prev.accountNo,
+        mobileMoney: c.mobile_money !== undefined ? c.mobile_money : prev.mobileMoney,
+        signatory: c.signatory !== undefined ? c.signatory : prev.signatory,
+        logo: c.logo || prev.logo,
+        stamp: c.stamp || prev.stamp,
+        signature: c.signature || prev.signature,
+      }));
+      if (c.quote_terms) setQuoteTerms(c.quote_terms);
+      if (c.invoice_terms) setInvoiceTerms(c.invoice_terms);
+      if (c.default_currency) setDefaultCurrency(c.default_currency);
+    }
+  }, [companyData]);
+
+  if (!can('settings')) {
+    return (
+      <div className="page-head">
+        <div>
+          <h1>Company &amp; settings</h1>
+          <p>Access restricted. You need administrative privileges to view settings.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Base64 file uploader with <= 1.5MB validation matching prototype line 938
+  const handleImageUpload = (
+    key: 'logo' | 'stamp' | 'signature',
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1.5 * 1024 * 1024) {
+      toast('Choose an image under 1.5 MB.', true);
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setCompany((prev) => ({ ...prev, [key]: dataUrl }));
+      COMPANY_SETTINGS[key] = dataUrl;
+      logAuditEvent(`Uploaded ${key}`, 'Branding');
+      toast(`${key[0].toUpperCase() + key.slice(1)} uploaded`);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleImageRemove = (key: 'logo' | 'stamp' | 'signature') => {
+    setCompany((prev) => ({ ...prev, [key]: '' }));
+    COMPANY_SETTINGS[key] = '';
+    logAuditEvent(`Removed ${key}`, 'Branding');
+    toast(`${key[0].toUpperCase() + key.slice(1)} removed`);
+  };
+
+  // Form Save Handler matching prototype line 952
+  const handleSave = () => {
+    if (!company.name.trim()) {
+      toast("Company name can't be empty.", true);
+      return;
+    }
+
+    // Numbering tokens validation: {SEQ} or {SEQ\d}
+    for (const k of ['quote', 'invoice', 'receipt', 'credit'] as const) {
+      const v = numbering[k].trim();
+      if (!/\{SEQ\d?\}/.test(v)) {
+        toast(
+          `The ${k} format needs a {SEQ} token so numbers stay unique.`,
+          true
+        );
+        return;
+      }
+    }
+
+    // Apply into persistent state objects
+    Object.assign(COMPANY_SETTINGS, company);
+    SYSTEM_SETTINGS.company = COMPANY_SETTINGS;
+    SYSTEM_SETTINGS.currencies = currencies;
+    SYSTEM_SETTINGS.defaultCurrency = defaultCurrency;
+    SYSTEM_SETTINGS.numbering = numbering;
+    SYSTEM_SETTINGS.taxes = taxes;
+    SYSTEM_SETTINGS.quoteTerms = quoteTerms;
+    SYSTEM_SETTINGS.invoiceTerms = invoiceTerms;
+
+    updateCompanyMutation.mutate({
+      name: company.name,
+      tagline: company.tagline,
+      address: company.address,
+      phone: company.phone,
+      email: company.email,
+      website: company.website,
+      tax_id: company.taxId,
+      bank_name: company.bankName,
+      account_name: company.accountName,
+      account_no: company.accountNo,
+      mobile_money: company.mobileMoney,
+      signatory: company.signatory,
+      logo: company.logo,
+      stamp: company.stamp,
+      signature: company.signature,
+      quote_terms: quoteTerms,
+      invoice_terms: invoiceTerms,
+      default_currency: defaultCurrency,
+    });
+
+    logAuditEvent('Updated company settings', 'Settings');
+  };
+
+  // Prototype Data Reset Handler matching prototype line 1112
+  const handleReset = async () => {
+    const confirmed = await confirmBox({
+      title: 'Reset sample data?',
+      text: 'Everything created in this browser is replaced with the original sample records.',
+      ok: 'Reset',
+      danger: true,
+    });
+
+    if (confirmed) {
+      try {
+        await resetSampleMutation.mutateAsync();
+      } catch {
+        // Fallback local reset
+      }
+      resetSampleData();
+      setActiveTab('dashboard');
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <>
       {/* Page Header */}
       <div className="page-head">
         <div>
-          <h1>Company &amp; Settings</h1>
-          <p>Configure corporate identity, tax identifiers, banking details, and default currency.</p>
+          <h1>Company &amp; settings</h1>
+          <p>These details print on every quotation, invoice and receipt.</p>
         </div>
         <div className="actions">
-          <Button variant="primary" type="submit">
-            {saved ? 'Saved Successfully!' : 'Save changes'}
-          </Button>
+          <button
+            type="button"
+            className="btn primary"
+            data-act="save-settings"
+            onClick={handleSave}
+          >
+            Save settings
+          </button>
         </div>
       </div>
 
-      <div className="grid-2e">
-        {/* Company Identity */}
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Company legal identity</h2>
-          </div>
-          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* 1. Company Profile Panel */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Company profile</h2>
+        </div>
+        <div className="panel-body">
+          <div className="form-grid">
             <div className="field">
-              <label>Registered Company Name</label>
+              <label htmlFor="sName">Company name *</label>
               <input
+                id="sName"
                 className="inp"
                 value={company.name}
-                onChange={(e) => setCompany({ ...company, name: e.target.value })}
+                onChange={(e) =>
+                  setCompany({ ...company, name: e.target.value })
+                }
               />
             </div>
-
             <div className="field">
-              <label>Tagline / Sub-heading</label>
+              <label htmlFor="sTag">Tagline</label>
               <input
+                id="sTag"
                 className="inp"
                 value={company.tagline}
-                onChange={(e) => setCompany({ ...company, tagline: e.target.value })}
+                onChange={(e) =>
+                  setCompany({ ...company, tagline: e.target.value })
+                }
               />
             </div>
-
-            <div className="field">
-              <label>Physical Address</label>
+            <div className="field wide">
+              <label htmlFor="sAddr">Business address</label>
               <input
+                id="sAddr"
                 className="inp"
                 value={company.address}
-                onChange={(e) => setCompany({ ...company, address: e.target.value })}
+                onChange={(e) =>
+                  setCompany({ ...company, address: e.target.value })
+                }
               />
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="field">
-                <label>Telephone</label>
-                <input
-                  className="inp"
-                  value={company.phone}
-                  onChange={(e) => setCompany({ ...company, phone: e.target.value })}
-                />
-              </div>
-              <div className="field">
-                <label>Billing Email</label>
-                <input
-                  className="inp"
-                  value={company.email}
-                  onChange={(e) => setCompany({ ...company, email: e.target.value })}
-                />
-              </div>
-            </div>
-
             <div className="field">
-              <label>KRA PIN / Tax ID</label>
+              <label htmlFor="sPhone">Contact number</label>
               <input
+                id="sPhone"
                 className="inp"
-                value={company.tax_id}
-                onChange={(e) => setCompany({ ...company, tax_id: e.target.value })}
+                value={company.phone}
+                onChange={(e) =>
+                  setCompany({ ...company, phone: e.target.value })
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sEmail">Email</label>
+              <input
+                id="sEmail"
+                className="inp"
+                type="email"
+                value={company.email}
+                onChange={(e) =>
+                  setCompany({ ...company, email: e.target.value })
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sWeb">Website</label>
+              <input
+                id="sWeb"
+                className="inp"
+                value={company.website}
+                onChange={(e) =>
+                  setCompany({ ...company, website: e.target.value })
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sTax">Tax registration (TIN)</label>
+              <input
+                id="sTax"
+                className="inp"
+                value={company.taxId}
+                onChange={(e) =>
+                  setCompany({ ...company, taxId: e.target.value })
+                }
+              />
+              <span className="hint">Shown on documents when filled in</span>
+            </div>
+            <div className="field wide">
+              <label htmlFor="sSigName">Signatory line</label>
+              <input
+                id="sSigName"
+                className="inp"
+                value={company.signatory}
+                onChange={(e) =>
+                  setCompany({ ...company, signatory: e.target.value })
+                }
               />
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Banking Details */}
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Bank details &amp; remittance</h2>
-          </div>
-          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* 2. Branding Assets Panel */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Branding</h2>
+          <span className="sub">
+            Images are stored in your browser for this prototype
+          </span>
+        </div>
+        <div className="panel-body">
+          <div className="form-grid">
+            {/* Logo */}
             <div className="field">
-              <label>Bank Name</label>
-              <input
-                className="inp"
-                value={company.bank_name}
-                onChange={(e) => setCompany({ ...company, bank_name: e.target.value })}
-              />
-            </div>
-
-            <div className="field">
-              <label>Account Name</label>
-              <input
-                className="inp"
-                value={company.account_name}
-                onChange={(e) => setCompany({ ...company, account_name: e.target.value })}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="field">
-                <label>Account Number</label>
+              <label>Logo</label>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div
+                  style={{
+                    width: 120,
+                    height: 64,
+                    border: '1px dashed var(--line-strong)',
+                    borderRadius: 6,
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: '#fff',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {company.logo ? (
+                    <img
+                      src={company.logo}
+                      alt="Logo preview"
+                      style={{ maxHeight: 60, maxWidth: 116 }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 11, color: '#8b96a8' }}>None</span>
+                  )}
+                </div>
+                <label className="btn sm" htmlFor="up_logo">
+                  Upload
+                </label>
                 <input
-                  className="inp"
-                  value={company.account_number}
-                  onChange={(e) => setCompany({ ...company, account_number: e.target.value })}
+                  type="file"
+                  id="up_logo"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => handleImageUpload('logo', e)}
                 />
+                {company.logo && (
+                  <button
+                    type="button"
+                    className="btn sm ghost"
+                    data-act="clear-img"
+                    onClick={() => handleImageRemove('logo')}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
-              <div className="field">
-                <label>SWIFT / BIC Code</label>
+              <span className="hint">
+                PNG with a transparent background prints best.
+              </span>
+            </div>
+
+            {/* Stamp */}
+            <div className="field">
+              <label>Company stamp (optional)</label>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div
+                  style={{
+                    width: 120,
+                    height: 64,
+                    border: '1px dashed var(--line-strong)',
+                    borderRadius: 6,
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: '#fff',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {company.stamp ? (
+                    <img
+                      src={company.stamp}
+                      alt="Stamp preview"
+                      style={{ maxHeight: 60, maxWidth: 116 }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 11, color: '#8b96a8' }}>None</span>
+                  )}
+                </div>
+                <label className="btn sm" htmlFor="up_stamp">
+                  Upload
+                </label>
                 <input
-                  className="inp"
-                  value={company.swift_code}
-                  onChange={(e) => setCompany({ ...company, swift_code: e.target.value })}
+                  type="file"
+                  id="up_stamp"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => handleImageUpload('stamp', e)}
                 />
+                {company.stamp && (
+                  <button
+                    type="button"
+                    className="btn sm ghost"
+                    data-act="clear-img"
+                    onClick={() => handleImageRemove('stamp')}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
+              <span className="hint">Placed beside the signature line.</span>
             </div>
 
+            {/* Signature */}
             <div className="field">
-              <label>Mobile Money Till / Paybill</label>
-              <input
-                className="inp"
-                value={company.mobile_provider}
-                onChange={(e) => setCompany({ ...company, mobile_provider: e.target.value })}
-              />
+              <label>Authorized signature</label>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div
+                  style={{
+                    width: 120,
+                    height: 64,
+                    border: '1px dashed var(--line-strong)',
+                    borderRadius: 6,
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: '#fff',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {company.signature ? (
+                    <img
+                      src={company.signature}
+                      alt="Signature preview"
+                      style={{ maxHeight: 60, maxWidth: 116 }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 11, color: '#8b96a8' }}>None</span>
+                  )}
+                </div>
+                <label className="btn sm" htmlFor="up_signature">
+                  Upload
+                </label>
+                <input
+                  type="file"
+                  id="up_signature"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => handleImageUpload('signature', e)}
+                />
+                {company.signature && (
+                  <button
+                    type="button"
+                    className="btn sm ghost"
+                    data-act="clear-img"
+                    onClick={() => handleImageRemove('signature')}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <span className="hint">
+                A scan of the signature on white or transparent.
+              </span>
             </div>
-
-            <div className="field">
-              <label>Till / Account Number</label>
-              <input
-                className="inp"
-                value={company.mobile_number}
-                onChange={(e) => setCompany({ ...company, mobile_number: e.target.value })}
-              />
-            </div>
-
-            <span className="hint" style={{ marginTop: 6 }}>
-              These remittance details are automatically embedded on all A4 printable quotes &amp; invoices.
-            </span>
           </div>
-        </section>
-      </div>
-    </form>
+        </div>
+      </section>
+
+      {/* 3. Payment Details Panel */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Payment details</h2>
+        </div>
+        <div className="panel-body">
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="sBank">Bank name</label>
+              <input
+                id="sBank"
+                className="inp"
+                value={company.bankName}
+                onChange={(e) =>
+                  setCompany({ ...company, bankName: e.target.value })
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sAccName">Account name</label>
+              <input
+                id="sAccName"
+                className="inp"
+                value={company.accountName}
+                onChange={(e) =>
+                  setCompany({ ...company, accountName: e.target.value })
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sAccNo">Account number</label>
+              <input
+                id="sAccNo"
+                className="inp"
+                value={company.accountNo}
+                onChange={(e) =>
+                  setCompany({ ...company, accountNo: e.target.value })
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sMM">Mobile money</label>
+              <input
+                id="sMM"
+                className="inp"
+                value={company.mobileMoney}
+                onChange={(e) =>
+                  setCompany({ ...company, mobileMoney: e.target.value })
+                }
+              />
+              <span className="hint">e.g. EVC Plus, Sahal or Zaad number</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. Currencies & Tax Rates Panel */}
+      <CurrencyTaxSettings
+        currencies={currencies}
+        defaultCurrency={defaultCurrency}
+        taxes={taxes}
+        onCurrenciesChange={setCurrencies}
+        onDefaultCurrencyChange={setDefaultCurrency}
+        onTaxesChange={setTaxes}
+      />
+
+      {/* 5. Document Numbering Panel with Live Reactivity */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Document numbering</h2>
+          <span className="sub">
+            Tokens: &#123;SEQ&#125; &#123;SEQ4&#125; &#123;SEQ5&#125; &#123;YYYY&#125; &#123;YY&#125; &#123;MM&#125;
+          </span>
+        </div>
+        <div className="panel-body">
+          <div className="form-grid">
+            {(
+              [
+                ['quote', 'Quotations'],
+                ['invoice', 'Invoices'],
+                ['receipt', 'Receipts'],
+                ['credit', 'Credit notes'],
+              ] as const
+            ).map(([k, label]) => {
+              const pattern = numbering[k];
+              const nextSeq = SYSTEM_SETTINGS.seq[k] + 1;
+              const preview = fmtNumber(pattern, nextSeq, TODAY);
+
+              return (
+                <div key={k} className="field">
+                  <label htmlFor={`n_${k}`}>{label}</label>
+                  <input
+                    id={`n_${k}`}
+                    className="inp mono"
+                    value={pattern}
+                    data-num={k}
+                    onChange={(e) =>
+                      setNumbering({ ...numbering, [k]: e.target.value })
+                    }
+                  />
+                  <span className="hint">
+                    Next:{' '}
+                    <b className="num" id={`nx_${k}`}>
+                      {preview}
+                    </b>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. Default Terms Panel */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Default terms</h2>
+        </div>
+        <div className="panel-body">
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="sQT">Quotation terms &amp; conditions</label>
+              <textarea
+                id="sQT"
+                className="inp"
+                rows={4}
+                value={quoteTerms}
+                onChange={(e) => setQuoteTerms(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sIT">Invoice payment instructions</label>
+              <textarea
+                id="sIT"
+                className="inp"
+                rows={4}
+                value={invoiceTerms}
+                onChange={(e) => setInvoiceTerms(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. Prototype Data Panel */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Prototype data</h2>
+        </div>
+        <div
+          className="panel-body"
+          style={{
+            display: 'flex',
+            gap: 14,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span style={{ color: 'var(--muted)', maxWidth: '60ch' }}>
+            Everything you create is kept in this browser only. Reset to restore
+            invoice 10456 and the sample records.
+          </span>
+          <button
+            type="button"
+            className="btn danger"
+            data-act="reset"
+            onClick={handleReset}
+          >
+            Reset sample data
+          </button>
+        </div>
+      </section>
+    </>
   );
 };

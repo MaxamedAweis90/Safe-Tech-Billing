@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavStore } from '../store/useNavStore';
 import { useAuthStore, ROLES } from '../store/useAuthStore';
 import { computeNavCounts } from '../lib/mockData';
+import { useQuotations } from '../hooks/useQuotations';
+import { useInvoices } from '../hooks/useInvoices';
 import { Icon, IconName } from '../components/icons';
 import { NavTab } from '../types';
 
@@ -22,7 +24,25 @@ export const Sidebar: React.FC = () => {
   const { activeTab, setActiveTab, mobileDrawerOpen, setMobileDrawerOpen } = useNavStore();
   const { role, can } = useAuthStore();
   const roleInfo = ROLES[role];
-  const { openQ, overdue } = computeNavCounts();
+
+  // Fetch live counts from API with graceful fallback to mock data
+  const { data: quotesData } = useQuotations();
+  const { data: invoicesData } = useInvoices();
+  const mockCounts = computeNavCounts();
+
+  const openQ = quotesData?.quotations
+    ? quotesData.quotations.filter((q) => ['draft', 'sent'].includes(q.state)).length
+    : mockCounts.openQ;
+
+  const overdue = invoicesData?.invoices
+    ? invoicesData.invoices.filter((i) => {
+        if (i.status === 'overdue') return true;
+        if (i.state === 'issued' && (i.balance_milli ?? 0) > 0) {
+          if (i.due && new Date(i.due) < new Date()) return true;
+        }
+        return false;
+      }).length
+    : mockCounts.overdue;
 
   const sections: NavSectionConfig[] = [
     {

@@ -36,8 +36,8 @@
 
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 
-  --skullet-base: #151C27;
-  --skullet-highlight: #243042;
+  --skullet-base: #111C15;
+  --skullet-highlight: #213328;
 
   --f-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -114,84 +114,6 @@ a {
 
 .icon-btn.menu-btn {
   display: none;
-}
-
-@media (max-width: 1080px) {
-  .editor, .detail {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .sticky-side {
-    position: static;
-  }
-  .grid-2, .grid-2e {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 860px) {
-  .app {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .side {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 260px;
-    z-index: 70;
-    transform: translateX(-100%);
-    transition: transform .2s ease-in-out;
-    height: 100%;
-    padding-top: calc(18px + env(safe-area-inset-top, 0px));
-  }
-  .side.open {
-    transform: none;
-  }
-  .drawer-bg.open {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, .4);
-    z-index: 65;
-  }
-  .icon-btn.menu-btn {
-    display: inline-grid;
-  }
-  .items thead {
-    display: none;
-  }
-  .items tr {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 6px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .items td {
-    border: 0;
-    padding: 0;
-    width: auto !important;
-  }
-  .items td.c-desc {
-    grid-column: 1 / -1;
-  }
-  .items td.c-total {
-    text-align: left;
-    padding-top: 8px;
-  }
-  .items td::before {
-    content: attr(data-l);
-    display: block;
-    font-size: 10.5px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    margin-bottom: 2px;
-  }
-  .items td.c-desc::before,
-  .items td.c-x::before {
-    display: none;
-  }
 }
 
 .brand {
@@ -366,7 +288,8 @@ a {
 }
 
 .search-results a:hover,
-.search-results a:focus {
+.search-results a:focus,
+.search-results a.active {
   background: var(--accent-soft);
 }
 
@@ -408,22 +331,6 @@ a {
   color: var(--ink);
   font-weight: 500;
   cursor: pointer;
-}
-
-@media (max-width: 860px) {
-  .role label,
-  .sample-tag {
-    display: none;
-  }
-}
-
-@media (max-width: 520px) {
-  .top {
-    gap: 8px;
-  }
-  .role select {
-    max-width: 120px;
-  }
 }
 
 .avatar {
@@ -690,22 +597,10 @@ a {
   align-items: start;
 }
 
-@media (max-width: 992px) {
-  .grid-2 {
-    grid-template-columns: 1fr;
-  }
-}
-
 .grid-2e {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
-}
-
-@media (max-width: 768px) {
-  .grid-2e {
-    grid-template-columns: 1fr;
-  }
 }
 
 .quick {
@@ -840,6 +735,33 @@ table.tbl {
 .c-partial { background: var(--warn-soft); color: var(--warn); }
 .c-rejected, .c-overdue { background: var(--bad-soft); color: var(--bad); }
 .c-expired, .c-cancelled { background: var(--neutral-soft); color: var(--faint); text-decoration: line-through; }
+
+/* Tabs & Filter Bars */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  padding: 0 10px;
+}
+
+.tabs button {
+  border: 0;
+  background: none;
+  padding: 12px 12px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  font-size: 13.5px;
+}
+
+.tabs button.on {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
 
 /* Filter Bars & Segmented Controls */
 .filters {
@@ -1170,6 +1092,76 @@ textarea.inp {
   font-style: normal;
 }
 
+/* Blueprint Styles matching prototype lines 294-307 */
+.bp h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.bp p,
+.bp li {
+  color: var(--muted);
+  max-width: 72ch;
+}
+.bp ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.arch {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.arch .layer {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+}
+.arch .layer b {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.arch .layer span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.code {
+  font-family: var(--f-num);
+  font-size: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.method {
+  font-family: var(--f-num);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.m-get {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.m-post {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.m-patch {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.m-delete {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
 .chart svg {
   width: 100%;
   height: auto;
@@ -1242,6 +1234,19 @@ textarea.inp {
 
 .sheet-scale {
   transform-origin: top left;
+}
+
+.pdf-stage {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  width: 794px;
+  z-index: -1;
+  background: #fff;
+}
+
+.pdf-stage .doc {
+  box-shadow: none !important;
 }
 
 .doc {
@@ -1752,5 +1757,127 @@ textarea.inp {
     margin: 0 auto !important;
     min-height: 1123px !important;
     page-break-after: avoid;
+  }
+}
+
+/* ==========================================================================
+   Responsive Breakpoints matching prototype lines 308-328
+   Must remain at the bottom of the stylesheet to ensure cascade priority
+   ========================================================================== */
+
+@media (max-width: 1080px) {
+  .editor,
+  .detail {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .sticky-side {
+    position: static !important;
+  }
+  .grid-2,
+  .grid-2e {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .side {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 260px !important;
+    z-index: 70 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.2s ease-out !important;
+    height: 100% !important;
+    padding-top: calc(18px + env(safe-area-inset-top, 0px)) !important;
+  }
+  .side.open {
+    transform: none !important;
+  }
+  .drawer-bg.open {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+    z-index: 65 !important;
+  }
+  .icon-btn.menu-btn {
+    display: inline-grid !important;
+  }
+  .role label,
+  .sample-tag {
+    display: none !important;
+  }
+  .page {
+    padding-block: 16px 40px !important;
+    padding-inline: 14px !important;
+  }
+  .items thead {
+    display: none !important;
+  }
+  .items tr {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 6px !important;
+    padding: 10px 0 !important;
+    border-bottom: 1px solid var(--line) !important;
+  }
+  .items td {
+    border: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+  }
+  .items td.c-desc {
+    grid-column: 1 / -1 !important;
+  }
+  .items td.c-total {
+    text-align: left !important;
+    padding-top: 8px !important;
+  }
+  .items td::before {
+    content: attr(data-l);
+    display: block;
+    font-size: 10.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+  .items td.c-desc::before,
+  .items td.c-x::before {
+    display: none !important;
+  }
+  .items td.c-x {
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: flex-end !important;
+    padding-top: 8px !important;
+  }
+  .sheet-wrap {
+    padding: 10px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .top {
+    gap: 8px !important;
+    padding-inline: 12px !important;
+  }
+  .role select,
+  #roleSel {
+    max-width: 120px !important;
+  }
+  .quick {
+    grid-template-columns: 1fr !important;
+  }
+  .kpi .k-value {
+    font-size: 21px !important;
+  }
+  .kpis {
+    grid-template-columns: 1fr !important;
   }
 }

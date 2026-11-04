@@ -9,7 +9,10 @@ import { Invoice } from '../models/Invoice';
 import { Payment } from '../models/Payment';
 import { Receipt } from '../models/Receipt';
 import { CreditNote } from '../models/CreditNote';
+import { SequenceKind } from '../models/NumberSequence';
+import { peekNextNumber } from '../services/numberingService';
 import { logAction } from '../services/auditService';
+import { seedDefaultData } from '../config/seedDefaults';
 
 export const getCompany = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -147,44 +150,8 @@ export const upsertTaxRate = async (req: Request, res: Response, next: NextFunct
 
 export const resetSampleData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    // Reset sequences
-    await NumberSequence.deleteMany({});
-    await NumberSequence.create([
-      { kind: 'quote', format: 'QT-{YYYY}-{SEQ4}', current_seq: 0 },
-      { kind: 'invoice', format: '{SEQ}', current_seq: 10450 },
-      { kind: 'receipt', format: 'RC-{SEQ5}', current_seq: 0 },
-      { kind: 'credit', format: 'CN-{SEQ4}', current_seq: 0 },
-    ]);
-
-    // Ensure currencies
-    await Currency.deleteMany({});
-    await Currency.create([
-      { code: 'USD', symbol: '$', decimals: 2, rate_per_usd: 1 },
-      { code: 'SOS', symbol: 'Sh.So.', decimals: 0, rate_per_usd: 26000 },
-    ]);
-
-    // Ensure tax rates
-    await TaxRate.deleteMany({});
-    await TaxRate.create([
-      { id: 'none', name: 'Zero Tax (0%)', rate: 0 },
-      { id: 'st5', name: 'Sales Tax 5%', rate: 5 },
-      { id: 'svc10', name: 'Service Tax 10%', rate: 10 },
-    ]);
-
-    // Create sample customer if none exists
-    const customerCount = await Customer.countDocuments();
-    if (customerCount === 0) {
-      await Customer.create({
-        code: 38,
-        name: 'Hormuud Telecom HQ',
-        attn: 'Ahmed Nur (Procurement)',
-        phone: '+252 61 5 000 001',
-        email: 'procurement@hormuud.com',
-        tax_id: 'HORM-TIN-1002',
-        address: 'Bakaro Market, Howlwadaag, Mogadishu',
-        since: '2026-01-15',
-      });
-    }
+    // Re-seed full default baseline (sequences, currencies, taxes, and all 8 prototype customers)
+    await seedDefaultData(true);
 
     if (req.user) {
       await logAction({
@@ -204,4 +171,24 @@ export const resetSampleData = async (req: Request, res: Response, next: NextFun
     next(err);
   }
 };
+
+export const getNumberingPreview = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const type = (req.query.type as SequenceKind) || 'invoice';
+    const date = (req.query.date as string) || new Date().toISOString();
+    const preview = await peekNextNumber(type, date);
+    res.status(200).json({
+      success: true,
+      type,
+      preview,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { Types } from "mongoose";
 import { Invoice, InvoiceState } from "../models/Invoice";
 import { Payment } from "../models/Payment";
 import { CreditNote } from "../models/CreditNote";
@@ -74,6 +75,10 @@ export const getInvoice = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
     const financials = await invoiceService.getInvoiceFinancials(id);
     const invoice = await Invoice.findById(id)
       .populate("customer_id")
@@ -85,7 +90,7 @@ export const getInvoice = async (
     }
 
     const [payments, creditNotes] = await Promise.all([
-      Payment.find({ invoice_id: id }).sort({ date: -1 }),
+      Payment.find({ invoice_id: id }).populate("receipt_id").sort({ date: -1 }),
       CreditNote.find({ invoice_id: id }).sort({ date: -1 }),
     ]);
 
@@ -140,6 +145,10 @@ export const updateInvoice = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
     const invoice = await invoiceService.updateDraft(id, req.body);
 
     if (req.user) {
@@ -155,7 +164,11 @@ export const updateInvoice = async (
       success: true,
       invoice,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && err.message.includes('Only drafts are editable')) {
+      res.status(409).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 };
@@ -167,6 +180,10 @@ export const issueInvoiceHandler = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
     const invoice = await invoiceService.issueInvoice(id);
 
     if (req.user) {
@@ -182,7 +199,11 @@ export const issueInvoiceHandler = async (
       success: true,
       invoice,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && err.message.includes('Only drafts are editable')) {
+      res.status(409).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 };
@@ -194,6 +215,10 @@ export const markSentHandler = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
     const invoice = await invoiceService.markSent(id);
 
     if (req.user) {
@@ -209,7 +234,11 @@ export const markSentHandler = async (
       success: true,
       invoice,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && err.message.includes('Only drafts are editable')) {
+      res.status(409).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 };
@@ -221,6 +250,10 @@ export const cancelInvoiceHandler = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
     const { reason } = req.body;
     const invoice = await invoiceService.cancelInvoice(id, reason);
 
@@ -238,7 +271,11 @@ export const cancelInvoiceHandler = async (
       success: true,
       invoice,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && err.message.includes('Only drafts are editable')) {
+      res.status(409).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 };
@@ -250,6 +287,10 @@ export const creditNoteHandler = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
     const creditNote = await issueCreditNote(id, req.body);
 
     if (req.user) {
@@ -278,6 +319,10 @@ export const deleteInvoiceHandler = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
     const invoice = await Invoice.findById(id);
     await invoiceService.deleteDraft(id);
 
@@ -293,6 +338,27 @@ export const deleteInvoiceHandler = async (
     res.status(200).json({
       success: true,
       message: "Draft invoice deleted successfully",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listInvoicePaymentsHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+    const payments = await Payment.find({ invoice_id: id }).populate("receipt_id").sort({ date: -1 });
+    res.status(200).json({
+      success: true,
+      payments,
     });
   } catch (err) {
     next(err);

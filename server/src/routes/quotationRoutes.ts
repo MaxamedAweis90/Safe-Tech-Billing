@@ -24,6 +24,7 @@ router.get('/:id', requireRole(['admin', 'accountant', 'sales', 'viewer']), getQ
 // Write / transition routes: admin, sales
 router.post('/', requireRole(['admin', 'sales']), createQuotation);
 router.put('/:id', requireRole(['admin', 'sales']), updateQuotation);
+router.patch('/:id', requireRole(['admin', 'sales']), updateQuotation);
 router.post('/:id/send', requireRole(['admin', 'sales']), sendQuotation);
 router.post('/:id/accept', requireRole(['admin', 'sales']), acceptQuotation);
 router.post('/:id/reject', requireRole(['admin', 'sales']), rejectQuotation);

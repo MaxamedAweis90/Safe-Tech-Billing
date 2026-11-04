@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { SkeletonBox } from 'skullet/react';
 import { Icon } from '../../components/icons';
 import { Badge } from '../../components/ui/Badge';
 import { InvoiceEditor } from './InvoiceEditor';
 import { InvoiceDetailView } from './InvoiceDetailView';
+import { useInvoices } from '../../hooks/useInvoices';
 import {
   MOCK_INVOICES,
   TODAY,
@@ -10,6 +12,7 @@ import {
   invStatus,
   getInvoiceById,
   getCustomerById,
+  MockInvoice,
 } from '../../lib/mockData';
 import { fmtD, daysBetween, formatMoney } from '../../lib/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -43,6 +46,17 @@ export const InvoicesView: React.FC = () => {
   const { can } = useAuthStore();
   const { selectedRecordId, setSelectedRecord } = useNavStore();
 
+  // Query live invoices from backend Express API
+  const {
+    data: apiData,
+    isLoading,
+    isError,
+    refetch,
+  } = useInvoices({
+    status: filter === 'all' ? undefined : filter,
+    q: searchTerm.trim() || undefined,
+  });
+
   // If "new" is requested or an invoice is selected, determine whether to render Editor or Detail
   if (selectedRecordId) {
     if (selectedRecordId === 'new') {
@@ -55,47 +69,88 @@ export const InvoicesView: React.FC = () => {
       );
     }
 
-    const activeInvoice = getInvoiceById(selectedRecordId);
-    if (activeInvoice) {
-      if (activeInvoice.state === 'draft') {
-        return (
-          <InvoiceEditor
-            invoiceId={activeInvoice.id}
-            onBack={() => setSelectedRecord('invoices', null)}
-            onIssued={(inv) => setSelectedRecord('invoices', inv.id)}
-          />
-        );
-      }
+    // Determine state from live data or mock data
+    const liveMatch = apiData?.invoices?.find(
+      (i: any) => i._id === selectedRecordId || i.id === selectedRecordId
+    );
+    const mockMatch = getInvoiceById(selectedRecordId);
+    const isDraft = (liveMatch?.state || mockMatch?.state) === 'draft';
+
+    if (isDraft) {
       return (
-        <InvoiceDetailView
-          invoiceId={activeInvoice.id}
+        <InvoiceEditor
+          invoiceId={selectedRecordId}
           onBack={() => setSelectedRecord('invoices', null)}
-          onNavigateReceipt={(receiptId) => setSelectedRecord('receipts', receiptId)}
-          onNavigateCustomer={(customerId) => setSelectedRecord('customers', customerId)}
-          onNavigateQuote={(quoteId) => setSelectedRecord('quotations', quoteId)}
+          onIssued={(inv) => setSelectedRecord('invoices', inv.id)}
         />
       );
     }
+
+    return (
+      <InvoiceDetailView
+        invoiceId={selectedRecordId}
+        onBack={() => setSelectedRecord('invoices', null)}
+        onNavigateReceipt={(receiptId) => setSelectedRecord('receipts', receiptId)}
+        onNavigateCustomer={(customerId) => setSelectedRecord('customers', customerId)}
+        onNavigateQuote={(quoteId) => setSelectedRecord('quotations', quoteId)}
+      />
+    );
   }
 
-  // Calculate live counts matching prototype line 622
-  const counts: Record<string, number> = { all: MOCK_INVOICES.length };
-  MOCK_INVOICES.forEach((i) => {
+  // Fallback to prototype mock data if live database has no records
+  const hasLiveInvoices = Boolean(apiData?.invoices && apiData.invoices.length > 0);
+
+  // Normalize invoices from API or mock
+  const liveRows = hasLiveInvoices && apiData
+    ? apiData.invoices.map((i: any) => {
+        const custObj = i.customer_id;
+        const custName =
+          i.customerName ||
+          (typeof custObj === 'object' ? custObj?.name : undefined) ||
+          'Customer';
+
+        return {
+          id: i._id || i.id,
+          number: i.number || '',
+          customerId: typeof custObj === 'object' ? custObj?._id || custObj?.id : custObj,
+          customerName: custName,
+          date: i.date,
+          due: i.due,
+          termsDays: i.terms_days || 30,
+          state: i.state,
+          status: i.status || 'unpaid',
+          currency: i.currency || 'USD',
+          total_milli: i.total_milli || 0,
+          paid_milli: i.paid_milli || 0,
+          balance_milli: i.balance_milli || 0,
+          items: (i.items || []).map((it: any) => ({
+            desc: it.desc,
+            qty: it.qty,
+            price: it.price_milli ?? it.price ?? 0,
+            disc: it.disc_pct ?? it.disc ?? 0,
+            taxRate: it.tax_rate ?? it.taxRate ?? 0,
+            taxName: it.tax_name ?? it.taxName ?? '',
+          })),
+        } as MockInvoice;
+      })
+    : MOCK_INVOICES;
+
+  // Compute live filter segment counts
+  const allList = hasLiveInvoices && apiData ? liveRows : MOCK_INVOICES;
+  const counts: Record<string, number> = { all: allList.length };
+  allList.forEach((i) => {
     const s = invStatus(i);
     counts[s] = (counts[s] || 0) + 1;
   });
 
-  // Filter and sort rows matching prototype line 624:
-  // Drafts float to top, followed by descending issue date
-  const filteredRows = MOCK_INVOICES
+  // Filter and sort display rows
+  const filteredRows = liveRows
     .filter((i) => filter === 'all' || invStatus(i) === filter)
     .filter((i) => {
       if (!searchTerm.trim()) return true;
       const term = searchTerm.toLowerCase();
-      const cust = getCustomerById(i.customerId);
-      const custName = cust ? cust.name : (i.customerName || '');
       const numOrDraft = i.number || 'draft';
-      return `${numOrDraft} ${custName}`.toLowerCase().includes(term);
+      return `${numOrDraft} ${i.customerName || ''}`.toLowerCase().includes(term);
     })
     .sort(
       (a, b) =>
@@ -140,7 +195,7 @@ export const InvoicesView: React.FC = () => {
               >
                 {STATUS_LABELS[f]}{' '}
                 <span className="num" style={{ opacity: 0.6 }}>
-                  {f === 'all' ? MOCK_INVOICES.length : counts[f] || 0}
+                  {f === 'all' ? counts.all : counts[f] || 0}
                 </span>
               </button>
             ))}
@@ -172,7 +227,36 @@ export const InvoicesView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.length > 0 ? (
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i}>
+                    <td>
+                      <SkeletonBox height={14} width={80} />
+                    </td>
+                    <td>
+                      <SkeletonBox height={14} width={160} />
+                    </td>
+                    <td>
+                      <SkeletonBox height={14} width={75} />
+                    </td>
+                    <td>
+                      <SkeletonBox height={14} width={75} />
+                    </td>
+                    <td>
+                      <SkeletonBox height={18} width={70} radius={999} />
+                    </td>
+                    <td className="r">
+                      <SkeletonBox height={14} width={70} style={{ marginLeft: 'auto' }} />
+                    </td>
+                    <td className="r">
+                      <SkeletonBox height={14} width={60} style={{ marginLeft: 'auto' }} />
+                    </td>
+                    <td className="r">
+                      <SkeletonBox height={14} width={70} style={{ marginLeft: 'auto' }} />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredRows.length > 0 ? (
                 filteredRows.map((i) => {
                   const s = invStatus(i);
                   const f = invFin(i);
@@ -225,7 +309,23 @@ export const InvoicesView: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={8}>
-                    <div className="empty">No invoices match this filter.</div>
+                    <div className="empty">
+                      {isError ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <span>Failed to fetch invoices from server.</span>
+                          <button
+                            type="button"
+                            className="btn sm"
+                            onClick={() => refetch()}
+                            style={{ alignSelf: 'center' }}
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ) : (
+                        'No invoices match this filter.'
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}

@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  MOCK_CUSTOMERS,
   MockCustomer,
   getCustomerById,
   addCustomer,
@@ -8,6 +7,11 @@ import {
 } from '../../lib/mockData';
 import { openModal, closeModal, toast } from '../../store/useUIStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import {
+  useCreateCustomer,
+  useUpdateCustomer,
+  useCustomerDetail,
+} from '../../hooks/useCustomers';
 
 export interface CustomerModalContentProps {
   customerId?: string | null;
@@ -20,23 +24,42 @@ export const CustomerModalContent: React.FC<CustomerModalContentProps> = ({
   onSuccess,
   onCancel,
 }) => {
-  const existingCust = customerId ? getCustomerById(customerId) : undefined;
+  const existingMock = customerId ? getCustomerById(customerId) : undefined;
+  const { data: detailData } = useCustomerDetail(customerId);
+  const liveCust = detailData?.data?.customer || (detailData as any)?.customer;
 
-  const [name, setName] = useState(existingCust?.name || '');
-  const [attn, setAttn] = useState(existingCust?.attn || '');
-  const [phone, setPhone] = useState(existingCust?.phone || '');
-  const [email, setEmail] = useState(existingCust?.email || '');
-  const [taxId, setTaxId] = useState(existingCust?.taxId || '');
-  const [address, setAddress] = useState(existingCust?.address || '');
+  const initialCust = liveCust || existingMock;
+
+  const [name, setName] = useState(initialCust?.name || '');
+  const [attn, setAttn] = useState(initialCust?.attn || '');
+  const [phone, setPhone] = useState(initialCust?.phone || '');
+  const [email, setEmail] = useState(initialCust?.email || '');
+  const [taxId, setTaxId] = useState(initialCust?.tax_id || initialCust?.taxId || '');
+  const [address, setAddress] = useState(initialCust?.address || '');
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSave = () => {
+  useEffect(() => {
+    if (initialCust) {
+      setName(initialCust.name || '');
+      setAttn(initialCust.attn || '');
+      setPhone(initialCust.phone || '');
+      setEmail(initialCust.email || '');
+      setTaxId(initialCust.tax_id || (initialCust as any).taxId || '');
+      setAddress(initialCust.address || '');
+    }
+  }, [initialCust]);
+
+  const createCustomerMutation = useCreateCustomer();
+  const updateCustomerMutation = useUpdateCustomer();
+
+  const handleSave = async () => {
     const v = {
       name: name.trim(),
       attn: attn.trim(),
       phone: phone.trim(),
       email: email.trim(),
-      taxId: taxId.trim(),
+      tax_id: taxId.trim(),
       address: address.trim(),
     };
 
@@ -50,29 +73,59 @@ export const CustomerModalContent: React.FC<CustomerModalContentProps> = ({
       return;
     }
 
-    if (
-      MOCK_CUSTOMERS.some(
-        (x) => x.id !== customerId && x.name.toLowerCase() === v.name.toLowerCase()
-      )
-    ) {
-      setError('A customer with this name already exists.');
-      return;
-    }
+    setIsSubmitting(true);
+    setError(null);
 
-    let rec: MockCustomer;
-    if (customerId) {
-      const updated = updateCustomer(customerId, v);
-      if (updated) {
-        rec = updated;
+    try {
+      let savedCust: MockCustomer;
+
+      if (customerId) {
+        const res = await updateCustomerMutation.mutateAsync({
+          id: customerId,
+          data: v,
+        });
+
+        // Also update local mock data if exists
+        const local = updateCustomer(customerId, { ...v, taxId: v.tax_id });
+        savedCust = {
+          id: res.customer._id || res.customer.id || customerId,
+          code: res.customer.code || local?.code || 1000,
+          name: res.customer.name,
+          attn: res.customer.attn || '',
+          phone: res.customer.phone || v.phone,
+          email: res.customer.email || v.email,
+          taxId: res.customer.tax_id || v.tax_id,
+          address: res.customer.address || '',
+          currency: (res.customer as any).currency || local?.currency || 'USD',
+          since: res.customer.since || local?.since,
+        };
       } else {
-        rec = addCustomer(v);
+        const res = await createCustomerMutation.mutateAsync(v);
+        const local = addCustomer({ ...v, taxId: v.tax_id });
+        savedCust = {
+          id: res.customer._id || res.customer.id || local.id,
+          code: res.customer.code || local.code,
+          name: res.customer.name,
+          attn: res.customer.attn || '',
+          phone: res.customer.phone || v.phone,
+          email: res.customer.email || v.email,
+          taxId: res.customer.tax_id || v.tax_id,
+          address: res.customer.address || '',
+          currency: (res.customer as any).currency || local.currency || 'USD',
+          since: res.customer.since || local.since,
+        };
       }
-    } else {
-      rec = addCustomer(v);
-    }
 
-    toast(customerId ? 'Customer updated' : 'Customer added');
-    onSuccess(rec);
+      onSuccess(savedCust);
+    } catch (err: any) {
+      const serverErr =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to save customer';
+      setError(serverErr);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -147,7 +200,7 @@ export const CustomerModalContent: React.FC<CustomerModalContentProps> = ({
       </div>
 
       {error && (
-        <span className="err-msg" id="cuErr">
+        <span className="err-msg" id="cuErr" style={{ display: 'block', color: 'var(--bad)', fontSize: 13 }}>
           {error}
         </span>
       )}
@@ -163,11 +216,17 @@ export const CustomerModalContent: React.FC<CustomerModalContentProps> = ({
           gap: 8,
         }}
       >
-        <button type="button" className="btn" onClick={onCancel}>
+        <button type="button" className="btn" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </button>
-        <button type="button" className="btn primary" id="cuSave" onClick={handleSave}>
-          {customerId ? 'Save changes' : 'Add customer'}
+        <button
+          type="button"
+          className="btn primary"
+          id="cuSave"
+          onClick={handleSave}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Saving...' : customerId ? 'Save changes' : 'Add customer'}
         </button>
       </div>
     </div>
@@ -197,4 +256,3 @@ export function openCustomerModal(
     ),
   });
 }
-

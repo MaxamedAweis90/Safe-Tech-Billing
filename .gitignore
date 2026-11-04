@@ -27,3 +27,11 @@ Thumbs.db
 # Plan
 ./plan/
 *plan/
+
+# test
+**/__tests__
+**__tests__
+.playwright-mcp
+.playwright-report
+**playwright-report
+**playwright-mcp

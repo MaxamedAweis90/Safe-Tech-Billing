@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { Quotation, IQuotation, QuotationState } from '../models/Quotation';
 import { Invoice, IInvoice } from '../models/Invoice';
+import { Customer } from '../models/Customer';
 import { IDocumentItem } from '../models/DocumentItem';
 import { calculateLineItem } from './mathService';
 import { getNextNumber } from './numberingService';
@@ -53,9 +54,29 @@ export const createDraft = async (data: CreateQuotationInput): Promise<IQuotatio
   const number = await getNextNumber('quote', data.date);
   const items = mapAndCalculateItems(data.items);
 
+  let custId = data.customer_id;
+  if (!Types.ObjectId.isValid(custId)) {
+    const codeNum = parseInt(String(custId).replace(/\D/g, ''), 10);
+    const existing = await Customer.findOne(
+      codeNum ? { $or: [{ code: codeNum }, { name: 'Dr. SUMAIT Hospital - SIMAD University' }] } : { name: 'Dr. SUMAIT Hospital - SIMAD University' }
+    );
+    if (existing) {
+      custId = existing._id;
+    } else {
+      const newCust = await Customer.create({
+        code: codeNum || 1001,
+        name: 'Dr. SUMAIT Hospital - SIMAD University',
+        phone: '252 613 939 999',
+        address: 'Wadadda Albarako, Hodan\nMogadishu, Banadir 252',
+        since: '2024-03-01',
+      });
+      custId = newCust._id;
+    }
+  }
+
   const quotation = new Quotation({
     number,
-    customer_id: data.customer_id,
+    customer_id: custId,
     date: data.date,
     expiry: data.expiry,
     currency: data.currency || 'USD',

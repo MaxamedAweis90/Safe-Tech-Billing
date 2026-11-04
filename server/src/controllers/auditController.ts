@@ -3,11 +3,14 @@ import { AuditLog } from '../models/AuditLog';
 
 export const listAuditLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { q, user_name, limit, skip } = req.query;
+    const { q, user_name, ref, limit, skip } = req.query;
 
     const filter: Record<string, unknown> = {};
     if (user_name && typeof user_name === 'string') {
       filter.user_name = user_name;
+    }
+    if (ref && typeof ref === 'string' && ref.trim()) {
+      filter.ref = new RegExp(ref.trim(), 'i');
     }
     if (q && typeof q === 'string' && q.trim()) {
       const regex = new RegExp(q.trim(), 'i');

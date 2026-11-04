@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
+import { SkeletonBox } from 'skullet/react';
 import { Icon } from '../../components/icons';
 import { QuoteEditor } from './QuoteEditor';
+import { useQuotations } from '../../hooks/useQuotations';
+import { useInvoices } from '../../hooks/useInvoices';
 import {
   MOCK_QUOTES,
   MOCK_INVOICES,
+  MockQuote,
 } from '../../lib/mockData';
 import { fmtD, qStatus, totalsOf, formatMoney } from '../../lib/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -26,6 +30,20 @@ export const QuotationsView: React.FC = () => {
   const { can } = useAuthStore();
   const { selectedRecordId, setSelectedRecord } = useNavStore();
 
+  // Query live quotations from Express API
+  const {
+    data: apiData,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuotations({
+    status: filter === 'all' ? undefined : filter,
+    q: searchTerm.trim() || undefined,
+  });
+
+  // Query live invoices to match linked quote conversions
+  const { data: invoicesApiData } = useInvoices();
+
   // If a quotation is selected or "new" requested, render the QuoteEditor
   if (selectedRecordId) {
     return (
@@ -37,17 +55,52 @@ export const QuotationsView: React.FC = () => {
     );
   }
 
-  // Calculate live counts by derived status matching prototype lines 614-615
-  const counts: Record<string, number> = { all: MOCK_QUOTES.length };
-  MOCK_QUOTES.forEach((q) => {
+  // Fallback to prototype mock data if live database has no records
+  const hasLiveQuotations = Boolean(apiData?.quotations && apiData.quotations.length > 0);
+
+  // Normalize API data to unified quotation objects
+  const liveRows = hasLiveQuotations && apiData
+    ? apiData.quotations.map((q: any) => {
+        const custName =
+          q.customerName ||
+          (typeof q.customer_id === 'object' ? q.customer_id?.name : undefined) ||
+          'Customer';
+        const total = q.totals?.total ?? q.total_milli ?? totalsOf({ items: q.items || [] }).total;
+        return {
+          id: q._id || q.id,
+          number: q.number || 'Draft',
+          customerId: typeof q.customer_id === 'object' ? q.customer_id?._id : q.customer_id,
+          customerName: custName,
+          date: q.date,
+          expiry: q.expiry,
+          state: q.state,
+          currency: q.currency || 'USD',
+          items: (q.items || []).map((it: any) => ({
+            desc: it.desc,
+            qty: it.qty,
+            price: it.price_milli ?? it.price ?? 0,
+            disc: it.disc_pct ?? it.disc ?? 0,
+            taxRate: it.tax_rate ?? it.taxRate ?? 0,
+            taxName: it.tax_name ?? it.taxName ?? '',
+          })),
+          total_milli: total,
+          invoiceId: q.invoice_id || q.invoiceId,
+          invoiceNumber: q.invoiceNumber,
+        } as MockQuote;
+      })
+    : MOCK_QUOTES;
+
+  // Compute live filter segment counts
+  const allList = hasLiveQuotations && apiData ? liveRows : MOCK_QUOTES;
+  const counts: Record<string, number> = { all: allList.length };
+  allList.forEach((q) => {
     const s = qStatus(q);
     counts[s] = (counts[s] || 0) + 1;
   });
 
-  // Filter and sort rows matching prototype line 616
-  const filteredRows = MOCK_QUOTES.filter(
-    (q) => filter === 'all' || qStatus(q) === filter
-  )
+  // Filter and sort display rows
+  const filteredRows = liveRows
+    .filter((q) => filter === 'all' || qStatus(q) === filter)
     .filter((q) => {
       if (!searchTerm.trim()) return true;
       const term = searchTerm.toLowerCase();
@@ -94,7 +147,7 @@ export const QuotationsView: React.FC = () => {
               >
                 {STATUS_LABELS[f]}{' '}
                 <span className="num" style={{ opacity: 0.6 }}>
-                  {f === 'all' ? MOCK_QUOTES.length : counts[f] || 0}
+                  {f === 'all' ? counts.all : counts[f] || 0}
                 </span>
               </button>
             ))}
@@ -125,12 +178,44 @@ export const QuotationsView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.length > 0 ? (
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i}>
+                    <td>
+                      <SkeletonBox height={14} width={90} />
+                    </td>
+                    <td>
+                      <SkeletonBox height={14} width={150} />
+                    </td>
+                    <td>
+                      <SkeletonBox height={14} width={75} />
+                    </td>
+                    <td>
+                      <SkeletonBox height={14} width={75} />
+                    </td>
+                    <td>
+                      <SkeletonBox height={18} width={65} radius={999} />
+                    </td>
+                    <td>
+                      <SkeletonBox height={14} width={60} />
+                    </td>
+                    <td className="r">
+                      <SkeletonBox height={14} width={75} style={{ marginLeft: 'auto' }} />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredRows.length > 0 ? (
                 filteredRows.map((q) => {
                   const s = qStatus(q);
-                  const inv = q.invoiceId
-                    ? MOCK_INVOICES.find((i) => i.id === q.invoiceId)
+
+                  // Locate linked invoice from API or mock
+                  const linkedInvId = q.invoiceId;
+                  const inv = linkedInvId
+                    ? (invoicesApiData?.invoices || MOCK_INVOICES).find(
+                        (i: any) => i._id === linkedInvId || i.id === linkedInvId
+                      )
                     : undefined;
+
                   const totals = totalsOf({ items: q.items });
 
                   return (
@@ -157,10 +242,10 @@ export const QuotationsView: React.FC = () => {
                             style={{ color: 'var(--accent)', cursor: 'pointer' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedRecord('invoices', inv.id);
+                              setSelectedRecord('invoices', (inv as any)._id || (inv as any).id);
                             }}
                           >
-                            {inv.number || 'Draft'}
+                            {(inv as any).number || 'Draft'}
                           </span>
                         ) : s === 'accepted' ? (
                           <span
@@ -185,7 +270,23 @@ export const QuotationsView: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={7}>
-                    <div className="empty">No quotations match this filter.</div>
+                    <div className="empty">
+                      {isError ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <span>Failed to fetch quotations from server.</span>
+                          <button
+                            type="button"
+                            className="btn sm"
+                            onClick={() => refetch()}
+                            style={{ alignSelf: 'center' }}
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ) : (
+                        'No quotations match this filter.'
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}

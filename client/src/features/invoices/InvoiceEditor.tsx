@@ -23,13 +23,21 @@ import {
 import { useAuthStore } from '../../store/useAuthStore';
 import { useNavStore } from '../../store/useNavStore';
 import { confirmBox, toast, openModal, closeModal } from '../../store/useUIStore';
-import { DocumentScaleWrapper, DocumentSheet } from '../documents';
+import { DocumentScaleWrapper, DocumentSheet, downloadPdf } from '../documents';
 import { openCustomerModal } from '../customers/CustomerModal';
+import {
+  useInvoiceDetail,
+  useSaveInvoice,
+  useIssueInvoice,
+  useDeleteInvoice,
+  useNumberingPreview,
+} from '../../hooks/useInvoices';
+import { useCustomers } from '../../hooks/useCustomers';
 
 export interface InvoiceEditorProps {
   invoiceId: string | null;
   onBack: () => void;
-  onIssued: (issuedInvoice: MockInvoice) => void;
+  onIssued: (issuedInvoice: any) => void;
 }
 
 export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
@@ -38,7 +46,18 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
   onIssued,
 }) => {
   const { can, role } = useAuthStore();
-  const existingInv = invoiceId && invoiceId !== 'new' ? getInvoiceById(invoiceId) : undefined;
+  const isNew = !invoiceId || invoiceId === 'new';
+
+  // Live queries
+  const { data: detailData } = useInvoiceDetail(isNew ? null : invoiceId);
+  const { data: customersData } = useCustomers();
+
+  // Mutations
+  const saveMutation = useSaveInvoice();
+  const issueMutation = useIssueInvoice();
+  const deleteMutation = useDeleteInvoice();
+
+  const existingInv = !isNew ? getInvoiceById(invoiceId!) : undefined;
 
   // Local form state
   const [doc, setDoc] = useState<MockInvoice>(() => {
@@ -75,17 +94,70 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
 
   const [itemError, setItemError] = useState<string | null>(null);
 
+  // Sync state when detail data arrives from Express backend
   useEffect(() => {
-    if (invoiceId && invoiceId !== 'new') {
+    if (detailData?.invoice) {
+      const inv = detailData.invoice;
+      const custObj: any = inv.customer_id;
+      const custId = typeof custObj === 'object' ? custObj?._id || custObj?.id : custObj;
+      const custName = inv.customerName || (typeof custObj === 'object' ? custObj?.name : undefined) || 'Customer';
+
+      setDoc({
+        id: inv._id || inv.id || '',
+        number: inv.number || '',
+        customerId: custId || '',
+        customerName: custName,
+        date: inv.date,
+        due: inv.due || (inv as any).due_date || addDays(inv.date, inv.terms_days || 30),
+        due_date: inv.due || (inv as any).due_date || addDays(inv.date, inv.terms_days || 30),
+        termsDays: inv.terms_days ?? 30,
+        state: inv.state,
+        status: (inv.status as any) || 'draft',
+        currency: inv.currency || 'USD',
+        items: (inv.items || []).map((it: any) => ({
+          desc: it.desc,
+          qty: it.qty,
+          price: it.price_milli ?? it.price ?? 0,
+          disc: it.disc_pct ?? it.disc ?? 0,
+          taxRate: it.tax_rate ?? it.taxRate ?? 0,
+          taxName: it.tax_name ?? it.taxName ?? '',
+        })),
+        terms: inv.terms || INVOICE_TERMS,
+        notes: inv.notes || '',
+        total_milli: inv.total_milli || 0,
+        paid_milli: inv.paid_milli || 0,
+        balance_milli: inv.balance_milli || 0,
+        quoteId: typeof inv.quote_id === 'object' ? (inv.quote_id as any)?._id : inv.quote_id,
+      });
+    } else if (invoiceId && invoiceId !== 'new') {
       const i = getInvoiceById(invoiceId);
       if (i) setDoc(JSON.parse(JSON.stringify(i)));
     }
-  }, [invoiceId]);
+  }, [detailData, invoiceId]);
 
-  const isExisting = Boolean(existingInv && doc.id !== 'new');
+  const isExisting = Boolean(!isNew && doc.id !== 'new');
   const readOnly = !can('invoices');
-  const nextNumberPreview = peekNextInvoiceNumber(doc.date);
-  const selectedCustomer = getCustomerById(doc.customerId);
+
+  // Live sequence preview
+  const { data: previewData } = useNumberingPreview('invoice', doc.date);
+  const nextNumberPreview = previewData?.preview || peekNextInvoiceNumber(doc.date);
+
+  // Live customers list
+  const customersList = customersData?.customers && customersData.customers.length > 0
+    ? customersData.customers.map((c: any) => ({
+        id: c._id || c.id,
+        code: c.code,
+        name: c.name,
+        phone: c.phone || '',
+        address: c.address || '',
+        email: c.email || '',
+      }))
+    : MOCK_CUSTOMERS;
+
+  const selectedCustomer =
+    customersList.find((c) => c.id === doc.customerId) ||
+    getCustomerById(doc.customerId);
+
   const totals = totalsOf({ items: doc.items });
   const linkedQuote = doc.quoteId ? getQuoteById(doc.quoteId) : undefined;
 
@@ -152,24 +224,60 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
   };
 
   // Actions
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!can('invoices')) {
       toast('You do not have permission to edit invoices.', true);
       return;
     }
     if (!validateForm()) return;
 
-    const saved = persistInvoice(
-      {
-        ...doc,
-        id: isExisting ? doc.id : undefined,
-        total_milli: totals.total,
-        balance_milli: totals.total,
-      },
-      false
-    );
-    setDoc(JSON.parse(JSON.stringify(saved)));
-    toast('Draft saved');
+    const itemsPayload = doc.items.map((it) => ({
+      desc: it.desc,
+      qty: Number(it.qty),
+      price_milli: Number(it.price),
+      disc_pct: Number(it.disc || 0),
+      tax_rate: Number(it.taxRate || 0),
+      tax_name: it.taxName || '',
+    }));
+
+    const isSaved = isExisting && doc.id && doc.id !== 'new';
+    try {
+      const res = await saveMutation.mutateAsync({
+        id: isSaved ? doc.id : undefined,
+        customer_id: doc.customerId,
+        quote_id: doc.quoteId || undefined,
+        date: doc.date,
+        due: doc.due,
+        terms_days: doc.termsDays ?? 30,
+        currency: doc.currency,
+        terms: doc.terms,
+        notes: doc.notes,
+        items: itemsPayload,
+      });
+
+      const savedInv = res.invoice;
+      if (savedInv) {
+        const id = savedInv._id || savedInv.id;
+        setDoc((prev) => ({
+          ...prev,
+          id: id || prev.id,
+          number: savedInv.number || prev.number,
+        }));
+      }
+    } catch {
+      // Fallback to local persistInvoice if backend is offline
+      const saved = persistInvoice(
+        {
+          ...doc,
+          id: isExisting ? doc.id : undefined,
+          total_milli: totals.total,
+          balance_milli: totals.total,
+        },
+        false
+      );
+      setDoc(JSON.parse(JSON.stringify(saved)));
+      toast('Draft saved (local)');
+    }
   };
 
   const handleIssueInvoice = async () => {
@@ -186,7 +294,58 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
       ok: 'Issue invoice',
     });
 
-    if (confirmed) {
+    if (!confirmed) return;
+
+    try {
+      let targetId = doc.id;
+      const itemsPayload = doc.items.map((it) => ({
+        desc: it.desc,
+        qty: Number(it.qty),
+        price_milli: Number(it.price),
+        disc_pct: Number(it.disc || 0),
+        tax_rate: Number(it.taxRate || 0),
+        tax_name: it.taxName || '',
+      }));
+
+      // If document is not yet saved to backend, create draft first
+      if (!targetId || targetId === 'new') {
+        const saveRes = await saveMutation.mutateAsync({
+          customer_id: doc.customerId,
+          quote_id: doc.quoteId || undefined,
+          date: doc.date,
+          due: doc.due,
+          terms_days: doc.termsDays ?? 30,
+          currency: doc.currency,
+          terms: doc.terms,
+          notes: doc.notes,
+          items: itemsPayload,
+        });
+        targetId = saveRes.invoice._id || saveRes.invoice.id || '';
+      }
+
+      const issueRes = await issueMutation.mutateAsync(targetId);
+      const issued = issueRes.invoice;
+      persistInvoice(
+        {
+          ...doc,
+          id: issued._id || issued.id || targetId,
+          number: issued.number,
+          state: 'issued',
+          status: 'unpaid',
+          total_milli: totals.total,
+          balance_milli: totals.total,
+        },
+        true
+      );
+      onIssued({
+        ...doc,
+        id: issued._id || issued.id || targetId,
+        number: issued.number,
+        state: 'issued',
+        status: 'unpaid',
+      });
+    } catch {
+      // Fallback to local persistInvoice if backend fails
       const issued = persistInvoice(
         {
           ...doc,
@@ -209,11 +368,18 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
       ok: 'Delete draft',
       danger: true,
     });
-    if (confirmed) {
+    if (!confirmed) return;
+
+    if (doc.id && doc.id !== 'new') {
+      try {
+        await deleteMutation.mutateAsync(doc.id);
+      } catch {
+        deleteDraftInvoice(doc.id);
+      }
+    } else {
       deleteDraftInvoice(doc.id);
-      toast('Draft deleted');
-      onBack();
     }
+    onBack();
   };
 
   // Quick Customer Registration Modal
@@ -249,9 +415,28 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
         </div>
       ),
       foot: (
-        <button type="button" className="btn" onClick={closeModal}>
-          Close preview
-        </button>
+        <>
+          <button type="button" className="btn" onClick={closeModal}>
+            Close
+          </button>
+          <button
+            type="button"
+            className="btn dl-btn primary"
+            onClick={(e) =>
+              downloadPdf(
+                'invoice',
+                {
+                  ...doc,
+                  number: doc.number || nextNumberPreview,
+                },
+                e.currentTarget
+              )
+            }
+          >
+            <Icon name="down" />
+            Download PDF
+          </button>
+        </>
       ),
     });
   };
@@ -292,20 +477,31 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
           {!readOnly && (
             <>
               {isExisting && (
-                <button type="button" className="btn danger" onClick={handleDelete}>
-                  Delete draft
+                <button
+                  type="button"
+                  className="btn danger"
+                  onClick={handleDelete}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? 'Deleting…' : 'Delete draft'}
                 </button>
               )}
-              <button type="button" className="btn" onClick={handleSaveDraft}>
-                Save draft
+              <button
+                type="button"
+                className="btn"
+                onClick={handleSaveDraft}
+                disabled={saveMutation.isPending}
+              >
+                {saveMutation.isPending ? 'Saving…' : 'Save draft'}
               </button>
               <button
                 type="button"
                 className="btn primary"
                 onClick={handleIssueInvoice}
+                disabled={issueMutation.isPending || saveMutation.isPending}
               >
                 <Icon name="lock" />
-                Issue invoice
+                {issueMutation.isPending ? 'Issuing…' : 'Issue invoice'}
               </button>
             </>
           )}
@@ -354,7 +550,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
                         if (e.target.value === '__new') {
                           openNewCustomerModal();
                         } else {
-                          const c = getCustomerById(e.target.value);
+                          const c = customersList.find((x) => x.id === e.target.value) || getCustomerById(e.target.value);
                           setDoc((prev) => ({
                             ...prev,
                             customerId: e.target.value,
@@ -364,9 +560,9 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
                       }}
                     >
                       <option value="">Select a customer…</option>
-                      {MOCK_CUSTOMERS.map((c) => (
+                      {customersList.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name} ({c.code})
+                          {c.name} {c.code ? `(${c.code})` : ''}
                         </option>
                       ))}
                       {can('customers') && (

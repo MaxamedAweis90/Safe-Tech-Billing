@@ -1,9 +1,11 @@
 import app from './app';
 import { env } from './config/env';
 import { connectDatabase } from './config/db';
+import { seedDefaultData } from './config/seedDefaults';
 
 export const startServer = async (): Promise<void> => {
   await connectDatabase();
+  await seedDefaultData();
   app.listen(env.PORT, () => {
     console.log(`[Server] Safe Tech Billing server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
   });
