@@ -1,6 +1,10 @@
 export * from './DocumentItem';
 export * from './Company';
+export * from './user.model';
 export * from './User';
+export * from './otp.model';
+export * from './invitation.model';
+export * from './email-template.model';
 export * from './Customer';
 export * from './NumberSequence';
 export * from './Quotation';
@@ -11,4 +15,3 @@ export * from './CreditNote';
 export * from './Currency';
 export * from './TaxRate';
 export * from './AuditLog';
-

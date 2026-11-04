@@ -19,6 +19,14 @@ const envSchema = z.object({
   MONGODB_URI: z.string().default('mongodb://localhost:27017/safetech_billing'),
   JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().optional().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().optional().default('Safe Tech Billing <billing@safetech.so>'),
+  SMS_GATEWAY_URL: z.string().optional(),
+  SMS_GATEWAY_API_KEY: z.string().optional(),
+  SMS_SENDER_ID: z.string().optional().default('SafeTech'),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

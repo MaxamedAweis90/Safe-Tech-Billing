@@ -2,6 +2,7 @@ import { Customer } from '../models/Customer';
 import { NumberSequence } from '../models/NumberSequence';
 import { Currency } from '../models/Currency';
 import { TaxRate } from '../models/TaxRate';
+import { seedEmailTemplates } from '../seeds/email-templates.seed';
 
 export const seedDefaultData = async (force: boolean = false): Promise<void> => {
   try {
@@ -122,6 +123,9 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
       ]);
       console.log('[Database] Seeded 8 default prototype customers.');
     }
+
+    // 5. Core Transactional Email Templates
+    await seedEmailTemplates(force);
   } catch (err) {
     console.warn('[Database] Seed default baseline skipped or errored:', err);
   }

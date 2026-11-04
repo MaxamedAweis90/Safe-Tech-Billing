@@ -130,7 +130,7 @@ export const getReceipt = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
       res.status(404).json({ success: false, error: "Receipt not found" });
       return;

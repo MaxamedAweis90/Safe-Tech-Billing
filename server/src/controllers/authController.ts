@@ -18,7 +18,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
     }
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!user) {
+    if (!user || !user.password_hash) {
       res.status(401).json({ success: false, error: 'Invalid email or password' });
       return;
     }
