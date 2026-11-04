@@ -64,6 +64,7 @@ export const inviteMember = async (
       fullName,
       invitedBy: req.user.id,
       inviterName: req.user.name,
+      inviterEmail: req.user.email,
     });
 
     res.status(201).json({

@@ -16,6 +16,7 @@ export interface InviteMemberParams {
   fullName?: string;
   invitedBy: string;
   inviterName?: string;
+  inviterEmail?: string;
 }
 
 export interface AcceptInviteParams {
@@ -59,7 +60,7 @@ export const listTeamMembers = async () => {
  * Creates and dispatches a team invitation.
  */
 export const createInvitation = async (params: InviteMemberParams) => {
-  const { email, role, fullName, invitedBy, inviterName } = params;
+  const { email, role, fullName, invitedBy, inviterName, inviterEmail } = params;
 
   if (!email || !EMAIL_REGEX.test(email.trim())) {
     throw new TeamServiceError('A valid email address is required', 400);
@@ -111,7 +112,8 @@ export const createInvitation = async (params: InviteMemberParams) => {
     role_label: role.toUpperCase(),
     invite_url: inviteUrl,
     user_name: fullName || normalizedEmail.split('@')[0],
-    inviter_name: inviterName || 'Administrator',
+    inviter_name: inviterName || 'Safe Tech Administrator',
+    ...(inviterEmail ? { inviter_email: inviterEmail } : {}),
   });
 
   // Audit log

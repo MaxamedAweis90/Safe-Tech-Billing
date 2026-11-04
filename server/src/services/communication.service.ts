@@ -1,15 +1,26 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import mongoose from 'mongoose';
 import { EmailTemplate } from '../models/email-template.model';
+import { Company } from '../models/Company';
 import { env } from '../config/env';
 import { STATIC_EMAIL_TEMPLATES } from '../seeds/email-templates.seed';
+import { EmailContextType } from '../templates/layout';
 
-export interface EmailPayload {
+export interface ContextualSenderOptions {
+  contextType?: EmailContextType;
+  inviterName?: string;
+  inviterEmail?: string;
+  companyName?: string;
+  companyEmail?: string;
+}
+
+export interface EmailPayload extends ContextualSenderOptions {
   to: string;
   subject: string;
   html: string;
   text?: string;
   from?: string;
+  replyTo?: string;
 }
 
 export interface SendEmailResult {
@@ -43,6 +54,12 @@ export interface RenderedTemplate {
   html: string;
 }
 
+export interface SendTemplatedEmailOptions extends ContextualSenderOptions {
+  slug: string;
+  to: string;
+  variables?: Record<string, string | number>;
+}
+
 let transporterInstance: Transporter | null = null;
 let liveTransporterDisabled = false;
 
@@ -51,8 +68,55 @@ export const disableLiveTransporterForTest = (disabled: boolean): void => {
 };
 
 /**
- * Returns a configured Nodemailer transporter if valid credentials are present in env,
- * or null if no SMTP configuration is present.
+ * Resolves context-aware sender ('From') and 'Reply-To' addresses:
+ * 1. System Emails (Signup Verification, Login OTP):
+ *    - From: "Safe Tech Billing <safetechbilling@gmail.com>"
+ * 2. Team Invitations (Staff Onboarding):
+ *    - From: "${inviterName} (${companyName}) <safetechbilling@gmail.com>"
+ *    - Reply-To: ${inviterEmail}
+ * 3. Customer Documents (Invoices & Receipts):
+ *    - From: "${companyName} <safetechbilling@gmail.com>"
+ *    - Reply-To: ${companyEmail || inviterEmail}
+ */
+export const resolveSenderAndReplyTo = (
+  options: ContextualSenderOptions = {}
+): { from: string; replyTo?: string } => {
+  const smtpUser = process.env.SMTP_USER || env.SMTP_USER || 'safetechbilling@gmail.com';
+  const defaultFrom = process.env.EMAIL_FROM || env.EMAIL_FROM || `Safe Tech Billing <${smtpUser}>`;
+
+  const contextType = options.contextType || 'system';
+
+  switch (contextType) {
+    case 'invitation': {
+      const inviterName = options.inviterName || 'Safe Tech Administrator';
+      const companyName = options.companyName || 'Safe Tech Solutions';
+      return {
+        from: `"${inviterName} (${companyName})" <${smtpUser}>`,
+        replyTo: options.inviterEmail || smtpUser,
+      };
+    }
+
+    case 'document': {
+      const companyName = options.companyName || 'Safe Tech Solutions';
+      const replyTo = options.companyEmail || options.inviterEmail || smtpUser;
+      return {
+        from: `"${companyName}" <${smtpUser}>`,
+        replyTo,
+      };
+    }
+
+    case 'system':
+    default:
+      return {
+        from: defaultFrom,
+        replyTo: undefined,
+      };
+  }
+};
+
+/**
+ * Returns a configured Nodemailer transporter reading SMTP credentials.
+ * Starts with STARTTLS on port 587 (secure: false) or TLS on port 465 (secure: true).
  */
 export const getMailTransporter = (): Transporter | null => {
   if (liveTransporterDisabled) {
@@ -63,16 +127,16 @@ export const getMailTransporter = (): Transporter | null => {
     return transporterInstance;
   }
 
-  const host = env.SMTP_HOST || process.env.SMTP_HOST;
-  const user = env.SMTP_USER || process.env.SMTP_USER;
-  const pass = env.SMTP_PASS || process.env.SMTP_PASS;
-  const port = Number(env.SMTP_PORT || process.env.SMTP_PORT) || 587;
+  const host = process.env.SMTP_HOST || env.SMTP_HOST || 'smtp.gmail.com';
+  const port = Number(process.env.SMTP_PORT || env.SMTP_PORT) || 587;
+  const user = process.env.SMTP_USER || env.SMTP_USER;
+  const pass = process.env.SMTP_PASS || env.SMTP_PASS;
 
-  if (host && user && pass) {
+  if (user && pass) {
     transporterInstance = nodemailer.createTransport({
       host,
       port,
-      secure: port === 465,
+      secure: port === 465, // true only for 465, false for 587 with STARTTLS
       auth: {
         user,
         pass,
@@ -85,19 +149,28 @@ export const getMailTransporter = (): Transporter | null => {
 };
 
 /**
- * Resets the cached transporter instance (useful for unit testing configurations).
+ * Resets the cached transporter instance.
  */
 export const resetTransporterInstance = (): void => {
   transporterInstance = null;
 };
 
 /**
- * Dispatches an email via configured SMTP transporter, or logs the email and preview
- * to console when credentials are omitted in development.
+ * Dispatches an email via configured Nodemailer SMTP transporter, or logs the email and preview
+ * to console when credentials are omitted or disabled in tests.
  */
 export const sendEmail = async (payload: EmailPayload): Promise<SendEmailResult> => {
   try {
-    const fromAddress = payload.from || env.EMAIL_FROM || 'Safe Tech Billing <billing@safetech.so>';
+    const resolvedSender = resolveSenderAndReplyTo({
+      contextType: payload.contextType,
+      inviterName: payload.inviterName,
+      inviterEmail: payload.inviterEmail,
+      companyName: payload.companyName,
+      companyEmail: payload.companyEmail,
+    });
+
+    const fromAddress = payload.from || resolvedSender.from;
+    const replyToAddress = payload.replyTo || resolvedSender.replyTo;
     const transporter = getMailTransporter();
 
     if (transporter) {
@@ -107,6 +180,7 @@ export const sendEmail = async (payload: EmailPayload): Promise<SendEmailResult>
         subject: payload.subject,
         html: payload.html,
         text: payload.text,
+        replyTo: replyToAddress,
       });
 
       const previewUrl = nodemailer.getTestMessageUrl(info);
@@ -121,11 +195,15 @@ export const sendEmail = async (payload: EmailPayload): Promise<SendEmailResult>
     // Local / development environment fallback
     const mockPreviewUrl = `https://safetech.dev/mock-email-preview/${Date.now()}`;
     console.log('================================================================');
-    console.log('[MOCK EMAIL DISPATCHED — SMTP Credentials Not Provided]');
-    console.log(`From:    ${fromAddress}`);
-    console.log(`To:      ${payload.to}`);
-    console.log(`Subject: ${payload.subject}`);
-    console.log(`Preview: ${mockPreviewUrl}`);
+    console.log('[MOCK EMAIL DISPATCHED — Live Transporter Not Active]');
+    console.log(`Context:  ${payload.contextType || 'system'}`);
+    console.log(`From:     ${fromAddress}`);
+    if (replyToAddress) {
+      console.log(`Reply-To: ${replyToAddress}`);
+    }
+    console.log(`To:       ${payload.to}`);
+    console.log(`Subject:  ${payload.subject}`);
+    console.log(`Preview:  ${mockPreviewUrl}`);
     console.log('Payload HTML:\n' + payload.html);
     console.log('================================================================');
 
@@ -209,7 +287,7 @@ export const sendSms = async (payload: SmsPayload): Promise<SendSmsResult> => {
 
 /**
  * Template Interpolation Engine:
- * Fetches template by slug from the database or static fallback, and safely interpolates
+ * Fetches template by slug from DB or static fallback, and safely interpolates
  * {{variable_name}} tokens with provided parameters.
  */
 export const renderTemplate = async (
@@ -219,7 +297,7 @@ export const renderTemplate = async (
   let subject = '';
   let htmlBody = '';
 
-  // Only query DB if MongoDB connection is open, preventing 10s buffer timeout in offline/test environments
+  // Only query DB if MongoDB connection is open, preventing buffer timeout in offline/test environments
   if (mongoose.connection.readyState === 1) {
     try {
       const dbTemplate = await EmailTemplate.findOne({ slug });
@@ -228,7 +306,7 @@ export const renderTemplate = async (
         htmlBody = dbTemplate.htmlBody;
       }
     } catch (err) {
-      // DB lookup error or non-connected environment - fallback will handle
+      // Fallback handles this
     }
   }
 
@@ -243,11 +321,24 @@ export const renderTemplate = async (
     }
   }
 
+  // Merge default company metadata if available
+  const mergedVars: Record<string, string | number> = {
+    company_name: 'Safe Tech Solutions',
+    company_address: 'KM4 Airport Road, Wadajir District, Mogadishu, Somalia',
+    company_phone: '+252 61 4 324 507',
+    company_email: 'billing@safetech.so',
+    bank_name: 'Premier Bank',
+    account_name: 'Safe Tech Solutions LLC',
+    account_no: '010204982001',
+    mobile_money: 'EVC Plus: +252 61 4 324 507',
+    ...variables,
+  };
+
   // Safe interpolation: replaces all {{variable_name}} tokens
   const interpolate = (content: string): string => {
     return content.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, tokenKey) => {
-      if (tokenKey in variables && variables[tokenKey] !== undefined && variables[tokenKey] !== null) {
-        return String(variables[tokenKey]);
+      if (tokenKey in mergedVars && mergedVars[tokenKey] !== undefined && mergedVars[tokenKey] !== null) {
+        return String(mergedVars[tokenKey]);
       }
       return '';
     });
@@ -260,17 +351,81 @@ export const renderTemplate = async (
 };
 
 /**
- * Convenience method to render and dispatch a templated email in one step.
+ * Contextual email dispatch helper supporting both object options and legacy positional parameters.
  */
-export const sendTemplatedEmail = async (
+export async function sendTemplatedEmail(
+  options: SendTemplatedEmailOptions
+): Promise<SendEmailResult>;
+export async function sendTemplatedEmail(
   slug: string,
   to: string,
-  variables: Record<string, string | number> = {}
-): Promise<SendEmailResult> => {
+  variables?: Record<string, string | number>,
+  contextOptions?: ContextualSenderOptions
+): Promise<SendEmailResult>;
+export async function sendTemplatedEmail(
+  slugOrOptions: string | SendTemplatedEmailOptions,
+  maybeTo?: string,
+  maybeVariables?: Record<string, string | number>,
+  maybeContextOptions?: ContextualSenderOptions
+): Promise<SendEmailResult> {
+  let slug: string;
+  let to: string;
+  let variables: Record<string, string | number> = {};
+  let contextOptions: ContextualSenderOptions = {};
+
+  if (typeof slugOrOptions === 'object') {
+    slug = slugOrOptions.slug;
+    to = slugOrOptions.to;
+    variables = slugOrOptions.variables || {};
+    contextOptions = {
+      contextType: slugOrOptions.contextType,
+      inviterName: slugOrOptions.inviterName,
+      inviterEmail: slugOrOptions.inviterEmail,
+      companyName: slugOrOptions.companyName,
+      companyEmail: slugOrOptions.companyEmail,
+    };
+  } else {
+    slug = slugOrOptions;
+    to = maybeTo as string;
+    variables = maybeVariables || {};
+    contextOptions = maybeContextOptions || {};
+  }
+
+  // Fallback context options from variables if not explicitly provided
+  if (!contextOptions.inviterName && variables.inviter_name) {
+    contextOptions.inviterName = String(variables.inviter_name);
+  }
+  if (!contextOptions.inviterEmail && variables.inviter_email) {
+    contextOptions.inviterEmail = String(variables.inviter_email);
+  }
+  if (!contextOptions.companyName && variables.company_name) {
+    contextOptions.companyName = String(variables.company_name);
+  }
+  if (!contextOptions.companyEmail && variables.company_email) {
+    contextOptions.companyEmail = String(variables.company_email);
+  }
+
+  // Auto-detect context type from slug if not specified
+  if (!contextOptions.contextType) {
+    if (slug === 'staff_invite') {
+      contextOptions.contextType = 'invitation';
+    } else if (slug === 'invoice_shared' || slug === 'receipt_shared') {
+      contextOptions.contextType = 'document';
+    } else {
+      contextOptions.contextType = 'system';
+    }
+  }
+
   const rendered = await renderTemplate(slug, variables);
+
   return sendEmail({
     to,
     subject: rendered.subject,
     html: rendered.html,
+    contextType: contextOptions.contextType,
+    inviterName: contextOptions.inviterName,
+    inviterEmail: contextOptions.inviterEmail,
+    companyName: contextOptions.companyName,
+    companyEmail: contextOptions.companyEmail,
   });
-};
+}
