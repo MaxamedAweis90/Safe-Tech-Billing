@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { AuditLog, IAuditLog } from '../models/AuditLog';
 
 export interface LogActionParams {
@@ -21,6 +22,10 @@ export const logAction = async (params: LogActionParams): Promise<IAuditLog> => 
     ref: params.ref || '',
     detail: params.detail || '',
   });
+
+  if (mongoose.connection.readyState !== 1) {
+    return log;
+  }
 
   return await log.save();
 };

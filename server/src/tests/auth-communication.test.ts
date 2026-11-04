@@ -8,12 +8,7 @@ import {
   OtpTokenSchema,
   handleInitialAdminAssignment,
 } from '../models';
-import {
-  sendEmail,
-  sendSms,
-  renderTemplate,
-  sendTemplatedEmail,
-} from '../services/communication.service';
+import * as commService from '../services/communication.service';
 import { STATIC_EMAIL_TEMPLATES } from '../seeds/email-templates.seed';
 
 describe('Auth & Communication Engine — Step 1 Specifications', () => {
@@ -231,7 +226,7 @@ describe('Auth & Communication Engine — Step 1 Specifications', () => {
 
   describe('Communication Transporter Service', () => {
     it('should interpolate variables accurately using renderTemplate static fallback', async () => {
-      const rendered = await renderTemplate('verify_email', {
+      const rendered = await commService.renderTemplate('verify_email', {
         otp_code: '489201',
         company_name: 'Safe Tech Solutions',
         user_name: 'Mohamed Nur',
@@ -245,7 +240,7 @@ describe('Auth & Communication Engine — Step 1 Specifications', () => {
     });
 
     it('should safely omit unprovided variables during interpolation', async () => {
-      const rendered = await renderTemplate('staff_invite', {
+      const rendered = await commService.renderTemplate('staff_invite', {
         company_name: 'Safe Tech Solutions LLC',
         role_name: 'Accountant',
         invite_url: 'https://billing.safetech.so/invite?token=xyz',
@@ -258,9 +253,10 @@ describe('Auth & Communication Engine — Step 1 Specifications', () => {
     });
 
     it('should dispatch email with console logger fallback in development mode', async () => {
+      commService.disableLiveTransporterForTest(true);
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      const result = await sendEmail({
+      const result = await commService.sendEmail({
         to: 'client@sumait.edu.so',
         subject: 'Test Subject',
         html: '<p>Test HTML</p>',
@@ -272,12 +268,13 @@ describe('Auth & Communication Engine — Step 1 Specifications', () => {
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('MOCK EMAIL DISPATCHED'));
 
       consoleSpy.mockRestore();
+      commService.disableLiveTransporterForTest(false);
     });
 
     it('should dispatch SMS with Somali SMS gateway interface format and dev fallback', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      const result = await sendSms({
+      const result = await commService.sendSms({
         to: '+252614324507',
         message: 'Safe Tech Billing: Your code is 881204',
       });
@@ -292,9 +289,10 @@ describe('Auth & Communication Engine — Step 1 Specifications', () => {
     });
 
     it('should execute sendTemplatedEmail combining template rendering and dispatch', async () => {
+      commService.disableLiveTransporterForTest(true);
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      const result = await sendTemplatedEmail('verify_email', 'ahmed@safetech.so', {
+      const result = await commService.sendTemplatedEmail('verify_email', 'ahmed@safetech.so', {
         otp_code: '772910',
         user_name: 'Ahmed',
         company_name: 'Safe Tech Solutions',
@@ -304,6 +302,7 @@ describe('Auth & Communication Engine — Step 1 Specifications', () => {
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('MOCK EMAIL DISPATCHED'));
 
       consoleSpy.mockRestore();
+      commService.disableLiveTransporterForTest(false);
     });
   });
 });

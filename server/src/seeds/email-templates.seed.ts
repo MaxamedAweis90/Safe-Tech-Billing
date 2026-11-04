@@ -275,3 +275,4 @@ export const seedEmailTemplates = async (force: boolean = false): Promise<void> 
     console.warn('[Database] Seed email templates skipped or errored:', err);
   }
 };
+

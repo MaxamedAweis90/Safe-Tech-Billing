@@ -71,3 +71,4 @@ TeamInvitationSchema.index({ email: 1, acceptedAt: 1 });
 export const TeamInvitation =
   (models.TeamInvitation as Model<ITeamInvitation>) ||
   model<ITeamInvitation>('TeamInvitation', TeamInvitationSchema);
+

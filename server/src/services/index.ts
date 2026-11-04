@@ -6,3 +6,4 @@ export * as quotationService from './quotationService';
 export * as invoiceService from './invoiceService';
 export * as paymentService from './paymentService';
 export * from './communication.service';
+export * as teamService from './team.service';

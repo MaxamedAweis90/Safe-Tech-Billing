@@ -44,12 +44,21 @@ export interface RenderedTemplate {
 }
 
 let transporterInstance: Transporter | null = null;
+let liveTransporterDisabled = false;
+
+export const disableLiveTransporterForTest = (disabled: boolean): void => {
+  liveTransporterDisabled = disabled;
+};
 
 /**
  * Returns a configured Nodemailer transporter if valid credentials are present in env,
  * or null if no SMTP configuration is present.
  */
 export const getMailTransporter = (): Transporter | null => {
+  if (liveTransporterDisabled) {
+    return null;
+  }
+
   if (transporterInstance) {
     return transporterInstance;
   }

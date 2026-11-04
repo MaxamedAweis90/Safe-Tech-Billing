@@ -61,3 +61,4 @@ OtpTokenSchema.index({ target: 1, purpose: 1 });
 
 export const OtpToken =
   (models.OtpToken as Model<IOtpToken>) || model<IOtpToken>('OtpToken', OtpTokenSchema);
+

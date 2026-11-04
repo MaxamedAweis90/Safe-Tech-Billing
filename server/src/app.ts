@@ -1,5 +1,6 @@
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -14,6 +15,7 @@ import settingsRoutes from './routes/settingsRoutes';
 import reportRoutes from './routes/reportRoutes';
 import auditRoutes from './routes/auditRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
+import teamRoutes from './routes/team.routes';
 
 const app: Express = express();
 
@@ -24,6 +26,8 @@ app.use(
     credentials: true,
   })
 );
+
+app.use(cookieParser());
 
 // Body parser with 10mb limit for Base64 document assets (logo, stamp, signature)
 app.use(express.json({ limit: '10mb' }));
@@ -40,6 +44,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // Mount API v1 Routers
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/quotations', quotationRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);

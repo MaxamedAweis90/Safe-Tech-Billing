@@ -62,3 +62,4 @@ export const EmailTemplateSchema = new Schema<IEmailTemplate>(
 export const EmailTemplate =
   (models.EmailTemplate as Model<IEmailTemplate>) ||
   model<IEmailTemplate>('EmailTemplate', EmailTemplateSchema);
+
