@@ -325,12 +325,12 @@ export const renderTemplate = async (
   const mergedVars: Record<string, string | number> = {
     company_name: 'Safe Tech Solutions',
     company_address: 'KM4 Airport Road, Wadajir District, Mogadishu, Somalia',
-    company_phone: '+252 61 4 324 507',
+    company_phone: '+252 61 000 0000',
     company_email: 'billing@safetech.so',
     bank_name: 'Premier Bank',
     account_name: 'Safe Tech Solutions LLC',
     account_no: '010204982001',
-    mobile_money: 'EVC Plus: +252 61 4 324 507',
+    mobile_money: 'EVC Plus: +252 61 000 0000',
     ...variables,
   };
 

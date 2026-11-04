@@ -85,12 +85,12 @@ export const renderEmailFooter = (options: BaseLayoutOptions): string => {
     contextType,
     companyName = 'Safe Tech Solutions',
     companyAddress = 'KM4 Airport Road, Wadajir District, Mogadishu, Somalia',
-    companyPhone = '+252 61 4 324 507',
+    companyPhone = '+252 61 000 0000',
     companyEmail = 'billing@safetech.so',
     bankName = 'Premier Bank',
     accountName = 'Safe Tech Solutions LLC',
     accountNo = '010204982001',
-    mobileMoney = 'EVC Plus: +252 61 4 324 507',
+    mobileMoney = 'EVC Plus: +252 61 000 0000',
   } = options;
 
   switch (contextType) {
@@ -125,7 +125,7 @@ export const renderEmailFooter = (options: BaseLayoutOptions): string => {
         <div style="font-size: 11.5px; color: #6F7B90; line-height: 1.6;">
           <strong style="color: #9AA6BA;">Safe Tech Billing Security Operations</strong><br />
           Bakaara Market, Howlwadag District, Mogadishu, Somalia<br />
-          Office: +252 61 4 324 507 &bull; Security Desk: security@safetech.so<br />
+          Office: +252 61 000 0000 &bull; Security Desk: security@safetech.so<br />
           <div style="margin-top: 8px; font-size: 10.5px; color: #4F5B70;">
             Security Notice: This is an automated authentication dispatch. Never disclose your one-time passwords to anyone.
           </div>

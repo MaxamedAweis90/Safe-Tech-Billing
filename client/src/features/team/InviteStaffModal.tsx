@@ -120,7 +120,7 @@ export const InviteStaffModal: React.FC<InviteStaffModalProps> = ({ isOpen, onCl
             type="text"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            placeholder="Fadumo Nuur"
+            placeholder="John Doe"
             style={{
               width: '100%',
               height: '38px',

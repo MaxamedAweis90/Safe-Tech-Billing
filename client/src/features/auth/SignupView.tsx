@@ -7,7 +7,7 @@ export const SignupView: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+252 61');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -27,18 +27,15 @@ export const SignupView: React.FC = () => {
       return;
     }
 
-    const cleanPhone = phone.trim().replace(/\s+/g, '');
-    if (cleanPhone && !/^\+[1-9]\d{6,14}$/.test(cleanPhone)) {
-      setErrorMsg('Phone number must be E.164 formatted (e.g. +25261XXXXXXX)');
-      return;
-    }
+    const cleanDigits = phone.replace(/\D/g, '');
+    const cleanPhone = cleanDigits ? `+252${cleanDigits}` : undefined;
 
     setLoading(true);
     try {
       const res = await api.post('/auth/signup', {
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
-        phone: cleanPhone || undefined,
+        phone: cleanPhone,
         companyName: companyName.trim() || undefined,
       });
 
@@ -151,7 +148,7 @@ export const SignupView: React.FC = () => {
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Mohamed Aweis Iman"
+              placeholder="John Doe"
               required
               autoFocus
               style={{
@@ -186,7 +183,7 @@ export const SignupView: React.FC = () => {
               type="text"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="Safe Tech Solutions LLC"
+              placeholder="Acme Corporation"
               style={{
                 width: '100%',
                 height: '40px',
@@ -219,7 +216,7 @@ export const SignupView: React.FC = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@safetech.so"
+              placeholder="john.doe@example.com"
               required
               style={{
                 width: '100%',
@@ -246,28 +243,55 @@ export const SignupView: React.FC = () => {
                 marginBottom: '6px',
               }}
             >
-              Phone Number (E.164)
+              Phone Number
             </label>
-            <input
-              id="signupPhone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+252 61 8294023"
-              style={{
-                width: '100%',
-                height: '40px',
-                padding: '0 12px',
-                backgroundColor: '#0D121A',
-                border: '1px solid #243042',
-                borderRadius: '6px',
-                color: '#E5EAF2',
-                fontSize: '14px',
-                outline: 'none',
-              }}
-            />
+            <div style={{ display: 'flex', alignItems: 'stretch' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 14px',
+                  backgroundColor: '#151C27',
+                  border: '1px solid #243042',
+                  borderRight: '0',
+                  borderRadius: '6px 0 0 6px',
+                  color: '#B9C5DA',
+                  fontSize: '13.5px',
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  fontWeight: 600,
+                  userSelect: 'none',
+                }}
+              >
+                +252
+              </div>
+              <input
+                id="signupPhone"
+                type="tel"
+                value={phone}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, '');
+                  const stripped = raw.startsWith('252') ? raw.slice(3) : raw;
+                  setPhone(stripped.slice(0, 9));
+                }}
+                placeholder="xxxxxxxxx"
+                style={{
+                  flex: 1,
+                  height: '40px',
+                  padding: '0 12px',
+                  backgroundColor: '#0D121A',
+                  border: '1px solid #243042',
+                  borderRadius: '0 6px 6px 0',
+                  color: '#E5EAF2',
+                  fontSize: '14px',
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
             <div style={{ fontSize: '11px', color: '#6F7B90', marginTop: '4px' }}>
-              Used for optional SMS OTP verification (+252 61...)
+              Enter 7 to 9 digit local phone number for optional OTP verification.
             </div>
           </div>
 

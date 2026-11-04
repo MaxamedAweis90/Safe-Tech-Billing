@@ -2,6 +2,8 @@ import { Router } from 'express';
 import {
   signup,
   verifyEmail,
+  requestRegistrationOtp,
+  completeRegistration,
   requestOtp,
   verifyOtp,
   getMe,
@@ -17,6 +19,8 @@ const router = Router();
 // Pre-Phase 7 Auth & Verification Endpoints
 router.post('/signup', signup);
 router.post('/verify-email', verifyEmail);
+router.post('/request-registration-otp', requestRegistrationOtp);
+router.post('/complete-registration', completeRegistration);
 router.post('/request-otp', requestOtp);
 router.post('/verify-otp', verifyOtp);
 router.get('/me', authenticate, getMe);

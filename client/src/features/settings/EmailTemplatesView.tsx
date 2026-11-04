@@ -59,8 +59,8 @@ const TEMPLATE_GROUPS: TemplateGroup[] = [
 const DUMMY_INTERPOLATION: Record<string, string> = {
   otp_code: '482910',
   company_name: 'Safe Tech Solutions',
-  user_name: 'Mohamed Aweis Iman',
-  inviter_name: 'Mohamed Aweis Iman',
+  user_name: 'John Doe',
+  inviter_name: 'John Doe',
   role_name: 'Accountant',
   role_label: 'ACCOUNTANT',
   invite_url: 'http://localhost:5173/#accept-invite?token=sample_token_xyz',
@@ -74,8 +74,8 @@ const DUMMY_INTERPOLATION: Record<string, string> = {
   bank_name: 'Premier Bank',
   account_no: '010204982001',
   account_name: 'Safe Tech Solutions LLC',
-  mobile_money: 'EVC Plus: +252 61 4 324 507',
-  company_phone: '+252 61 4 324 507',
+  mobile_money: 'EVC Plus: +252 61 000 0000',
+  company_phone: '+252 61 000 0000',
   company_email: 'billing@safetech.so',
 };
 

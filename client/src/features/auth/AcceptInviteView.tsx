@@ -16,7 +16,7 @@ export const AcceptInviteView: React.FC = () => {
   const [token, setToken] = useState('');
   const [meta, setMeta] = useState<InvitationMeta | null>(null);
   const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('+252 61');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -74,11 +74,13 @@ export const AcceptInviteView: React.FC = () => {
       return;
     }
 
-    const cleanPhone = phone.trim().replace(/\s+/g, '');
-    if (!cleanPhone || !/^\+[1-9]\d{6,14}$/.test(cleanPhone)) {
-      setErrorMsg('Phone number must be E.164 formatted (e.g. +25261XXXXXXX)');
+    const cleanDigits = phone.replace(/\D/g, '');
+    if (!cleanDigits || cleanDigits.length < 7 || cleanDigits.length > 9) {
+      setErrorMsg('Please enter your 7 to 9 digit mobile phone number');
       return;
     }
+
+    const cleanPhone = `+252${cleanDigits}`;
 
     setSubmitting(true);
     setErrorMsg('');
@@ -298,7 +300,7 @@ export const AcceptInviteView: React.FC = () => {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Fadumo Nuur Warsame"
+                  placeholder="John Doe"
                   required
                   autoFocus
                   style={{
@@ -326,29 +328,56 @@ export const AcceptInviteView: React.FC = () => {
                     marginBottom: '6px',
                   }}
                 >
-                  Mobile Phone Number (E.164) *
+                  Mobile Phone Number *
                 </label>
-                <input
-                  id="staffPhone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+252 61 7000000"
-                  required
-                  style={{
-                    width: '100%',
-                    height: '40px',
-                    padding: '0 12px',
-                    backgroundColor: '#0D121A',
-                    border: '1px solid #243042',
-                    borderRadius: '6px',
-                    color: '#E5EAF2',
-                    fontSize: '14px',
-                    outline: 'none',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 14px',
+                      backgroundColor: '#151C27',
+                      border: '1px solid #243042',
+                      borderRight: '0',
+                      borderRadius: '6px 0 0 6px',
+                      color: '#B9C5DA',
+                      fontSize: '13.5px',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontWeight: 600,
+                      userSelect: 'none',
+                    }}
+                  >
+                    +252
+                  </div>
+                  <input
+                    id="staffPhone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '');
+                      const stripped = raw.startsWith('252') ? raw.slice(3) : raw;
+                      setPhone(stripped.slice(0, 9));
+                    }}
+                    placeholder="xxxxxxxxx"
+                    required
+                    style={{
+                      flex: 1,
+                      height: '40px',
+                      padding: '0 12px',
+                      backgroundColor: '#0D121A',
+                      border: '1px solid #243042',
+                      borderRadius: '0 6px 6px 0',
+                      color: '#E5EAF2',
+                      fontSize: '14px',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
                 <div style={{ fontSize: '11px', color: '#6F7B90', marginTop: '4px' }}>
-                  Used for two-factor login authentication (+252 61...)
+                  Enter your 7 to 9 digit mobile phone number for dual-rail OTP logins.
                 </div>
               </div>
 

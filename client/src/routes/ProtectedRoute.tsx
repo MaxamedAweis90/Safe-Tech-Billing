@@ -42,7 +42,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       user?.onboardingCompleted !== false &&
       (activeTab === 'onboarding' || activeTab === 'signup' || activeTab === 'login')
     ) {
-      setActiveTab('dashboard');
+      const isJustOnboarded =
+        typeof window !== 'undefined' &&
+        sessionStorage.getItem('safetech_just_onboarded') === 'true';
+      if (!isJustOnboarded) {
+        setActiveTab('dashboard');
+      }
     }
   }, [isAuthenticated, isLoading, user, activeTab, setActiveTab]);
 

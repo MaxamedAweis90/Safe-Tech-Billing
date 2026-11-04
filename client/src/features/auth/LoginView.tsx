@@ -16,7 +16,7 @@ export interface LoginViewProps {
 export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = false }) => {
   const [channel, setChannel] = useState<LoginChannel>('email');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+252 61');
+  const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'input' | 'otp'>('input');
   const [loading, setLoading] = useState(false);
@@ -26,7 +26,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = f
   const { setUser } = useAuthStore();
   const { setActiveTab } = useNavStore();
 
-  const currentTarget = channel === 'email' ? email.trim() : phone.trim().replace(/\s+/g, '');
+  const cleanPhoneDigits = phone.replace(/\D/g, '');
+  const fullPhone = cleanPhoneDigits ? `+252${cleanPhoneDigits}` : '';
+  const currentTarget = channel === 'email' ? email.trim() : fullPhone;
 
   // Cooldown countdown timer
   useEffect(() => {
@@ -47,9 +49,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = f
         return;
       }
     } else {
-      const cleanPhone = phone.trim().replace(/\s+/g, '');
-      if (!cleanPhone || !/^\+[1-9]\d{6,14}$/.test(cleanPhone)) {
-        setErrorMsg('Please enter a valid phone number (e.g. +25261XXXXXXX)');
+      if (!cleanPhoneDigits || cleanPhoneDigits.length < 7) {
+        setErrorMsg('Please enter your 7 to 9 digit phone number');
         return;
       }
     }
@@ -216,7 +217,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = f
                 <input
                   type="email"
                   required
-                  placeholder="name@company.com"
+                  placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{
@@ -237,25 +238,50 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = f
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
                   Phone Number
                 </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="+252 61 4 324 507"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '11px 14px',
-                    borderRadius: '8px',
-                    backgroundColor: '#0D121A',
-                    border: '1px solid #243042',
-                    color: '#E5EAF2',
-                    fontSize: '13.5px',
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 14px',
+                      backgroundColor: '#151C27',
+                      border: '1px solid #243042',
+                      borderRight: '0',
+                      borderRadius: '8px 0 0 8px',
+                      color: '#B9C5DA',
+                      fontSize: '13.5px',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontWeight: 600,
+                      userSelect: 'none',
+                    }}
+                  >
+                    +252
+                  </div>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="xxxxxxxxx"
+                    value={phone}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '');
+                      const stripped = raw.startsWith('252') ? raw.slice(3) : raw;
+                      setPhone(stripped.slice(0, 9));
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '11px 14px',
+                      borderRadius: '0 8px 8px 0',
+                      backgroundColor: '#0D121A',
+                      border: '1px solid #243042',
+                      color: '#E5EAF2',
+                      fontSize: '13.5px',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
               </div>
             )}
 

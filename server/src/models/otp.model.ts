@@ -1,7 +1,7 @@
 import { Schema, model, Document, Types, models, Model } from 'mongoose';
 
 export type OtpChannel = 'email' | 'sms';
-export type OtpPurpose = 'verification' | 'login';
+export type OtpPurpose = 'verification' | 'login' | 'staged_registration';
 
 export interface IOtpToken extends Document {
   _id: Types.ObjectId;
@@ -35,7 +35,7 @@ export const OtpTokenSchema = new Schema<IOtpToken>(
     purpose: {
       type: String,
       required: true,
-      enum: ['verification', 'login'],
+      enum: ['verification', 'login', 'staged_registration'],
     },
     attempts: {
       type: Number,

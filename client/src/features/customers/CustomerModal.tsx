@@ -157,7 +157,7 @@ export const CustomerModalContent: React.FC<CustomerModalContentProps> = ({
           <input
             id="cuPhone"
             className="inp"
-            placeholder="252 61 …"
+            placeholder="e.g. +252 61 000 0000"
             value={phone}
             onChange={(e) => {
               setPhone(e.target.value);

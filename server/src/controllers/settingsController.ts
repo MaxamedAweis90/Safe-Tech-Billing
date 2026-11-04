@@ -27,15 +27,15 @@ export const getCompany = async (_req: Request, res: Response, next: NextFunctio
         name: 'Safe Tech Solutions',
         tagline: 'Enterprise IT, Billing & Infrastructure',
         address: 'KM4 Airport Road, Wadajir District, Mogadishu, Somalia',
-        phone: '+252 61 4 324 507',
+        phone: '+252 61 000 0000',
         email: 'billing@safetech.so',
         website: 'https://safetech.so',
         tax_id: 'SO-TIN-889021',
         bank_name: 'Premier Bank',
         account_name: 'Safe Tech Solutions LLC',
         account_no: '010204982001',
-        mobile_money: 'EVC Plus: +252 61 4 324 507',
-        signatory: 'Mohamed Aweys, General Manager',
+        mobile_money: 'EVC Plus: +252 61 000 0000',
+        signatory: 'Authorized Signatory',
         default_currency: 'USD',
       });
     }
@@ -283,8 +283,8 @@ export const getNumberingPreview = async (
 const SAMPLE_TEMPLATE_VARS: Record<string, string | number> = {
   otp_code: '482910',
   company_name: 'Safe Tech Solutions',
-  user_name: 'Mohamed Aweis Iman',
-  inviter_name: 'Mohamed Aweis Iman',
+  user_name: 'John Doe',
+  inviter_name: 'John Doe',
   role_name: 'Accountant',
   role_label: 'ACCOUNTANT',
   invite_url: 'http://localhost:5173/#accept-invite?token=sample_token_xyz',
@@ -298,8 +298,8 @@ const SAMPLE_TEMPLATE_VARS: Record<string, string | number> = {
   bank_name: 'Premier Bank',
   account_no: '010204982001',
   account_name: 'Safe Tech Solutions LLC',
-  mobile_money: 'EVC Plus: +252 61 4 324 507',
-  company_phone: '+252 61 4 324 507',
+  mobile_money: 'EVC Plus: +252 61 000 0000',
+  company_phone: '+252 61 000 0000',
   company_email: 'billing@safetech.so',
 };
 

@@ -119,10 +119,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
   const initialUser: UserProfile = isStoredDemo
     ? {
         id: "usr_demo_admin",
-        name: "Mohamed Aweis (Demo Admin)",
-        fullName: "Mohamed Aweis (Demo Admin)",
-        email: "demo@sayftek.com",
-        phone: "+252 61 8294023",
+        name: "John Doe (Demo Admin)",
+        fullName: "John Doe (Demo Admin)",
+        email: "demo@safetech.so",
+        phone: "+252 61 0000000",
         role: "admin",
         isVerified: true,
         isDemo: true,
@@ -283,10 +283,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       resetSampleData();
       const demoUser: UserProfile = {
         id: "usr_demo_admin",
-        name: "Mohamed Aweis (Demo Admin)",
-        fullName: "Mohamed Aweis (Demo Admin)",
-        email: "demo@sayftek.com",
-        phone: "+252 61 8294023",
+        name: "John Doe (Demo Admin)",
+        fullName: "John Doe (Demo Admin)",
+        email: "demo@safetech.so",
+        phone: "+252 61 0000000",
         role: "admin",
         isVerified: true,
         isDemo: true,
@@ -309,7 +309,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       });
 
       queryClient.invalidateQueries();
-      toast("Entered Live Demo Mode as Mohamed Aweis (Admin)");
+      toast("Entered Live Demo Mode as John Doe (Admin)");
     },
 
     exitDemoSession: () => {

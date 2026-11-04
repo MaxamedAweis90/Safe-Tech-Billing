@@ -1,4 +1,4 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface ICompany extends Document {
   name: string;
@@ -17,6 +17,10 @@ export interface ICompany extends Document {
   stamp?: string;
   signature?: string;
   default_currency: string;
+  currency?: string;
+  taxNumber?: string;
+  ownerId?: Types.ObjectId | string;
+  isConfigured?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -100,6 +104,15 @@ const CompanySchema = new Schema<ICompany>(
       type: String,
       default: 'USD',
       trim: true,
+    },
+    ownerId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    isConfigured: {
+      type: Boolean,
+      default: true,
     },
   },
   {

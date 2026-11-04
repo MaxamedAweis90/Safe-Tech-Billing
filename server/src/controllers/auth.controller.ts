@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User, UserRole, IUser } from '../models/user.model';
+import { Company } from '../models/Company';
 import { OtpToken } from '../models/otp.model';
 import { env } from '../config/env';
 import { logAction } from '../services/auditService';
@@ -245,6 +246,224 @@ export const signup = async (req: Request, res: Response, next: NextFunction): P
       success: true,
       message: 'Verification code sent to email',
       email: user.email,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/v1/auth/request-registration-otp
+ * Step 2 -> Step 3: Generates registration OTP with zero prior database writes to User or Company.
+ */
+export const requestRegistrationOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { email, phone } = req.body;
+
+    if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
+      res.status(400).json({ success: false, error: 'A valid email address is required' });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Validate that email is not already registered by an active account
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      res.status(409).json({ success: false, error: 'Email address is already registered' });
+      return;
+    }
+
+    // Validate phone format & uniqueness if provided
+    if (phone) {
+      const cleanPhone = phone.trim().replace(/\s+/g, '');
+      if (cleanPhone && cleanPhone !== '+25261') {
+        const existingPhone = await User.findOne({ phone: cleanPhone });
+        if (existingPhone) {
+          res.status(409).json({ success: false, error: 'Phone number is already registered' });
+          return;
+        }
+      }
+    }
+
+    // Invalidate previous staged registration OTPs for this target
+    await OtpToken.deleteMany({ target: normalizedEmail, purpose: 'staged_registration' });
+
+    // Generate 6-digit numeric OTP and hash with bcrypt
+    const rawOtp = generateOtp();
+    const codeHash = await bcrypt.hash(rawOtp, 10);
+
+    await OtpToken.create({
+      target: normalizedEmail,
+      channel: 'email',
+      codeHash,
+      purpose: 'staged_registration',
+      attempts: 0,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+    });
+
+    // Dispatch verification email via Gmail SMTP
+    await sendTemplatedEmail('verify_email', normalizedEmail, {
+      otp_code: rawOtp,
+      user_name: 'Administrator',
+      company_name: 'Safe Tech Solutions',
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Registration code dispatched to email',
+      email: normalizedEmail,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/v1/auth/complete-registration
+ * Final Gate: Verifies staged OTP and atomically creates User & Company records in MongoDB.
+ */
+export const completeRegistration = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { otp, admin, company } = req.body;
+
+    if (!otp || typeof otp !== 'string') {
+      res.status(400).json({ success: false, error: 'Verification code is required' });
+      return;
+    }
+
+    if (!admin || !admin.email || !admin.fullName) {
+      res.status(400).json({ success: false, error: 'Admin details (full name and email) are required' });
+      return;
+    }
+
+    if (!company || !company.name || !company.address) {
+      res.status(400).json({ success: false, error: 'Company details (legal name and office address) are required' });
+      return;
+    }
+
+    const normalizedEmail = admin.email.toLowerCase().trim();
+
+    // Verify OtpToken with purpose 'staged_registration'
+    const otpDoc = await OtpToken.findOne({
+      target: normalizedEmail,
+      purpose: 'staged_registration',
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!otpDoc) {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid or expired verification code',
+      });
+      return;
+    }
+
+    otpDoc.attempts += 1;
+    if (otpDoc.attempts > 3) {
+      await OtpToken.deleteOne({ _id: otpDoc._id });
+      res.status(429).json({
+        success: false,
+        error: 'Too many failed attempts. Please request a new verification code.',
+      });
+      return;
+    }
+
+    const isMatch = await bcrypt.compare(otp.trim(), otpDoc.codeHash);
+    if (!isMatch) {
+      await otpDoc.save();
+      res.status(400).json({
+        success: false,
+        error: 'Incorrect verification code',
+      });
+      return;
+    }
+
+    // Re-check uniqueness before write
+    const existing = await User.findOne({ email: normalizedEmail });
+    if (existing) {
+      res.status(409).json({ success: false, error: 'Email address is already registered' });
+      return;
+    }
+
+    // 1. Create User
+    const cleanAdminPhone = admin.phone?.trim() ? admin.phone.trim().replace(/\s+/g, '') : undefined;
+    const user = await User.create({
+      fullName: admin.fullName.trim(),
+      email: normalizedEmail,
+      phone: cleanAdminPhone && cleanAdminPhone !== '+25261' ? cleanAdminPhone : undefined,
+      role: 'admin',
+      isVerified: true,
+      status: 'active',
+      onboardingCompleted: true,
+    });
+
+    // 2. Create or Upsert Company
+    const cleanCompanyPhone = company.phone?.trim()
+      ? company.phone.trim().replace(/\s+/g, '')
+      : (cleanAdminPhone || '+252 61 000 000');
+    const currency = company.currency || company.default_currency || 'USD';
+    const taxId = company.taxNumber || company.tax_id || '';
+
+    let companyDoc = await Company.findOne();
+    if (companyDoc) {
+      companyDoc.name = company.name.trim();
+      companyDoc.address = company.address.trim();
+      companyDoc.phone = cleanCompanyPhone;
+      companyDoc.email = normalizedEmail;
+      companyDoc.default_currency = currency;
+      companyDoc.tax_id = taxId;
+      companyDoc.signatory = admin.fullName.trim();
+      companyDoc.ownerId = user._id;
+      companyDoc.isConfigured = true;
+      await companyDoc.save();
+    } else {
+      companyDoc = await Company.create({
+        name: company.name.trim(),
+        address: company.address.trim(),
+        phone: cleanCompanyPhone,
+        email: normalizedEmail,
+        default_currency: currency,
+        tax_id: taxId,
+        signatory: admin.fullName.trim(),
+        ownerId: user._id,
+        isConfigured: true,
+      });
+    }
+
+    // 3. Delete used OTP
+    await OtpToken.deleteOne({ _id: otpDoc._id });
+
+    // 4. Log Audit Event
+    await logAction({
+      user_name: user.fullName,
+      role: user.role,
+      action: 'Administrator registered and created company',
+      ref: companyDoc.name,
+    });
+
+    // 5. Issue JWT Tokens and HTTP-only session cookies
+    const { accessToken, refreshToken } = issueAuthTokens(user);
+    setAuthCookies(res, accessToken, refreshToken);
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration and company setup completed successfully',
+      token: accessToken,
+      user: {
+        id: user._id.toString(),
+        fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        isVerified: true,
+        companyName: companyDoc.name,
+        onboardingCompleted: true,
+      },
+      company: {
+        name: companyDoc.name,
+        currency: companyDoc.default_currency,
+      },
     });
   } catch (err) {
     next(err);

@@ -17,7 +17,7 @@ export const StaffAcceptInviteView: React.FC = () => {
   const [token, setToken] = useState('');
   const [meta, setMeta] = useState<InvitationMeta | null>(null);
   const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('+252 61');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -74,11 +74,13 @@ export const StaffAcceptInviteView: React.FC = () => {
       return;
     }
 
-    const cleanPhone = phone.trim().replace(/\s+/g, '');
-    if (!cleanPhone || !/^\+[1-9]\d{6,14}$/.test(cleanPhone)) {
-      setErrorMsg('Personal mobile phone must be E.164 formatted (e.g. +25261XXXXXXX)');
+    const cleanDigits = phone.replace(/\D/g, '');
+    if (!cleanDigits || cleanDigits.length < 7 || cleanDigits.length > 9) {
+      setErrorMsg('Please enter your 7 to 9 digit mobile phone number');
       return;
     }
+
+    const cleanPhone = `+252${cleanDigits}`;
 
     setSubmitting(true);
     setErrorMsg('');
@@ -343,7 +345,7 @@ export const StaffAcceptInviteView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Faadumo Nur"
+                  placeholder="John Doe"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   style={{
@@ -365,27 +367,52 @@ export const StaffAcceptInviteView: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
                   Personal Mobile Number <span style={{ color: '#F07A70' }}>*</span>
                 </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="+252 61 5 123 456"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '11px 14px',
-                    borderRadius: '8px',
-                    backgroundColor: '#0D121A',
-                    border: '1px solid #243042',
-                    color: '#E5EAF2',
-                    fontSize: '13.5px',
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 14px',
+                      backgroundColor: '#151C27',
+                      border: '1px solid #243042',
+                      borderRight: '0',
+                      borderRadius: '8px 0 0 8px',
+                      color: '#B9C5DA',
+                      fontSize: '13.5px',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontWeight: 600,
+                      userSelect: 'none',
+                    }}
+                  >
+                    +252
+                  </div>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="xxxxxxxxx"
+                    value={phone}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '');
+                      const stripped = raw.startsWith('252') ? raw.slice(3) : raw;
+                      setPhone(stripped.slice(0, 9));
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '11px 14px',
+                      borderRadius: '0 8px 8px 0',
+                      backgroundColor: '#0D121A',
+                      border: '1px solid #243042',
+                      color: '#E5EAF2',
+                      fontSize: '13.5px',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
                 <span style={{ fontSize: '11px', color: '#6F7B90', marginTop: '4px', display: 'block' }}>
-                  Required for dual-rail OTP logins to your staff dashboard.
+                  Enter your 7 to 9 digit mobile phone number for dual-rail OTP logins.
                 </span>
               </div>
 
