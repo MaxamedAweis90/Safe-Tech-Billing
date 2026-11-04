@@ -338,11 +338,13 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
       success: true,
       message: 'Email verified successfully',
       token: accessToken,
+      registrationToken: accessToken,
       user: {
         id: user._id.toString(),
         fullName: user.fullName,
         email: user.email,
         role: user.role,
+        isVerified: true,
         onboardingCompleted: user.onboardingCompleted ?? (user.role !== 'admin'),
       },
     });

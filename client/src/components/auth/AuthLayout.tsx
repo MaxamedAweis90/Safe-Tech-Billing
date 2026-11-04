@@ -32,7 +32,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
     return (
       <div className="relative w-screen h-screen overflow-hidden flex bg-[#0D121A] text-[#E1E7F0] select-none font-sans">
         {/* Floating Demo Trigger Pill */}
-        <DemoButton />
+        <DemoButton mode={mode} />
 
         {/* Desktop Fixed Left Poster */}
         <div className="hidden lg:block w-1/2 h-full absolute top-0 bottom-0 left-0 translate-x-0 border-r border-[#243042] z-20 overflow-hidden bg-[#090C11]">
@@ -72,7 +72,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   return (
     <div className="relative w-screen h-screen overflow-hidden flex bg-[#0D121A] text-[#E1E7F0] select-none font-sans">
       {/* Floating Demo Trigger Pill */}
-      <DemoButton />
+      <DemoButton mode={mode} />
 
       {/* ========================================================================= */}
       {/* 1. SLIDING POSTER PANEL (Desktop Only, z-20)                             */}

@@ -51,6 +51,28 @@ export const getCompany = async (_req: Request, res: Response, next: NextFunctio
 
 export const onboardCompany = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    // Hard verification check: Email verification strictly required before company setup
+    if (!req.user || !req.user.isVerified) {
+      res.status(403).json({
+        success: false,
+        code: 'UNVERIFIED_EMAIL',
+        error: 'Forbidden: Email verification required before company ledger setup',
+      });
+      return;
+    }
+
+    if (req.user.id && !req.user.id.startsWith('usr_')) {
+      const dbUser = await User.findById(req.user.id);
+      if (!dbUser || !dbUser.isVerified) {
+        res.status(403).json({
+          success: false,
+          code: 'UNVERIFIED_EMAIL',
+          error: 'Forbidden: Email verification required before company ledger setup',
+        });
+        return;
+      }
+    }
+
     const { name, address, phone, default_currency, tax_id } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {

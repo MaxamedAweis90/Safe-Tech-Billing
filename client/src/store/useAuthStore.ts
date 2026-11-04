@@ -267,6 +267,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
               phone: u.phone,
               role: u.role,
               companyName: u.companyName,
+              isVerified: Boolean(u.isVerified),
               onboardingCompleted: u.onboardingCompleted ?? u.role !== "admin",
             },
             role: u.role,

@@ -23,10 +23,13 @@ declare global {
  * Extracts JWT token from Cookie or Authorization header.
  */
 export const extractToken = (req: Request): string | null => {
-  // 1. Check cookies (accessToken or token)
+  // 1. Check cookies (accessToken, registrationToken, or token)
   if (req.cookies) {
     if (req.cookies.accessToken) {
       return req.cookies.accessToken;
+    }
+    if (req.cookies.registrationToken) {
+      return req.cookies.registrationToken;
     }
     if (req.cookies.token) {
       return req.cookies.token;
@@ -38,7 +41,7 @@ export const extractToken = (req: Request): string | null => {
     const rawCookies = req.headers.cookie.split(';');
     for (const c of rawCookies) {
       const [name, val] = c.trim().split('=');
-      if ((name === 'accessToken' || name === 'token') && val) {
+      if ((name === 'accessToken' || name === 'registrationToken' || name === 'token') && val) {
         return decodeURIComponent(val);
       }
     }
@@ -48,6 +51,12 @@ export const extractToken = (req: Request): string | null => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     return authHeader.substring(7).trim();
+  }
+
+  // 3. Check X-Registration-Token header
+  const regHeader = req.headers['x-registration-token'];
+  if (regHeader && typeof regHeader === 'string') {
+    return regHeader.trim();
   }
 
   return null;
@@ -149,11 +158,11 @@ export const requireVerified = (req: Request, res: Response, next: NextFunction)
     return;
   }
 
-  if (req.user.isVerified === false) {
+  if (!req.user.isVerified) {
     res.status(403).json({
       success: false,
       code: 'UNVERIFIED_EMAIL',
-      error: 'Forbidden: Account email is not verified',
+      error: 'Forbidden: Email verification required before company ledger setup',
     });
     return;
   }

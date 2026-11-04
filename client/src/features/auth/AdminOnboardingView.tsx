@@ -7,10 +7,10 @@ import { AuthLayout } from '../../components/auth/AuthLayout';
 import { OtpInput } from './OtpInput';
 
 export type OnboardingStep =
-  | 'STEP_1_ACCOUNT'
-  | 'STEP_1_OTP'
-  | 'STEP_2_COMPANY'
-  | 'STEP_3_SUCCESS';
+  | 'CREDENTIALS'
+  | 'VERIFY_OTP'
+  | 'COMPANY_SETUP'
+  | 'SUCCESS';
 
 export interface AdminOnboardingViewProps {
   onSwitchMode?: (mode: 'login' | 'register') => void;
@@ -24,18 +24,57 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
   const { user, isAuthenticated, setUser } = useAuthStore();
   const { setActiveTab } = useNavStore();
 
-  // If user is already authenticated as admin but has not completed company onboarding, resume at Step 2
-  const [step, setStep] = useState<OnboardingStep>(() => {
-    if (isAuthenticated && user?.role === 'admin' && user.onboardingCompleted === false) {
-      return 'STEP_2_COMPANY';
-    }
-    return 'STEP_1_ACCOUNT';
+  // Step 1: Account credentials (restore from user or sessionStorage if mid-flow reload)
+  const [fullName, setFullName] = useState(() => {
+    if (user?.fullName || user?.name) return user.fullName || user.name;
+    if (typeof window !== 'undefined') return sessionStorage.getItem('safetech_pending_admin_name') || '';
+    return '';
   });
 
-  // Step 1: Account credentials
-  const [fullName, setFullName] = useState(user?.fullName || '');
-  const [email, setEmail] = useState(user?.email || '');
-  const [phone, setPhone] = useState(user?.phone || '+252 61');
+  const [email, setEmail] = useState(() => {
+    if (user?.email) return user.email;
+    if (typeof window !== 'undefined') return sessionStorage.getItem('safetech_pending_admin_email') || '';
+    return '';
+  });
+
+  const [phone, setPhone] = useState(() => {
+    if (user?.phone) return user.phone;
+    if (typeof window !== 'undefined') return sessionStorage.getItem('safetech_pending_admin_phone') || '+252 61';
+    return '+252 61';
+  });
+
+  // Strict state machine: COMPANY_SETUP strictly locked behind verified admin credentials
+  const [step, setStep] = useState<OnboardingStep>(() => {
+    // Only verified admin with uncompleted setup may start at COMPANY_SETUP
+    if (isAuthenticated && user?.role === 'admin' && user?.isVerified === true && user.onboardingCompleted === false) {
+      return 'COMPANY_SETUP';
+    }
+    // If pending signup email exists in sessionStorage, resume at OTP verification
+    if (typeof window !== 'undefined' && sessionStorage.getItem('safetech_pending_admin_email')) {
+      return 'VERIFY_OTP';
+    }
+    return 'CREDENTIALS';
+  });
+
+  // Hard barrier guard: forbid progression to Step 2 without verified admin credentials
+  useEffect(() => {
+    if (step === 'COMPANY_SETUP') {
+      const isVerifiedAdmin = Boolean(
+        isAuthenticated &&
+        user?.role === 'admin' &&
+        user?.isVerified === true &&
+        user.onboardingCompleted === false
+      );
+      if (!isVerifiedAdmin) {
+        setStep('CREDENTIALS');
+        toast('Email verification required before accessing company setup', true);
+      }
+    } else if (step === 'VERIFY_OTP') {
+      if (!email.trim()) {
+        setStep('CREDENTIALS');
+      }
+    }
+  }, [step, isAuthenticated, user, email]);
 
   // Step 1.5: OTP Verification
   const [otp, setOtp] = useState('');
@@ -98,7 +137,14 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
 
       if (res.data?.success) {
         toast('Verification code sent to your email');
-        setStep('STEP_1_OTP');
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('safetech_pending_admin_email', email.trim().toLowerCase());
+          sessionStorage.setItem('safetech_pending_admin_name', fullName.trim());
+          if (cleanPhone && cleanPhone !== '+25261') {
+            sessionStorage.setItem('safetech_pending_admin_phone', cleanPhone);
+          }
+        }
+        setStep('VERIFY_OTP');
         setOtp('');
         setResendCooldown(60);
       }
@@ -126,16 +172,22 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
       });
 
       if (res.data?.success && res.data.user) {
-        const token = res.data.token;
+        const token = res.data.token || res.data.registrationToken;
         setUser(
           {
             ...res.data.user,
+            isVerified: true,
             onboardingCompleted: false,
           },
           token
         );
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('safetech_pending_admin_email');
+          sessionStorage.removeItem('safetech_pending_admin_name');
+          sessionStorage.removeItem('safetech_pending_admin_phone');
+        }
         toast('Email verified successfully!');
-        setStep('STEP_2_COMPANY');
+        setStep('COMPANY_SETUP');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Incorrect or expired verification code');
@@ -194,7 +246,7 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
       if (res.data?.success) {
         // Update user state to mark onboarding completed
         setUser({ onboardingCompleted: true, companyName: companyName.trim() });
-        setStep('STEP_3_SUCCESS');
+        setStep('SUCCESS');
 
         // Automatically route to /dashboard after 1.5 seconds
         setTimeout(() => {
@@ -213,7 +265,7 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
       {/* ========================================================================= */}
       {/* STATE 1: ADMIN ACCOUNT SETUP                                              */}
       {/* ========================================================================= */}
-        {step === 'STEP_1_ACCOUNT' && (
+        {step === 'CREDENTIALS' && (
           <div>
             <div style={{ marginBottom: '24px' }}>
               <div
@@ -404,7 +456,7 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
         {/* ========================================================================= */}
         {/* STATE 1.5: EMAIL OTP VERIFICATION                                         */}
         {/* ========================================================================= */}
-        {step === 'STEP_1_OTP' && (
+        {step === 'VERIFY_OTP' && (
           <div>
             <div style={{ marginBottom: '24px' }}>
               <div
@@ -505,7 +557,12 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
               >
                 <button
                   type="button"
-                  onClick={() => setStep('STEP_1_ACCOUNT')}
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.removeItem('safetech_pending_admin_email');
+                    }
+                    setStep('CREDENTIALS');
+                  }}
                   disabled={loading}
                   style={{
                     backgroundColor: 'transparent',
@@ -550,7 +607,7 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
         {/* ========================================================================= */}
         {/* STATE 2: BUSINESS & LEDGER PROFILE SETUP                                  */}
         {/* ========================================================================= */}
-        {step === 'STEP_2_COMPANY' && (
+        {step === 'COMPANY_SETUP' && (
           <div>
             <div style={{ marginBottom: '24px' }}>
               <div
@@ -767,7 +824,7 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
         {/* ========================================================================= */}
         {/* STATE 3: IN-PLACE SUCCESS CELEBRATION                                     */}
         {/* ========================================================================= */}
-        {step === 'STEP_3_SUCCESS' && (
+        {step === 'SUCCESS' && (
           <div style={{ textAlign: 'center', padding: '32px 16px' }}>
             <div
               style={{

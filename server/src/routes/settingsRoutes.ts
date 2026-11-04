@@ -15,7 +15,7 @@ import {
   sendTestEmailTemplate,
   resetEmailTemplate,
 } from '../controllers/settingsController';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole, requireVerified } from '../middleware/auth';
 
 const router = Router();
 
@@ -28,7 +28,7 @@ router.patch('/', requireRole(['admin']), updateCompany);
 router.get('/company', requireRole(['admin', 'accountant', 'sales', 'viewer']), getCompany);
 router.put('/company', requireRole(['admin']), updateCompany);
 router.patch('/company', requireRole(['admin']), updateCompany);
-router.post('/onboard-company', requireRole(['admin']), onboardCompany);
+router.post('/onboard-company', requireRole(['admin']), requireVerified, onboardCompany);
 
 // Currencies
 router.get('/currencies', requireRole(['admin', 'accountant', 'sales', 'viewer']), getCurrencies);
