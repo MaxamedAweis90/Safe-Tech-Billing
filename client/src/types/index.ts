@@ -6,7 +6,7 @@
 export type UserRole = "admin" | "accountant" | "sales" | "viewer";
 
 export interface User {
-  _id: string;
+  _id?: string;
   id?: string;
   name: string;
   fullName?: string;
@@ -16,7 +16,11 @@ export interface User {
   isVerified?: boolean;
   status?: string;
   companyName?: string;
+  onboardingCompleted?: boolean;
+  isDemo?: boolean;
 }
+
+export type UserProfile = User;
 
 export type QuotationStatus =
   | "draft"

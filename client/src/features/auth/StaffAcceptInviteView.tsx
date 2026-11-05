@@ -143,7 +143,7 @@ export const StaffAcceptInviteView: React.FC = () => {
 
   const handleOpenWorkspace = () => {
     if (typeof window !== 'undefined') {
-      window.location.hash = '#dashboard';
+      window.history.pushState(null, '', '/dashboard');
     }
     setActiveTab('dashboard');
   };

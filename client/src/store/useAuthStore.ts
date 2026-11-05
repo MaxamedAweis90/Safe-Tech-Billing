@@ -1,17 +1,16 @@
 import { create } from "zustand";
-import { UserRole } from "../types";
+import { UserRole, UserProfile } from "../types";
+import { api } from "../lib/api";
 import { toast } from "./useUIStore";
-import api from "../lib/api";
 import { queryClient } from "../lib/queryClient";
 import { resetSampleData } from "../lib/mockData";
 
-export interface RoleDefinition {
-  label: string;
-  user: string;
-  can: string[];
-}
+export type AuthStatus = "idle" | "loading" | "authenticated" | "unauthenticated";
 
-export const ROLES: Record<UserRole, RoleDefinition> = {
+export const ROLES: Record<
+  UserRole,
+  { label: string; user: string; can: string[] }
+> = {
   admin: {
     label: "Administrator",
     user: "Amina Yusuf",
@@ -34,62 +33,31 @@ export const ROLES: Record<UserRole, RoleDefinition> = {
   },
 };
 
-export const DEMO_CREDENTIALS: Record<
-  UserRole,
-  { email: string; pass: string }
-> = {
-  admin: { email: "admin@safetech.so", pass: "Admin@123" },
-  accountant: { email: "accountant@safetech.so", pass: "Accountant@123" },
-  sales: { email: "sales@safetech.so", pass: "Sales@123" },
-  viewer: { email: "viewer@safetech.so", pass: "Viewer@123" },
+export const DEMO_BYPASS_ACCOUNT = {
+  email: "demo@account.com",
+  name: "Demo Administrator",
+  role: "admin" as UserRole,
+  phone: "+252610000000",
 };
 
-export async function switchRoleAuth(newRole: UserRole) {
-  const creds = DEMO_CREDENTIALS[newRole];
-  if (!creds) return;
-  try {
-    const res = await api.post("/auth/login", {
-      email: creds.email,
-      password: creds.pass,
-    });
-    if (res.data?.token) {
-      localStorage.setItem("safetech_token", res.data.token);
-      useAuthStore.setState({ token: res.data.token });
-      queryClient.invalidateQueries();
-    }
-  } catch {
-    // Graceful fallback to offline/mock mode
-  }
-}
-
-export function getAvatarInitials(userName: string): string {
+export function getAvatarInitials(userName?: string): string {
+  if (!userName || !userName.trim()) return "ST";
   return userName
-    .split(" ")
+    .trim()
+    .split(/\s+/)
     .map((w) => w[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
 }
 
-export interface UserProfile {
-  id: string;
-  name: string;
-  fullName?: string;
-  email: string;
-  phone?: string;
-  role: UserRole;
-  companyName?: string;
-  onboardingCompleted?: boolean;
-  isVerified?: boolean;
-  isDemo?: boolean;
-}
-
 interface AuthState {
   role: UserRole;
-  user: UserProfile;
+  user: UserProfile | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  authStatus: AuthStatus;
   setRole: (role: UserRole) => void;
   setUser: (user: Partial<UserProfile>, token?: string) => void;
   can: (permission: string) => boolean;
@@ -101,80 +69,62 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
-  const initialRole: UserRole = "admin";
+  const isStoredDemo =
+    typeof window !== "undefined" &&
+    localStorage.getItem("safetech_is_demo") === "true";
+
   const storedToken =
     typeof window !== "undefined"
       ? localStorage.getItem("safetech_token")
       : null;
-  const isStoredDemo =
-    typeof window !== "undefined" &&
-    (localStorage.getItem("safetech_is_demo") === "true" || storedToken === "demo_token_admin");
-  const isAuthRoute =
-    typeof window !== "undefined" &&
-    ["login", "signup", "onboarding", "accept-invite", "verify"].some((r) =>
-      window.location.hash.toLowerCase().includes(r),
-    );
-  const initialToken = isAuthRoute ? null : storedToken;
-
-  const initialUser: UserProfile = isStoredDemo
-    ? {
-        id: "usr_demo_admin",
-        name: "John Doe (Demo Admin)",
-        fullName: "John Doe (Demo Admin)",
-        email: "demo@safetech.so",
-        phone: "+252 61 0000000",
-        role: "admin",
-        isVerified: true,
-        isDemo: true,
-        onboardingCompleted: true,
-        companyName: "Safe Tech Solutions",
-      }
-    : initialToken
-    ? {
-        id: `usr_${initialRole}`,
-        name: ROLES[initialRole].user,
-        fullName: ROLES[initialRole].user,
-        email: `${initialRole}@safetech.so`,
-        role: initialRole,
-        onboardingCompleted: true,
-      }
-    : {
-        id: "",
-        name: "",
-        fullName: "",
-        email: "",
-        role: "viewer",
-        onboardingCompleted: false,
-      };
 
   return {
-    role: isStoredDemo ? "admin" : initialRole,
-    user: initialUser,
-    token: initialToken,
-    isAuthenticated: Boolean(initialToken),
-    isLoading: false,
+    role: isStoredDemo ? "admin" : "viewer",
+    user: isStoredDemo
+      ? {
+          id: "usr_demo_admin",
+          name: DEMO_BYPASS_ACCOUNT.name,
+          fullName: DEMO_BYPASS_ACCOUNT.name,
+          email: DEMO_BYPASS_ACCOUNT.email,
+          phone: DEMO_BYPASS_ACCOUNT.phone,
+          role: "admin",
+          isVerified: true,
+          isDemo: true,
+          onboardingCompleted: true,
+          companyName: "Safe Tech Solutions",
+        }
+      : null,
+    token: storedToken,
+    isAuthenticated: isStoredDemo,
+    isLoading: !isStoredDemo && Boolean(storedToken),
+    authStatus: isStoredDemo
+      ? "authenticated"
+      : storedToken
+      ? "loading"
+      : "idle",
 
     setRole: (newRole: UserRole) => {
-      const roleInfo = ROLES[newRole];
-      const demoToken = `demo_token_${newRole}`;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("safetech_token", demoToken);
+      // Role switching restricted to existing demo session or administrative users
+      const currentUser = get().user;
+      if (!currentUser?.isDemo && currentUser?.role !== "admin") {
+        toast("Only workspace administrators can switch simulated roles.", true);
+        return;
       }
+      const roleInfo = ROLES[newRole];
       set({
         role: newRole,
         user: {
-          id: `usr_${newRole}`,
+          id: currentUser?.id || `usr_${newRole}`,
           name: roleInfo.user,
           fullName: roleInfo.user,
-          email: `${newRole}@safetech.so`,
+          email: currentUser?.email || `${newRole}@safetech.so`,
           role: newRole,
+          isDemo: true,
+          onboardingCompleted: true,
         },
-        token: demoToken,
-        isAuthenticated: true,
       });
       toast(`Now viewing as ${roleInfo.label} (${roleInfo.user})`);
       queryClient.invalidateQueries();
-      switchRoleAuth(newRole);
     },
 
     setUser: (userUpdates: Partial<UserProfile>, token?: string) => {
@@ -182,36 +132,46 @@ export const useAuthStore = create<AuthState>((set, get) => {
         localStorage.setItem("safetech_token", token);
       }
       set((state) => {
+        const baseUser: UserProfile = state.user || {
+          id: "",
+          name: "",
+          fullName: "",
+          email: "",
+          role: "admin",
+        };
         const updatedUser: UserProfile = {
-          ...state.user,
+          ...baseUser,
           ...userUpdates,
-          name: userUpdates.fullName || userUpdates.name || state.user.name,
-          fullName:
-            userUpdates.fullName || userUpdates.name || state.user.fullName,
+          name: userUpdates.fullName || userUpdates.name || baseUser.name,
+          fullName: userUpdates.fullName || userUpdates.name || baseUser.fullName,
+          isVerified: userUpdates.isVerified ?? true,
+          onboardingCompleted: userUpdates.onboardingCompleted ?? true,
         };
         return {
           user: updatedUser,
           role: updatedUser.role || state.role,
           token: token || state.token,
           isAuthenticated: true,
+          authStatus: "authenticated",
+          isLoading: false,
         };
       });
       queryClient.invalidateQueries();
     },
 
     can: (permission: string) => {
-      const currentRole = get().role;
-      return ROLES[currentRole].can.includes(permission);
+      const currentRole = get().role || "viewer";
+      return ROLES[currentRole]?.can.includes(permission) ?? false;
     },
 
     needs: (permission: string) => {
       if (get().can(permission)) {
         return true;
       }
-      const currentRole = get().role;
+      const currentRole = get().role || "viewer";
       toast(
-        `${ROLES[currentRole].label}s can't do that. Switch role to try it.`,
-        true,
+        `${ROLES[currentRole]?.label || "User"}s cannot perform this action.`,
+        true
       );
       return false;
     },
@@ -220,62 +180,86 @@ export const useAuthStore = create<AuthState>((set, get) => {
       try {
         await api.post("/auth/logout");
       } catch {
-        // Continue clearing client credentials even if backend network call fails
+        // Fallback cleanup
       }
       if (typeof window !== "undefined") {
         localStorage.removeItem("safetech_token");
         localStorage.removeItem("safetech_is_demo");
+        sessionStorage.removeItem("safetech_just_onboarded");
       }
       set({
         token: null,
         isAuthenticated: false,
-        user: {
-          id: "",
-          name: "Signed Out",
-          fullName: "Signed Out",
-          email: "",
-          role: "viewer",
-          isDemo: false,
-          onboardingCompleted: false,
-        },
+        authStatus: "unauthenticated",
+        isLoading: false,
+        user: null,
         role: "viewer",
       });
       queryClient.clear();
-      // Route to login
-      if (typeof window !== "undefined") {
-        window.location.hash = "#login";
-      }
       toast("Signed out successfully");
     },
 
     checkAuth: async () => {
-      if (get().user?.isDemo || get().token === "demo_token_admin") {
+      if (typeof window !== "undefined" && localStorage.getItem("safetech_is_demo") === "true") {
+        set({
+          isAuthenticated: true,
+          authStatus: "authenticated",
+          isLoading: false,
+        });
         return;
       }
-      set({ isLoading: true });
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("safetech_token") : null;
+      if (!token) {
+        set({
+          token: null,
+          isAuthenticated: false,
+          authStatus: "unauthenticated",
+          isLoading: false,
+          user: null,
+        });
+        return;
+      }
+
+      set({ isLoading: true, authStatus: "loading" });
       try {
         const res = await api.get("/auth/me");
         if (res.data?.success && res.data?.user) {
           const u = res.data.user;
+          const userObj: UserProfile = {
+            id: u.id || u._id,
+            name: u.fullName || u.name,
+            fullName: u.fullName || u.name,
+            email: u.email,
+            phone: u.phone,
+            role: u.role,
+            companyName: u.companyName,
+            isVerified: Boolean(u.isVerified),
+            onboardingCompleted: u.onboardingCompleted ?? u.role !== "admin",
+          };
           set({
             isAuthenticated: true,
-            user: {
-              id: u.id || u._id,
-              name: u.fullName || u.name,
-              fullName: u.fullName || u.name,
-              email: u.email,
-              phone: u.phone,
-              role: u.role,
-              companyName: u.companyName,
-              isVerified: Boolean(u.isVerified),
-              onboardingCompleted: u.onboardingCompleted ?? u.role !== "admin",
-            },
+            authStatus: "authenticated",
+            user: userObj,
             role: u.role,
             isLoading: false,
           });
+        } else {
+          throw new Error("Invalid session data");
         }
       } catch {
-        set({ isLoading: false });
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("safetech_token");
+          localStorage.removeItem("safetech_is_demo");
+        }
+        set({
+          token: null,
+          isAuthenticated: false,
+          authStatus: "unauthenticated",
+          isLoading: false,
+          user: null,
+          role: "viewer",
+        });
       }
     },
 
@@ -283,10 +267,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       resetSampleData();
       const demoUser: UserProfile = {
         id: "usr_demo_admin",
-        name: "John Doe (Demo Admin)",
-        fullName: "John Doe (Demo Admin)",
-        email: "demo@safetech.so",
-        phone: "+252 61 0000000",
+        name: DEMO_BYPASS_ACCOUNT.name,
+        fullName: DEMO_BYPASS_ACCOUNT.name,
+        email: DEMO_BYPASS_ACCOUNT.email,
+        phone: DEMO_BYPASS_ACCOUNT.phone,
         role: "admin",
         isVerified: true,
         isDemo: true,
@@ -297,7 +281,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (typeof window !== "undefined") {
         localStorage.setItem("safetech_token", "demo_token_admin");
         localStorage.setItem("safetech_is_demo", "true");
-        window.location.hash = "#dashboard";
       }
 
       set({
@@ -305,32 +288,26 @@ export const useAuthStore = create<AuthState>((set, get) => {
         user: demoUser,
         token: "demo_token_admin",
         isAuthenticated: true,
+        authStatus: "authenticated",
         isLoading: false,
       });
 
       queryClient.invalidateQueries();
-      toast("Entered Live Demo Mode as John Doe (Admin)");
+      toast("Entered Live Demo Mode as Demo Administrator");
     },
 
     exitDemoSession: () => {
       if (typeof window !== "undefined") {
         localStorage.removeItem("safetech_token");
         localStorage.removeItem("safetech_is_demo");
-        window.location.hash = "#login";
       }
 
       set({
         token: null,
         isAuthenticated: false,
-        user: {
-          id: "",
-          name: "Signed Out",
-          fullName: "Signed Out",
-          email: "",
-          role: "viewer",
-          isDemo: false,
-          onboardingCompleted: false,
-        },
+        authStatus: "unauthenticated",
+        isLoading: false,
+        user: null,
         role: "viewer",
       });
 
@@ -340,19 +317,4 @@ export const useAuthStore = create<AuthState>((set, get) => {
   };
 });
 
-// Auto-seed and login in background if needed, except when directly visiting auth/onboarding screens or in demo mode
-if (typeof window !== "undefined") {
-  const hash = window.location.hash.toLowerCase();
-  const isAuthRoute =
-    hash.includes("login") ||
-    hash.includes("signup") ||
-    hash.includes("onboarding") ||
-    hash.includes("accept-invite") ||
-    hash.includes("verify");
-  const isDemoActive =
-    localStorage.getItem("safetech_is_demo") === "true" ||
-    localStorage.getItem("safetech_token") === "demo_token_admin";
-  if (!isAuthRoute && !isDemoActive) {
-    switchRoleAuth("admin");
-  }
-}
+export default useAuthStore;

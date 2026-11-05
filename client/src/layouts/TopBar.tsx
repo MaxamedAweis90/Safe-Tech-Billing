@@ -17,8 +17,8 @@ export const TopBar: React.FC = () => {
 
   const company = companyData?.company;
   const companyName = company?.name || 'Safe Tech Solutions';
-  const userName = user.fullName || user.name || 'Staff User';
-  const userContact = user.email || user.phone || 'authenticated';
+  const userName = user?.fullName || user?.name || 'Staff User';
+  const userContact = user?.email || user?.phone || 'authenticated';
   const initials = getAvatarInitials(userName);
 
   const roleBadgeConfig: Record<string, { label: string; className: string }> = {
@@ -63,7 +63,8 @@ export const TopBar: React.FC = () => {
     setDropdownOpen(false);
     if (hashSuffix && typeof window !== 'undefined') {
       const clean = hashSuffix.replace(/^[#/]+/, '');
-      window.location.hash = `#${tab}/${clean}`;
+      window.history.pushState(null, '', `/${tab}/${clean}`);
+      setActiveTab(tab);
     } else {
       setActiveTab(tab);
     }

@@ -94,7 +94,7 @@ export const EmailTemplatesView: React.FC = () => {
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [testEmailModalOpen, setTestEmailModalOpen] = useState(false);
-  const [destinationEmail, setDestinationEmail] = useState(user.email || 'safetechbilling@gmail.com');
+  const [destinationEmail, setDestinationEmail] = useState(user?.email || 'safetechbilling@gmail.com');
 
   const subjectInputRef = useRef<HTMLInputElement>(null);
   const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);

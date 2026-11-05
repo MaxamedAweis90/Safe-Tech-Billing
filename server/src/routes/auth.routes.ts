@@ -11,6 +11,8 @@ import {
   logout,
   login,
   seedDemoUsers,
+  googleAuth,
+  demoLogin,
 } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
@@ -23,6 +25,8 @@ router.post('/request-registration-otp', requestRegistrationOtp);
 router.post('/complete-registration', completeRegistration);
 router.post('/request-otp', requestOtp);
 router.post('/verify-otp', verifyOtp);
+router.post('/google', googleAuth);
+router.post('/demo-login', demoLogin);
 router.get('/me', authenticate, getMe);
 router.post('/refresh', refreshToken);
 router.post('/logout', logout);

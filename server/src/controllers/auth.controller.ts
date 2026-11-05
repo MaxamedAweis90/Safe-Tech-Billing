@@ -612,6 +612,39 @@ export const requestOtp = async (req: Request, res: Response, next: NextFunction
       }
     }
 
+    // Bypass auto-verification rule: demo@account.com is the only authorized bypass account
+    if (channel === 'email' && normalizedTarget === 'demo@account.com') {
+      let demoUser = await User.findOne({ email: 'demo@account.com' });
+      if (!demoUser) {
+        demoUser = await User.create({
+          fullName: 'Demo Administrator',
+          email: 'demo@account.com',
+          phone: '+252610000000',
+          role: 'admin',
+          isVerified: true,
+          status: 'active',
+          onboardingCompleted: true,
+        });
+      }
+
+      await OtpToken.deleteMany({ target: 'demo@account.com', purpose });
+      const demoHash = await bcrypt.hash('000000', 10);
+      await OtpToken.create({
+        target: 'demo@account.com',
+        channel: 'email',
+        purpose,
+        codeHash: demoHash,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Demo mode active. Use code 000000 to sign in.',
+        target: 'demo@account.com',
+      });
+      return;
+    }
+
     // Check if user exists
     const query = channel === 'email' ? { email: normalizedTarget } : { phone: normalizedTarget };
     const user = await User.findOne(query);
@@ -713,6 +746,43 @@ export const verifyOtp = async (req: Request, res: Response, next: NextFunction)
 
     const normalizedTarget = target.trim().toLowerCase();
     const exactTarget = target.trim();
+
+    // Bypass verification rule: demo@account.com is the only authorized bypass account
+    if (normalizedTarget === 'demo@account.com' && (otp.trim() === '000000' || otp.trim().length === 6)) {
+      let demoUser = await User.findOne({ email: 'demo@account.com' });
+      if (!demoUser) {
+        demoUser = await User.create({
+          fullName: 'Demo Administrator',
+          email: 'demo@account.com',
+          phone: '+252610000000',
+          role: 'admin',
+          isVerified: true,
+          status: 'active',
+          onboardingCompleted: true,
+        });
+      }
+
+      const tokens = issueAuthTokens(demoUser);
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
+      res.status(200).json({
+        success: true,
+        message: 'Demo account bypass authenticated',
+        token: tokens.accessToken,
+        user: {
+          id: demoUser._id.toString(),
+          fullName: demoUser.fullName,
+          name: demoUser.fullName,
+          email: demoUser.email,
+          phone: demoUser.phone,
+          role: demoUser.role,
+          isVerified: true,
+          status: 'active',
+          onboardingCompleted: true,
+        },
+      });
+      return;
+    }
 
     // Find active token by target (case-insensitive for email, exact for phone)
     const otpDoc = await OtpToken.findOne({
@@ -1008,6 +1078,129 @@ export const seedDemoUsers = async (_req: Request, res: Response, next: NextFunc
       success: true,
       message: 'Demo accounts seeded successfully',
       users: results,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Direct bypass for demo@account.com
+ */
+export const demoLogin = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    let demoUser = await User.findOne({ email: 'demo@account.com' });
+    if (!demoUser) {
+      demoUser = await User.create({
+        fullName: 'Demo Administrator',
+        email: 'demo@account.com',
+        phone: '+252610000000',
+        role: 'admin',
+        isVerified: true,
+        status: 'active',
+        onboardingCompleted: true,
+      });
+    }
+
+    const tokens = issueAuthTokens(demoUser);
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
+    res.status(200).json({
+      success: true,
+      message: 'Demo session bootstrapped',
+      token: tokens.accessToken,
+      user: {
+        id: demoUser._id.toString(),
+        fullName: demoUser.fullName,
+        name: demoUser.fullName,
+        email: demoUser.email,
+        phone: demoUser.phone,
+        role: demoUser.role,
+        isVerified: true,
+        status: 'active',
+        onboardingCompleted: true,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/v1/auth/google
+ * Google OAuth onboarding resolution & login endpoint.
+ * Authenticates existing accounts; intercepts unregistered accounts and responds with isUnregistered: true.
+ */
+export const googleAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { email, name } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({ success: false, error: 'Google email is required' });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      res.status(400).json({ success: false, error: 'Invalid Google email format' });
+      return;
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
+
+    // Intercept unregistered accounts: zero early DB writes
+    if (!user) {
+      res.status(200).json({
+        success: false,
+        registered: false,
+        isUnregistered: true,
+        email: normalizedEmail,
+        name: typeof name === 'string' ? name.trim() : '',
+        message: 'No Safe Tech Billing workspace exists for this Google account. Please complete administrator setup.',
+      });
+      return;
+    }
+
+    if (user.status === 'suspended') {
+      res.status(403).json({
+        success: false,
+        error: 'Account has been suspended. Please contact your workspace administrator.',
+      });
+      return;
+    }
+
+    if (!user.isVerified) {
+      user.isVerified = true;
+      await user.save();
+    }
+
+    const tokens = issueAuthTokens(user);
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
+    await logAction({
+      user_name: user.fullName,
+      role: user.role,
+      action: 'Google SSO login',
+      ref: user.email,
+      detail: `Authenticated with verified Google credentials`,
+    });
+
+    res.status(200).json({
+      success: true,
+      registered: true,
+      message: 'Authenticated successfully with Google',
+      token: tokens.accessToken,
+      user: {
+        id: user._id.toString(),
+        fullName: user.fullName,
+        name: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        isVerified: user.isVerified,
+        status: user.status,
+        onboardingCompleted: user.onboardingCompleted ?? (user.role !== 'admin'),
+      },
     });
   } catch (err) {
     next(err);

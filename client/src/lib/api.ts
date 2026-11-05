@@ -56,8 +56,16 @@ api.interceptors.response.use(
       const authHeader = error.config?.headers?.Authorization?.toString() || '';
       if (!authHeader.includes('demo_token')) {
         localStorage.removeItem('safetech_token');
-        if (!error.config?.url?.includes('/auth/me') && !error.config?.url?.includes('/auth/login')) {
+        if (
+          !error.config?.url?.includes('/auth/me') &&
+          !error.config?.url?.includes('/auth/login') &&
+          !error.config?.url?.includes('/auth/google')
+        ) {
           toast('Your session has expired or requires authentication.', true);
+          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+            window.history.replaceState(null, '', '/login');
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }
         }
       }
     } else if (status === 403) {

@@ -45,6 +45,9 @@ export const DemoButton: React.FC<DemoButtonProps> = ({ mode, className = '' }) 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     bootstrapDemoSession();
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', '/dashboard');
+    }
     setActiveTab('dashboard');
   };
 

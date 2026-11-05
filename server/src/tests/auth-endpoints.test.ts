@@ -12,6 +12,8 @@ import {
   logout,
   generateOtp,
   getRolePermissions,
+  googleAuth,
+  demoLogin,
 } from '../controllers/auth.controller';
 import {
   authenticate,
@@ -621,6 +623,94 @@ describe('Backend Auth & Verification Endpoints — Step 2 Specifications', () =
 
       expect(statusMock).toHaveBeenCalledWith(403);
       expect(next).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Step 8: Google Auth & Demo Bypass Hardening', () => {
+    it('googleAuth: authenticates existing verified account', async () => {
+      const existingUser = {
+        _id: '507f191e810c19729de86010',
+        fullName: 'Google User',
+        email: 'google.user@example.com',
+        phone: '+252610000000',
+        role: 'admin',
+        isVerified: true,
+        status: 'active',
+        onboardingCompleted: true,
+      };
+      vi.spyOn(User, 'findOne').mockResolvedValue(existingUser as any);
+
+      const { req, res, statusMock, jsonMock, cookieMock } = createMockReqRes({
+        body: { email: 'google.user@example.com', name: 'Google User' },
+      });
+
+      await googleAuth(req, res, vi.fn());
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(cookieMock).toHaveBeenCalledWith('accessToken', expect.any(String), expect.any(Object));
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          registered: true,
+          user: expect.objectContaining({
+            email: 'google.user@example.com',
+          }),
+        })
+      );
+    });
+
+    it('googleAuth: intercepts unregistered Google account and returns registered: false', async () => {
+      vi.spyOn(User, 'findOne').mockResolvedValue(null);
+
+      const { req, res, statusMock, jsonMock } = createMockReqRes({
+        body: { email: 'unregistered@google.com', name: 'New Stranger' },
+      });
+
+      await googleAuth(req, res, vi.fn());
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          registered: false,
+          isUnregistered: true,
+          email: 'unregistered@google.com',
+        })
+      );
+    });
+
+    it('demo@account.com: bypasses OTP with 000000 and auto-authenticates', async () => {
+      const demoUser = {
+        _id: '507f191e810c19729de86099',
+        fullName: 'Demo Administrator',
+        email: 'demo@account.com',
+        phone: '+252610000000',
+        role: 'admin',
+        isVerified: true,
+        status: 'active',
+        onboardingCompleted: true,
+      };
+      vi.spyOn(User, 'findOne').mockResolvedValue(demoUser as any);
+
+      const { req, res, statusMock, jsonMock } = createMockReqRes({
+        body: {
+          target: 'demo@account.com',
+          otp: '000000',
+          purpose: 'login',
+        },
+      });
+
+      await verifyOtp(req, res, vi.fn());
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          user: expect.objectContaining({
+            email: 'demo@account.com',
+          }),
+        })
+      );
     });
   });
 });

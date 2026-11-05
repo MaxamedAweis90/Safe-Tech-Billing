@@ -1,76 +1,86 @@
 import { create } from 'zustand';
 import { NavTab } from '../types';
 
-export function tabToHash(tab: NavTab, recordId?: string | null): string {
-  if (tab === 'dashboard') return 'dashboard';
+export function tabToPath(tab: NavTab, recordId?: string | null): string {
+  if (tab === 'dashboard') return '/dashboard';
+  if (tab === 'login') return '/login';
+  if (tab === 'signup') return '/signup';
+  if (tab === 'onboarding') return '/signup';
+  if (tab === 'verify') return '/verify';
+  if (tab === 'accept-invite') return '/accept-invite';
   if (tab === 'quotations') {
-    if (recordId === 'new') return 'quote-new';
-    if (recordId) return `quote-${recordId}`;
-    return 'quotes';
+    if (recordId === 'new') return '/quotations?action=new';
+    if (recordId) return `/quotations/${recordId}`;
+    return '/quotations';
   }
   if (tab === 'invoices') {
-    if (recordId === 'new') return 'invoice-new';
-    if (recordId) return `invoice-${recordId}`;
-    return 'invoices';
+    if (recordId === 'new') return '/invoices?action=new';
+    if (recordId) return `/invoices/${recordId}`;
+    return '/invoices';
   }
   if (tab === 'receipts') {
-    if (recordId) return `receipt-${recordId}`;
-    return 'receipts';
+    if (recordId) return `/receipts/${recordId}`;
+    return '/receipts';
   }
   if (tab === 'customers') {
-    if (recordId) return `customer-${recordId}`;
-    return 'customers';
+    if (recordId) return `/customers/${recordId}`;
+    return '/customers';
   }
-  return tab;
+  if (tab === 'reports') return '/reports';
+  if (tab === 'settings') return '/settings';
+  if (tab === 'audit') return '/audit';
+  if (tab === 'blueprint') return '/blueprint';
+  return `/${tab}`;
 }
 
-export function parseHash(hashStr: string): { tab: NavTab; recordId: string | null } {
-  // If hash is empty, inspect window pathname for direct path routing (/login, /signup, etc.)
-  let raw = hashStr.replace(/^#/, '');
-  if (!raw && typeof window !== 'undefined' && window.location.pathname && window.location.pathname !== '/') {
-    raw = window.location.pathname.replace(/^\//, '');
-  }
-  
-  // Strip query string when determining tab
-  const [cleanRoute] = (raw || 'dashboard').split('?');
-  const h = cleanRoute.toLowerCase();
-  let m: RegExpMatchArray | null;
+export function parsePath(pathnameStr: string): { tab: NavTab; recordId: string | null } {
+  const clean = (pathnameStr || '/dashboard').replace(/^\//, '').split('?')[0].toLowerCase();
+  const segments = clean.split('/');
+  const base = segments[0] || 'dashboard';
+  const param = segments[1] || null;
 
-  if (h === 'login') return { tab: 'login', recordId: null };
-  if (h === 'signup') return { tab: 'signup', recordId: null };
-  if (h === 'verify') return { tab: 'verify', recordId: null };
-  if (h === 'accept-invite') return { tab: 'accept-invite', recordId: null };
-  if (h === 'onboarding') return { tab: 'onboarding', recordId: null };
+  if (base === 'login') return { tab: 'login', recordId: null };
+  if (base === 'signup' || base === 'onboarding') return { tab: 'signup', recordId: null };
+  if (base === 'verify') return { tab: 'verify', recordId: null };
+  if (base === 'accept-invite') return { tab: 'accept-invite', recordId: null };
 
-  if (h === 'dashboard') return { tab: 'dashboard', recordId: null };
-  if (h === 'quotes') return { tab: 'quotations', recordId: null };
-  if (h === 'quote-new') return { tab: 'quotations', recordId: 'new' };
-  if ((m = h.match(/^quote-([\w-]+)$/))) return { tab: 'quotations', recordId: m[1] };
-  if (h === 'invoices') return { tab: 'invoices', recordId: null };
-  if (h === 'invoice-new') return { tab: 'invoices', recordId: 'new' };
-  if ((m = h.match(/^invoice-([\w-]+)$/))) return { tab: 'invoices', recordId: m[1] };
-  if (h === 'receipts') return { tab: 'receipts', recordId: null };
-  if ((m = h.match(/^receipt-([\w-]+)$/))) return { tab: 'receipts', recordId: m[1] };
-  if (h === 'customers') return { tab: 'customers', recordId: null };
-  if ((m = h.match(/^customer-([\w-]+)$/))) return { tab: 'customers', recordId: m[1] };
-  if (h === 'reports') return { tab: 'reports', recordId: null };
-  if (
-    h === 'settings' ||
-    h.startsWith('settings/') ||
-    h.startsWith('settings#') ||
-    h.startsWith('settings-') ||
-    h === 'team' ||
-    h === 'templates'
-  ) {
-    return { tab: 'settings', recordId: null };
-  }
-  if (h === 'audit') return { tab: 'audit', recordId: null };
-  if (h === 'blueprint') return { tab: 'blueprint', recordId: null };
+  if (base === 'dashboard') return { tab: 'dashboard', recordId: null };
+  if (base === 'quotations' || base === 'quotes') return { tab: 'quotations', recordId: param };
+  if (base === 'invoices') return { tab: 'invoices', recordId: param };
+  if (base === 'receipts') return { tab: 'receipts', recordId: param };
+  if (base === 'customers') return { tab: 'customers', recordId: param };
+  if (base === 'reports') return { tab: 'reports', recordId: null };
+  if (base === 'settings') return { tab: 'settings', recordId: null };
+  if (base === 'audit') return { tab: 'audit', recordId: null };
+  if (base === 'blueprint') return { tab: 'blueprint', recordId: null };
 
   return { tab: 'dashboard', recordId: null };
 }
 
-const initial = typeof window !== 'undefined' ? parseHash(window.location.hash) : { tab: 'dashboard' as NavTab, recordId: null };
+// Backward compatibility alias for hash parsing
+export function parseHash(hashStr: string): { tab: NavTab; recordId: string | null } {
+  if (typeof window !== 'undefined' && window.location.pathname && window.location.pathname !== '/') {
+    return parsePath(window.location.pathname);
+  }
+  const clean = hashStr.replace(/^#\/?/, '');
+  return parsePath('/' + clean);
+}
+
+export function tabToHash(tab: NavTab, recordId?: string | null): string {
+  return tabToPath(tab, recordId).replace(/^\//, '');
+}
+
+const getInitialRoute = (): { tab: NavTab; recordId: string | null } => {
+  if (typeof window === 'undefined') return { tab: 'dashboard', recordId: null };
+  // Check if hash has route
+  if (window.location.hash) {
+    const raw = window.location.hash.replace(/^#\/?/, '');
+    if (raw) return parsePath('/' + raw);
+  }
+  return parsePath(window.location.pathname);
+};
+
+const initial = getInitialRoute();
 
 interface NavState {
   activeTab: NavTab;
@@ -98,13 +108,13 @@ export const useNavStore = create<NavState>((set) => ({
   setPrefillCustomerId: (id) => set({ prefillCustomerId: id }),
   setActiveTab: (tab) => {
     if (typeof window !== 'undefined') {
-      const targetHash = '#' + tabToHash(tab, null);
-      const currentHash = window.location.hash.toLowerCase();
-      const isAlreadyOnSettingsSubroute =
-        tab === 'settings' &&
-        (currentHash.startsWith('#settings/') || currentHash.startsWith('#settings#'));
-      if (window.location.hash !== targetHash && !isAlreadyOnSettingsSubroute) {
-        window.location.hash = targetHash;
+      const targetPath = tabToPath(tab, null);
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, '', targetPath);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+      if (window.location.hash) {
+        window.history.replaceState(null, '', targetPath);
       }
       window.scrollTo(0, 0);
     }
@@ -112,9 +122,13 @@ export const useNavStore = create<NavState>((set) => ({
   },
   setSelectedRecord: (tab, recordId = null) => {
     if (typeof window !== 'undefined') {
-      const targetHash = '#' + tabToHash(tab, recordId);
-      if (window.location.hash !== targetHash) {
-        window.location.hash = targetHash;
+      const targetPath = tabToPath(tab, recordId);
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, '', targetPath);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+      if (window.location.hash) {
+        window.history.replaceState(null, '', targetPath);
       }
       window.scrollTo(0, 0);
     }
@@ -132,3 +146,5 @@ export const useNavStore = create<NavState>((set) => ({
   toggleMobileDrawer: () =>
     set((state) => ({ mobileDrawerOpen: !state.mobileDrawerOpen })),
 }));
+
+export default useNavStore;

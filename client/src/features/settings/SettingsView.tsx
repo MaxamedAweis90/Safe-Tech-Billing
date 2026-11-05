@@ -45,7 +45,7 @@ export const SettingsView: React.FC = () => {
   const switchTab = (tab: SettingsTab) => {
     setActiveSettingsTab(tab);
     if (typeof window !== 'undefined') {
-      window.location.hash = `#settings/${tab}`;
+      window.history.pushState(null, '', `/settings/${tab}`);
     }
   };
 

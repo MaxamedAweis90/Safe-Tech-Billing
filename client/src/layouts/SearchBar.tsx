@@ -145,7 +145,6 @@ export const SearchBar: React.FC = () => {
 
   const handleSelect = (item: SearchResultItem) => {
     setSelectedRecord(item.tab, item.id);
-    window.location.hash = `#${item.tab === 'invoices' ? 'invoice' : item.tab === 'quotations' ? 'quote' : item.tab === 'receipts' ? 'receipt' : 'customer'}-${item.id}`;
     setIsOpen(false);
     setQuery('');
     setSelectedIndex(-1);
