@@ -9,6 +9,7 @@ import {
 } from '../../lib/mockData';
 import { fmtD, formatMoney, milliStr } from '../../lib/formatters';
 import { useNavStore } from '../../store/useNavStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useReports } from '../../hooks/useReports';
 
 export interface PaymentReportProps {
@@ -34,6 +35,8 @@ export const PaymentReport: React.FC<PaymentReportProps> = ({
   onUpdateCSV,
 }) => {
   const { setSelectedRecord } = useNavStore();
+  const { user } = useAuthStore();
+  const isDemo = user?.isDemo === true;
   const { data: apiData, isLoading } = useReports(
     'payments',
     undefined,
@@ -70,8 +73,11 @@ export const PaymentReport: React.FC<PaymentReportProps> = ({
         currency: p.currency || 'USD',
       }));
 
-      // If backend has no payments list attached to report summary, fall back to matching mock list
+      // If backend has no payments list attached to report summary, fall back to matching mock list only in Demo Mode
       if (ps.length === 0) {
+        if (!isDemo) {
+          return { payments: [], byMethod: byM };
+        }
         const mockPs = MOCK_PAYMENTS.filter((p) => {
           const inv = getInvoiceById(p.invoiceId);
           const customerId = inv?.customerId || p.customerId;
@@ -81,6 +87,10 @@ export const PaymentReport: React.FC<PaymentReportProps> = ({
       }
 
       return { payments: ps, byMethod: byM };
+    }
+
+    if (!isDemo) {
+      return { payments: [], byMethod: {} };
     }
 
     // Local mock data calculation

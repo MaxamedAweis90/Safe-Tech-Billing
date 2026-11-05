@@ -38,7 +38,7 @@ export const StaffAcceptInviteView: React.FC = () => {
   const [errorType, setErrorType] = useState<TokenErrorType | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const { setUser } = useAuthStore();
+  const { user, isAuthenticated, logout, setUser } = useAuthStore();
   const { setActiveTab } = useNavStore();
 
   useEffect(() => {
@@ -153,6 +153,7 @@ export const StaffAcceptInviteView: React.FC = () => {
 
   return (
     <AuthLayout
+      isSuccess={isSuccess}
       teaserMeta={{
         companyName: meta?.companyName,
         inviterName: meta?.inviterName,
@@ -160,7 +161,7 @@ export const StaffAcceptInviteView: React.FC = () => {
         role: meta?.role,
       }}
     >
-      <div style={{ width: '100%', maxWidth: '440px', margin: '0 auto' }}>
+      <div style={{ width: '100%', maxWidth: isSuccess ? '520px' : '440px', margin: '0 auto', transition: 'max-width 750ms cubic-bezier(0.16, 1, 0.3, 1)' }}>
         {/* Loading Spinner State */}
         {loading && (
           <div style={{ textAlign: 'center', padding: '48px 0', color: '#8C9BAE' }}>
@@ -440,6 +441,47 @@ export const StaffAcceptInviteView: React.FC = () => {
                 }}
               >
                 {errorMsg}
+              </div>
+            )}
+
+            {/* Account Mismatch Advisory Banner */}
+            {isAuthenticated && user && user.email?.toLowerCase() !== meta.email?.toLowerCase() && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  padding: '12px 14px',
+                  backgroundColor: 'rgba(235, 160, 65, 0.12)',
+                  border: '1px solid rgba(235, 160, 65, 0.35)',
+                  borderRadius: '8px',
+                  marginBottom: '18px',
+                  fontSize: '12.5px',
+                  color: '#EBA041',
+                }}
+              >
+                <div>
+                  <strong>Session Notice:</strong> You are currently signed in as <b>{user.email}</b>. This team invitation is for <b>{meta.email}</b>.
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await logout();
+                  }}
+                  style={{
+                    alignSelf: 'flex-start',
+                    backgroundColor: 'transparent',
+                    border: '1px solid #EBA041',
+                    borderRadius: '6px',
+                    color: '#EBA041',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Sign Out &amp; Accept as {meta.email}
+                </button>
               </div>
             )}
 

@@ -13,6 +13,31 @@ export const MonthlyRevenueChart: React.FC<MonthlyRevenueChartProps> = ({
   invoiced,
   received,
 }) => {
+  if (!months || months.length === 0) {
+    return (
+      <div
+        style={{
+          height: 240,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#6F7B90',
+          fontSize: '13px',
+          textAlign: 'center',
+          padding: '16px',
+        }}
+      >
+        <p style={{ margin: '0 0 4px 0', color: '#B9C5DA', fontWeight: 600, fontSize: '13.5px' }}>
+          No revenue records yet
+        </p>
+        <p style={{ margin: 0, fontSize: '12px', color: '#6F7B90' }}>
+          Your 12-month revenue performance chart will render here as invoices are issued and payments are collected.
+        </p>
+      </div>
+    );
+  }
+
   const W = 640;
   const H = 240;
   const pl = 48;

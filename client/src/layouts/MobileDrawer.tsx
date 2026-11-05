@@ -1,6 +1,9 @@
 import React from 'react';
 import { useNavStore } from '../store/useNavStore';
-import { useAuthStore, ROLES } from '../store/useAuthStore';
+import { useAuthStore, getAvatarInitials } from '../store/useAuthStore';
+import { useCompanySettings } from '../hooks/useSettings';
+import { useQuotations } from '../hooks/useQuotations';
+import { useInvoices } from '../hooks/useInvoices';
 import { computeNavCounts } from '../lib/mockData';
 import { Icon, IconName, IconX } from '../components/icons';
 import { NavTab } from '../types';
@@ -8,9 +11,32 @@ import { NavTab } from '../types';
 export const MobileDrawer: React.FC = () => {
   const { mobileDrawerOpen, setMobileDrawerOpen, activeTab, setActiveTab } =
     useNavStore();
-  const { role, can } = useAuthStore();
-  const roleInfo = ROLES[role];
-  const { openQ, overdue } = computeNavCounts();
+  const { can, user } = useAuthStore();
+  const isDemo = user?.isDemo === true;
+  const { data: companyData } = useCompanySettings();
+  const company = companyData?.company;
+
+  const { data: quotesData } = useQuotations();
+  const { data: invoicesData } = useInvoices();
+  const mockCounts = computeNavCounts();
+
+  const openQ = quotesData?.quotations
+    ? quotesData.quotations.filter((q) => ['draft', 'sent'].includes(q.state)).length
+    : (isDemo ? mockCounts.openQ : 0);
+
+  const overdue = invoicesData?.invoices
+    ? invoicesData.invoices.filter((i) => {
+        if (i.status === 'overdue') return true;
+        if (i.state === 'issued' && (i.balance_milli ?? 0) > 0) {
+          if (i.due && new Date(i.due) < new Date()) return true;
+        }
+        return false;
+      }).length
+    : (isDemo ? mockCounts.overdue : 0);
+
+  const isCompanyConfigured = Boolean(
+    company?.name && company.name.trim().length > 0 && company.name !== 'Set your business info'
+  );
 
   if (!mobileDrawerOpen) return null;
 
@@ -90,9 +116,77 @@ export const MobileDrawer: React.FC = () => {
           })}
         </nav>
 
-        <div className="pt-3 border-t border-line text-xs text-side-muted mt-auto">
-          <div>{roleInfo.user}</div>
-          <div style={{ color: 'var(--accent)', fontSize: 11 }}>{roleInfo.label}</div>
+        {/* Dynamic Company Bottom Area */}
+        <div className="pt-3 border-t border-line mt-auto">
+          {isCompanyConfigured && company ? (
+            <div
+              role={can('settings') ? 'button' : undefined}
+              tabIndex={can('settings') ? 0 : undefined}
+              className={`flex items-center gap-2.5 p-1.5 -m-1 rounded transition-colors ${
+                can('settings') ? 'cursor-pointer hover:bg-[#151C27]' : ''
+              }`}
+              onClick={() => {
+                if (can('settings')) {
+                  setActiveTab('settings');
+                  closeDrawer();
+                  if (typeof window !== 'undefined') {
+                    window.location.hash = 'company';
+                  }
+                }
+              }}
+              title={can('settings') ? `Manage ${company.name} in Settings` : company.name}
+            >
+              {company.logo ? (
+                <img
+                  src={company.logo}
+                  alt={company.name}
+                  className="w-8 h-8 rounded object-contain bg-[#151C27] border border-line p-0.5 shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded bg-[#18263D] text-[#6E9CF0] text-xs font-bold flex items-center justify-center border border-line shrink-0">
+                  {getAvatarInitials(company.name)}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-white truncate" title={company.name}>
+                  {company.name}
+                </div>
+                <div className="text-[11px] text-side-muted truncate">
+                  {company.tagline || company.email || 'Active Workspace'}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              role={can('settings') ? 'button' : undefined}
+              tabIndex={can('settings') ? 0 : undefined}
+              className={`flex items-center gap-2.5 p-1.5 -m-1 rounded transition-colors ${
+                can('settings') ? 'cursor-pointer hover:bg-[#151C27]' : ''
+              }`}
+              onClick={() => {
+                if (can('settings')) {
+                  setActiveTab('settings');
+                  closeDrawer();
+                  if (typeof window !== 'undefined') {
+                    window.location.hash = 'company';
+                  }
+                }
+              }}
+              title="Configure business profile in Settings"
+            >
+              <div className="w-8 h-8 rounded bg-[rgba(227,165,74,0.15)] text-[var(--warn,#E3A54A)] text-xs font-bold flex items-center justify-center border border-[rgba(227,165,74,0.3)] shrink-0">
+                <Icon name="alert" size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-[var(--warn,#E3A54A)] truncate">
+                  Set business info
+                </div>
+                <div className="text-[11px] text-side-muted truncate">
+                  Configure in Settings
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>

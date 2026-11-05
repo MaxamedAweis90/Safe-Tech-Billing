@@ -264,6 +264,13 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     bootstrapDemoSession: () => {
+      // Authenticated real users cannot access demo mode
+      const currentState = get();
+      if (currentState.isAuthenticated && !currentState.user?.isDemo) {
+        toast("You are already authenticated with a live account. Please sign out before entering Demo Mode.", true);
+        return;
+      }
+
       resetSampleData();
       const demoUser: UserProfile = {
         id: "usr_demo_admin",

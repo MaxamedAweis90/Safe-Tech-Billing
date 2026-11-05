@@ -15,8 +15,10 @@ export const CustomersView: React.FC = () => {
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { can } = useAuthStore();
+  const { can, user } = useAuthStore();
   const { selectedRecordId, setSelectedRecord } = useNavStore();
+
+  const isDemo = user?.isDemo === true;
 
   const { data: apiData, isLoading } = useCustomers({
     q: searchQuery.trim() || undefined,
@@ -32,7 +34,7 @@ export const CustomersView: React.FC = () => {
     );
   }
 
-  const hasLiveCustomers = Boolean(apiData?.customers);
+  const hasLiveCustomers = Boolean(apiData?.customers && apiData.customers.length > 0);
 
   const rawRows = hasLiveCustomers && apiData
     ? apiData.customers.map((c: any) => ({
@@ -56,10 +58,12 @@ export const CustomersView: React.FC = () => {
           count: 0,
         },
       }))
-    : MOCK_CUSTOMERS.map((c) => ({
+    : isDemo
+    ? MOCK_CUSTOMERS.map((c) => ({
         c,
         f: custFin(c.id),
-      }));
+      }))
+    : [];
 
   // Apply financial filter and sorting
   const rows = rawRows

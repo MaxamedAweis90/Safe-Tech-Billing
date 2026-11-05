@@ -19,8 +19,10 @@ const FILTER_METHODS = ["all", "cash", "bank", "mobile", "card"];
 export const ReceiptsView: React.FC = () => {
   const [methodFilter, setMethodFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const { can } = useAuthStore();
+  const { can, user } = useAuthStore();
   const { selectedRecordId, setSelectedRecord } = useNavStore();
+
+  const isDemo = user?.isDemo === true;
 
   const { data: apiData, isLoading } = useReceipts({
     method: methodFilter === "all" ? undefined : methodFilter,
@@ -78,7 +80,9 @@ export const ReceiptsView: React.FC = () => {
             invoiceTotal: r.invoice_total_milli ?? r.invoice_total,
           } as MockReceipt;
         })
-      : MOCK_RECEIPTS;
+      : isDemo
+      ? MOCK_RECEIPTS
+      : [];
 
   // Filter and sort receipts matching prototype line 631
   const filteredReceipts = liveReceipts

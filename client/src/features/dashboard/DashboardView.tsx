@@ -20,6 +20,7 @@ import {
 } from '../../lib/mockData';
 import { MonthlyRevenueChart } from './MonthlyRevenueChart';
 import { PaymentModalContent } from './PaymentModal';
+import { useInvoices } from '../../hooks/useInvoices';
 
 interface DashboardSummaryApiResponse {
   success: boolean;
@@ -80,9 +81,11 @@ const STATUS_LABELS: Record<string, string> = {
 
 export const DashboardView: React.FC = () => {
   const { setActiveTab, setSelectedRecord } = useNavStore();
-  const { can, needs } = useAuthStore();
+  const { can, needs, user } = useAuthStore();
   const { openModal, closeModal, addToast } = useUIStore();
   const queryClient = useQueryClient();
+
+  const isDemo = user?.isDemo === true;
 
   // 1. Fetch live dashboard summary via TanStack Query
   const {
@@ -100,43 +103,61 @@ export const DashboardView: React.FC = () => {
     staleTime: 30000,
   });
 
-  // Fallbacks to prototype sample data if database is empty or query is pending/offline
+  const { data: invoicesData } = useInvoices();
+
+  // Fallbacks strictly reserved for Demo Mode
   const mockKpis = computeDashboardKPIs();
   const mockRevenue = compute12MonthRevenue();
   const mockStatusDist = computeInvoiceStatusDistribution();
   const mockTransactions = getRecentTransactions();
 
-  const hasLiveRecords =
-    (data?.summary?.kpis?.totalQuotes ?? 0) > 0 ||
-    (data?.summary?.kpis?.issuedInvoices ?? 0) > 0 ||
-    (data?.summary?.kpis?.received ?? 0) > 0;
+  const zeroKpis = {
+    totalQuotes: 0,
+    winRate: 0,
+    issuedInvoices: 0,
+    draftCount: 0,
+    cancelledCount: 0,
+    received: 0,
+    thisMonth: 0,
+    outstanding: 0,
+    openInvoicesCount: 0,
+    overdueAmt: 0,
+    overdueCount: 0,
+  };
 
-  // Resolved live KPIs
-  const kpis = hasLiveRecords && data ? data.summary.kpis : mockKpis;
+  const zeroRevenue = {
+    months: [],
+    invoiced: [],
+    received: [],
+  };
+
+  // Resolved KPIs: Live data for real accounts; mock only in Demo Mode
+  const kpis = data?.summary?.kpis || (isDemo ? mockKpis : zeroKpis);
 
   // Resolved 12-month revenue
-  const revenueData = hasLiveRecords && data ? data.summary.revenueData : mockRevenue;
+  const revenueData = data?.summary?.revenueData || (isDemo ? mockRevenue : zeroRevenue);
 
   // Resolved status breakdown
-  const statusItems =
-    hasLiveRecords && data?.summary?.statusDist
-      ? data.summary.statusDist
-          .filter((x) => x.count > 0)
-          .map((x) => ({
-            s: x.status,
-            label: STATUS_LABELS[x.status] || x.status,
-            n: x.count,
-            amt: x.total_milli,
-            color: STATUS_COLORS[x.status] || 'var(--accent)',
-          }))
-      : mockStatusDist.byStatus;
+  const statusItems = data?.summary?.statusDist
+    ? data.summary.statusDist
+        .filter((x) => x.count > 0)
+        .map((x) => ({
+          s: x.status,
+          label: STATUS_LABELS[x.status] || x.status,
+          n: x.count,
+          amt: x.total_milli,
+          color: STATUS_COLORS[x.status] || 'var(--accent)',
+        }))
+    : isDemo
+    ? mockStatusDist.byStatus
+    : [];
 
   const totalN = statusItems.reduce((acc, x) => acc + x.n, 0) || 1;
-  const totalIssued = hasLiveRecords && data ? data.summary.kpis.issuedInvoices : mockStatusDist.totalIssued;
+  const totalIssued = data?.summary?.kpis?.issuedInvoices ?? (isDemo ? mockStatusDist.totalIssued : 0);
 
-  // Resolved recent transactions
+  // Resolved recent transactions: live transactions for real accounts, empty array if none
   const transactions =
-    hasLiveRecords && data?.summary?.recentTransactions?.length
+    data?.summary?.recentTransactions?.length
       ? data.summary.recentTransactions.map((tx) => {
           let tab: 'receipts' | 'invoices' | 'quotations' = 'invoices';
           let id = tx.ref;
@@ -165,15 +186,18 @@ export const DashboardView: React.FC = () => {
             tab,
           };
         })
-      : mockTransactions;
+      : isDemo
+      ? mockTransactions
+      : [];
 
   // Quick Action: Record Payment Modal
   const handleQuickPay = () => {
     if (!needs('payments')) return;
 
-    const openInvoices = MOCK_INVOICES.filter(
-      (i) => i.state === 'issued' && i.balance_milli > 0
-    );
+    const liveInvoices = invoicesData?.invoices || [];
+    const openInvoices = isDemo
+      ? MOCK_INVOICES.filter((i) => i.state === 'issued' && i.balance_milli > 0)
+      : liveInvoices.filter((i: any) => i.state === 'issued' && (i.balance_milli ?? 0) > 0);
 
     if (!openInvoices.length) {
       addToast('There are no invoices with an outstanding balance.');
@@ -567,7 +591,7 @@ export const DashboardView: React.FC = () => {
                     </td>
                   </tr>
                 ))
-              ) : (
+              ) : transactions.length > 0 ? (
                 transactions.map((tx, idx) => (
                   <tr
                     key={`${tx.kind}-${tx.ref}-${idx}`}
@@ -593,6 +617,19 @@ export const DashboardView: React.FC = () => {
                     </td>
                   </tr>
                 ))
+              ) : (
+                <tr>
+                  <td colSpan={6}>
+                    <div style={{ textAlign: 'center', padding: '36px 16px', color: '#8C9BAE' }}>
+                      <p style={{ margin: '0 0 6px 0', fontSize: '13.5px', color: '#E5EAF2', fontWeight: 600 }}>
+                        No transactions recorded yet
+                      </p>
+                      <p style={{ margin: 0, fontSize: '12.5px', color: '#6F7B90' }}>
+                        Issue your first invoice or create a quotation to see live activity here.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

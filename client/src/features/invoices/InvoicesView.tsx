@@ -43,8 +43,10 @@ const FILTER_SEGMENTS = [
 export const InvoicesView: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const { can } = useAuthStore();
+  const { can, user } = useAuthStore();
   const { selectedRecordId, setSelectedRecord } = useNavStore();
+
+  const isDemo = user?.isDemo === true;
 
   // Query live invoices from backend Express API
   const {
@@ -97,11 +99,11 @@ export const InvoicesView: React.FC = () => {
     );
   }
 
-  // Fallback to prototype mock data if live database has no records
+  // Fallback to prototype mock data strictly if in Demo Mode
   const hasLiveInvoices = Boolean(apiData?.invoices && apiData.invoices.length > 0);
 
-  // Normalize invoices from API or mock
-  const liveRows = hasLiveInvoices && apiData
+  // Normalize invoices from API or mock (live data strictly isolated for real accounts)
+  const liveRows: MockInvoice[] = hasLiveInvoices && apiData
     ? apiData.invoices.map((i: any) => {
         const custObj = i.customer_id;
         const custName =
@@ -133,10 +135,12 @@ export const InvoicesView: React.FC = () => {
           })),
         } as MockInvoice;
       })
-    : MOCK_INVOICES;
+    : isDemo
+    ? MOCK_INVOICES
+    : [];
 
   // Compute live filter segment counts
-  const allList = hasLiveInvoices && apiData ? liveRows : MOCK_INVOICES;
+  const allList = liveRows;
   const counts: Record<string, number> = { all: allList.length };
   allList.forEach((i) => {
     const s = invStatus(i);

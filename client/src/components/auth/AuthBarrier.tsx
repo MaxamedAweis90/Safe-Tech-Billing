@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
+import { toast } from '../../store/useUIStore';
 
 export interface AuthBarrierProps {
   children: React.ReactNode;
@@ -63,6 +64,8 @@ export const AuthBarrier: React.FC<AuthBarrierProps> = ({
         typeof window !== 'undefined' &&
         sessionStorage.getItem('safetech_just_onboarded') === 'true';
       if (!isJustOnboarded) {
+        const identifier = user?.email || user?.fullName || 'user';
+        toast(`Already authenticated as ${identifier}. Redirected to dashboard.`);
         navigate('/dashboard', { replace: true });
       }
     }

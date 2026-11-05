@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavStore } from '../store/useNavStore';
-import { useAuthStore, ROLES, getAvatarInitials } from '../store/useAuthStore';
+import { useAuthStore, getAvatarInitials } from '../store/useAuthStore';
 import { computeNavCounts } from '../lib/mockData';
 import { useQuotations } from '../hooks/useQuotations';
 import { useInvoices } from '../hooks/useInvoices';
@@ -23,21 +23,10 @@ interface NavSectionConfig {
 
 export const Sidebar: React.FC = () => {
   const { activeTab, setActiveTab, mobileDrawerOpen, setMobileDrawerOpen } = useNavStore();
-  const { role, user, can } = useAuthStore();
-  const roleInfo = ROLES[role] || ROLES.admin;
+  const { can, user } = useAuthStore();
+  const isDemo = user?.isDemo === true;
   const { data: companyData } = useCompanySettings();
   const company = companyData?.company;
-
-  const userName = user?.fullName || user?.name || roleInfo.user;
-  const userInitials = getAvatarInitials(userName);
-
-  const roleBadgeConfig: Record<string, { label: string; className: string }> = {
-    admin: { label: 'Admin', className: 'chip c-blue' },
-    accountant: { label: 'Accountant', className: 'chip c-teal' },
-    sales: { label: 'Sales Officer', className: 'chip c-purple' },
-    viewer: { label: 'Viewer', className: 'chip c-muted' },
-  };
-  const badge = roleBadgeConfig[role] || roleBadgeConfig.viewer;
 
   const isCompanyConfigured = Boolean(
     company?.name && company.name.trim().length > 0 && company.name !== 'Set your business info'
@@ -50,7 +39,7 @@ export const Sidebar: React.FC = () => {
 
   const openQ = quotesData?.quotations
     ? quotesData.quotations.filter((q) => ['draft', 'sent'].includes(q.state)).length
-    : mockCounts.openQ;
+    : (isDemo ? mockCounts.openQ : 0);
 
   const overdue = invoicesData?.invoices
     ? invoicesData.invoices.filter((i) => {
@@ -60,7 +49,7 @@ export const Sidebar: React.FC = () => {
         }
         return false;
       }).length
-    : mockCounts.overdue;
+    : (isDemo ? mockCounts.overdue : 0);
 
   const sections: NavSectionConfig[] = [
     {
@@ -167,7 +156,7 @@ export const Sidebar: React.FC = () => {
         ))}
       </nav>
 
-      {/* Upgraded Dynamic Bottom Identity Block */}
+      {/* Dynamic Company Bottom Area */}
       <div
         id="sideFoot"
         style={{
@@ -177,45 +166,82 @@ export const Sidebar: React.FC = () => {
           backgroundColor: 'var(--side-bg, #0A0F17)',
         }}
       >
-        {/* Business Information */}
-        <div style={{ marginBottom: '10px' }}>
-          {isCompanyConfigured && company ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {company.logo ? (
-                <img
-                  src={company.logo}
-                  alt={company.name}
-                  style={{
-                    width: '22px',
-                    height: '22px',
-                    borderRadius: '4px',
-                    objectFit: 'contain',
-                    backgroundColor: '#151C27',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: '22px',
-                    height: '22px',
-                    borderRadius: '4px',
-                    backgroundColor: '#18263D',
-                    color: '#6E9CF0',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  {(company.name.slice(0, 2)).toUpperCase()}
-                </div>
-              )}
-              <span
+        {isCompanyConfigured && company ? (
+          <div
+            role={can('settings') ? 'button' : undefined}
+            tabIndex={can('settings') ? 0 : undefined}
+            onClick={() => {
+              if (can('settings')) {
+                setActiveTab('settings');
+                setMobileDrawerOpen(false);
+                if (typeof window !== 'undefined') {
+                  window.location.hash = 'company';
+                }
+              }
+            }}
+            onKeyDown={(e) => {
+              if (can('settings') && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                setActiveTab('settings');
+                setMobileDrawerOpen(false);
+                if (typeof window !== 'undefined') {
+                  window.location.hash = 'company';
+                }
+              }
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '6px 8px',
+              margin: '-4px -6px',
+              borderRadius: '6px',
+              cursor: can('settings') ? 'pointer' : 'default',
+              transition: 'background-color 0.15s ease',
+            }}
+            className={can('settings') ? 'hover:bg-[#151C27]' : ''}
+            title={can('settings') ? `Manage ${company.name} in Settings` : company.name}
+          >
+            {company.logo ? (
+              <img
+                src={company.logo}
+                alt={company.name}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  objectFit: 'contain',
+                  backgroundColor: '#151C27',
+                  border: '1px solid #243042',
+                  padding: '2px',
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  backgroundColor: '#18263D',
+                  color: '#6E9CF0',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  border: '1px solid #243042',
+                }}
+              >
+                {getAvatarInitials(company.name)}
+              </div>
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
                 style={{
                   fontSize: '12.5px',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   color: '#E5EAF2',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -224,73 +250,101 @@ export const Sidebar: React.FC = () => {
                 title={company.name}
               >
                 {company.name}
-              </span>
+              </div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: '#8A97AC',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  marginTop: '1px',
+                }}
+                title={company.tagline || company.email || 'Active Workspace'}
+              >
+                {company.tagline || company.email || 'Active Workspace'}
+              </div>
             </div>
-          ) : (
-            <a
-              href="#settings"
-              onClick={(e) => {
+          </div>
+        ) : (
+          <div
+            role={can('settings') ? 'button' : undefined}
+            tabIndex={can('settings') ? 0 : undefined}
+            onClick={() => {
+              if (can('settings')) {
+                setActiveTab('settings');
+                setMobileDrawerOpen(false);
+                if (typeof window !== 'undefined') {
+                  window.location.hash = 'company';
+                }
+              }
+            }}
+            onKeyDown={(e) => {
+              if (can('settings') && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault();
                 setActiveTab('settings');
-              }}
-              className="text-xs text-status-warn hover:underline"
-              style={{
-                color: 'var(--warn, #E3A54A)',
-                fontSize: '11.5px',
-                textDecoration: 'none',
-                display: 'inline-block',
-              }}
-            >
-              ⚠️ Set your business info in Settings
-            </a>
-          )}
-        </div>
-
-        {/* User Identity Row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
+                setMobileDrawerOpen(false);
+                if (typeof window !== 'undefined') {
+                  window.location.hash = 'company';
+                }
+              }
+            }}
             style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              backgroundColor: '#18263D',
-              color: '#6E9CF0',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              fontWeight: 700,
-              flexShrink: 0,
-              border: '1px solid #243042',
+              gap: '10px',
+              padding: '6px 8px',
+              margin: '-4px -6px',
+              borderRadius: '6px',
+              cursor: can('settings') ? 'pointer' : 'default',
+              transition: 'background-color 0.15s ease',
             }}
+            className={can('settings') ? 'hover:bg-[#151C27]' : ''}
+            title="Configure business profile in Settings"
           >
-            {userInitials}
-          </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
             <div
-              className="text-sm strong truncate"
               style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#E5EAF2',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(227, 165, 74, 0.15)',
+                color: 'var(--warn, #E3A54A)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                border: '1px solid rgba(227, 165, 74, 0.3)',
               }}
-              title={userName}
             >
-              {userName}
+              <Icon name="alert" size={16} />
             </div>
-            <div style={{ marginTop: '2px' }}>
-              <span
-                className={badge.className}
-                style={{ fontSize: '10.5px', height: '18px', padding: '0 6px' }}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: 'var(--warn, #E3A54A)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
               >
-                {badge.label}
-              </span>
+                Set business info
+              </div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: '#8A97AC',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Configure in Settings
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </aside>
   );

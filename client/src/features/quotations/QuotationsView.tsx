@@ -27,8 +27,10 @@ const FILTER_SEGMENTS = ['all', 'draft', 'sent', 'accepted', 'rejected', 'expire
 export const QuotationsView: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const { can } = useAuthStore();
+  const { can, user } = useAuthStore();
   const { selectedRecordId, setSelectedRecord } = useNavStore();
+
+  const isDemo = user?.isDemo === true;
 
   // Query live quotations from Express API
   const {
@@ -55,11 +57,11 @@ export const QuotationsView: React.FC = () => {
     );
   }
 
-  // Fallback to prototype mock data if live database has no records
+  // Fallback to prototype mock data strictly if in Demo Mode
   const hasLiveQuotations = Boolean(apiData?.quotations && apiData.quotations.length > 0);
 
-  // Normalize API data to unified quotation objects
-  const liveRows = hasLiveQuotations && apiData
+  // Normalize API data to unified quotation objects (live data strictly isolated for real accounts)
+  const liveRows: MockQuote[] = hasLiveQuotations && apiData
     ? apiData.quotations.map((q: any) => {
         const custName =
           q.customerName ||
@@ -88,10 +90,12 @@ export const QuotationsView: React.FC = () => {
           invoiceNumber: q.invoiceNumber,
         } as MockQuote;
       })
-    : MOCK_QUOTES;
+    : isDemo
+    ? MOCK_QUOTES
+    : [];
 
   // Compute live filter segment counts
-  const allList = hasLiveQuotations && apiData ? liveRows : MOCK_QUOTES;
+  const allList = liveRows;
   const counts: Record<string, number> = { all: allList.length };
   allList.forEach((q) => {
     const s = qStatus(q);

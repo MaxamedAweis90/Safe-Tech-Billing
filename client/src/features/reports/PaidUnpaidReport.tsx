@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { SkeletonBox } from 'skullet/react';
 import { MOCK_INVOICES, invFin, invStatus, toBase } from '../../lib/mockData';
 import { formatMoney, milliStr, totalsOf } from '../../lib/formatters';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useReports } from '../../hooks/useReports';
 
 export interface PaidUnpaidReportProps {
@@ -17,6 +18,8 @@ export const PaidUnpaidReport: React.FC<PaidUnpaidReportProps> = ({
   cust,
   onUpdateCSV,
 }) => {
+  const { user } = useAuthStore();
+  const isDemo = user?.isDemo === true;
   const { data: apiData, isLoading } = useReports(
     'paidunpaid',
     undefined,
@@ -59,6 +62,10 @@ export const PaidUnpaidReport: React.FC<PaidUnpaidReportProps> = ({
           balance: g.list.reduce((sum: number, i: any) => sum + (i.balance_milli ?? 0), 0),
         })),
       };
+    }
+
+    if (!isDemo) {
+      return { groups: [] };
     }
 
     // Mock fallback

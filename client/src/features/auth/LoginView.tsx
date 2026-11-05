@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useNavStore } from '../../store/useNavStore';
@@ -11,9 +13,14 @@ export type LoginChannel = 'email' | 'sms';
 export interface LoginViewProps {
   onSwitchMode?: (mode: 'login' | 'register') => void;
   embedded?: boolean;
+  onGoogleUnregistered?: (data: { email: string; name: string }) => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = false }) => {
+export const LoginView: React.FC<LoginViewProps> = ({
+  onSwitchMode,
+  embedded = false,
+  onGoogleUnregistered,
+}) => {
   const [channel, setChannel] = useState<LoginChannel>('email');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -28,6 +35,76 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = f
 
   const { setUser } = useAuthStore();
   const { setActiveTab } = useNavStore();
+  const navigate = useNavigate();
+
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+  // Initialize Google Identity Services if client ID is configured
+  useEffect(() => {
+    if (!googleClientId || typeof window === 'undefined') return;
+
+    const initGsi = () => {
+      const google = (window as any).google;
+      if (!google?.accounts?.id) return;
+
+      try {
+        google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response: { credential?: string }) => {
+            if (!response.credential) return;
+            setIsGoogleLoading(true);
+            setErrorMsg('');
+            try {
+              const res = await api.post('/auth/google', {
+                credential: response.credential,
+              });
+
+              if (res.data?.success && res.data.user) {
+                setUser(res.data.user, res.data.token);
+                toast(`Signed in with Google as ${res.data.user.email}`);
+                navigate('/dashboard', { replace: true });
+                if (res.data.user.role === 'admin' && res.data.user.onboardingCompleted === false) {
+                  setActiveTab('onboarding');
+                } else {
+                  setActiveTab('dashboard');
+                }
+              } else if (res.data?.isUnregistered || res.data?.registered === false) {
+                toast('Google account verified. Redirecting to administrator setup...', false);
+                if (onGoogleUnregistered) {
+                  onGoogleUnregistered({
+                    email: res.data.email,
+                    name: res.data.name || '',
+                  });
+                } else if (onSwitchMode) {
+                  onSwitchMode('register');
+                } else {
+                  setActiveTab('signup');
+                }
+              }
+            } catch (err: any) {
+              setErrorMsg(err.message || 'Google authentication failed');
+            } finally {
+              setIsGoogleLoading(false);
+            }
+          },
+        });
+      } catch (e) {
+        console.warn('Google Identity Services notice:', e);
+      }
+    };
+
+    if ((window as any).google?.accounts?.id) {
+      initGsi();
+    } else {
+      const timer = setInterval(() => {
+        if ((window as any).google?.accounts?.id) {
+          initGsi();
+          clearInterval(timer);
+        }
+      }, 300);
+      return () => clearInterval(timer);
+    }
+  }, [googleClientId, onGoogleUnregistered, onSwitchMode, navigate, setActiveTab, setUser]);
 
   const cleanPhoneDigits = phone.replace(/\D/g, '');
   const fullPhone = cleanPhoneDigits ? `+252${cleanPhoneDigits}` : '';
@@ -114,55 +191,59 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = f
     }
   };
 
-  const handleGoogleAuth = async (emailToAuth?: string) => {
+  const handleGoogleAuth = async (directEmail?: string) => {
     setErrorMsg('');
-    const targetEmail = (emailToAuth || email).trim().toLowerCase();
 
-    if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
-      setGoogleAuthEmail(email.trim());
-      setShowGoogleModal(true);
+    // Developer sandbox / manual simulation
+    if (directEmail && directEmail.trim()) {
+      setIsGoogleLoading(true);
+      try {
+        const res = await api.post('/auth/google', {
+          email: directEmail.trim().toLowerCase(),
+          name: directEmail.trim().split('@')[0],
+        });
+
+        if (res.data?.success && res.data.user) {
+          setUser(res.data.user, res.data.token);
+          toast(`Signed in with Google as ${res.data.user.email}`);
+          navigate('/dashboard', { replace: true });
+          if (res.data.user.role === 'admin' && res.data.user.onboardingCompleted === false) {
+            setActiveTab('onboarding');
+          } else {
+            setActiveTab('dashboard');
+          }
+        } else if (res.data?.isUnregistered || res.data?.registered === false) {
+          toast('Google account verified. Redirecting to administrator setup...', false);
+          if (onGoogleUnregistered) {
+            onGoogleUnregistered({
+              email: res.data.email || directEmail.trim().toLowerCase(),
+              name: res.data.name || directEmail.trim().split('@')[0],
+            });
+          } else if (onSwitchMode) {
+            onSwitchMode('register');
+          } else {
+            setActiveTab('signup');
+          }
+        }
+      } catch (err: any) {
+        setErrorMsg(err.message || 'Google authentication failed');
+      } finally {
+        setIsGoogleLoading(false);
+        setShowGoogleModal(false);
+      }
       return;
     }
 
-    setIsGoogleLoading(true);
-    try {
-      const res = await api.post('/auth/google', {
-        email: targetEmail,
-        name: targetEmail.split('@')[0],
-      });
-
-      if (res.data?.success && res.data.user) {
-        setUser(res.data.user, res.data.token);
-        toast(`Signed in with Google as ${res.data.user.email}`);
-        if (typeof window !== 'undefined') {
-          window.history.pushState(null, '', '/dashboard');
-        }
-        if (res.data.user.role === 'admin' && res.data.user.onboardingCompleted === false) {
-          setActiveTab('onboarding');
-        } else {
-          setActiveTab('dashboard');
-        }
-      } else if (res.data?.isUnregistered || res.data?.registered === false) {
-        toast('Google account verified. Redirecting to administrator setup...', false);
-        const encodedEmail = encodeURIComponent(res.data.email || targetEmail);
-        const encodedName = encodeURIComponent(res.data.name || '');
-        const targetPath = `/signup?email=${encodedEmail}&name=${encodedName}&from=google`;
-
-        if (typeof window !== 'undefined') {
-          window.history.pushState(null, '', targetPath);
-        }
-
-        if (onSwitchMode) {
-          onSwitchMode('register');
-        } else {
-          setActiveTab('signup');
-        }
+    // Live Google Identity Services prompt if configured
+    const google = typeof window !== 'undefined' ? (window as any).google : null;
+    if (googleClientId && google?.accounts?.id) {
+      try {
+        google.accounts.id.prompt();
+      } catch (err) {
+        console.warn('Google prompt invocation:', err);
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Google authentication failed');
-    } finally {
-      setIsGoogleLoading(false);
-      setShowGoogleModal(false);
+    } else {
+      setShowGoogleModal(true);
     }
   };
 
@@ -555,18 +636,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = f
             </div>
           </form>
         )}
-      {/* Google Single Sign-On Account Dialog */}
-      {showGoogleModal && (
+      {/* Google Setup Guide & Sandbox Simulator (Mounted via portal to document.body, only when client ID is missing) */}
+      {showGoogleModal && !googleClientId && typeof document !== 'undefined' && createPortal(
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(5, 8, 12, 0.75)',
-            backdropFilter: 'blur(4px)',
+            backgroundColor: 'rgba(5, 8, 12, 0.8)',
+            backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 100,
+            zIndex: 9999,
             padding: '16px',
           }}
           onClick={() => setShowGoogleModal(false)}
@@ -576,10 +657,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = f
               backgroundColor: '#151C27',
               border: '1px solid #243042',
               borderRadius: '12px',
-              padding: '24px',
-              maxWidth: '400px',
+              padding: '26px',
+              maxWidth: '440px',
               width: '100%',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+              boxShadow: '0 24px 48px rgba(0, 0, 0, 0.7)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -603,79 +684,98 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchMode, embedded = f
                 />
               </svg>
               <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#E5EAF2', margin: 0 }}>
-                Google Single Sign-On
+                Google Single Sign-On Setup
               </h2>
             </div>
-            <p style={{ fontSize: '13px', color: '#8C9BAE', margin: '0 0 16px 0', lineHeight: 1.4 }}>
-              Enter your verified Google email to authenticate or begin onboarding.
-            </p>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (googleAuthEmail.trim()) {
-                  handleGoogleAuth(googleAuthEmail);
-                }
+            <div
+              style={{
+                padding: '10px 12px',
+                backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                border: '1px solid rgba(234, 179, 8, 0.3)',
+                borderRadius: '6px',
+                color: '#FDE047',
+                fontSize: '12px',
+                lineHeight: 1.4,
+                marginBottom: '16px',
               }}
-              style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
             >
-              <input
-                type="email"
-                required
-                autoFocus
-                placeholder="john.doe@gmail.com"
-                value={googleAuthEmail}
-                onChange={(e) => setGoogleAuthEmail(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '11px 14px',
-                  borderRadius: '8px',
-                  backgroundColor: '#0D121A',
-                  border: '1px solid #243042',
-                  color: '#E5EAF2',
-                  fontSize: '13.5px',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
+              <b>Configuration Notice:</b> <code>VITE_GOOGLE_CLIENT_ID</code> is not configured in your <code>.env</code> file. Add your Google OAuth Client ID to activate Google's live account chooser.
+            </div>
 
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowGoogleModal(false)}
-                  style={{
-                    backgroundColor: 'transparent',
-                    border: '1px solid #243042',
-                    borderRadius: '6px',
-                    padding: '8px 14px',
-                    fontSize: '13px',
-                    color: '#8C9BAE',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isGoogleLoading || !googleAuthEmail.trim()}
-                  style={{
-                    backgroundColor: '#3B82F6',
-                    color: '#FFFFFF',
-                    border: 0,
-                    borderRadius: '6px',
-                    padding: '8px 18px',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: isGoogleLoading || !googleAuthEmail.trim() ? 'not-allowed' : 'pointer',
-                    opacity: isGoogleLoading || !googleAuthEmail.trim() ? 0.6 : 1,
-                  }}
-                >
-                  {isGoogleLoading ? 'Connecting...' : 'Continue'}
-                </button>
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
+                Developer Sandbox Simulation
               </div>
-            </form>
+              <p style={{ fontSize: '12px', color: '#8C9BAE', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                Simulate a verified Google response to test login or administrator onboarding:
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (googleAuthEmail.trim()) {
+                    handleGoogleAuth(googleAuthEmail);
+                  }
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+              >
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. admin@safetech.so"
+                  value={googleAuthEmail}
+                  onChange={(e) => setGoogleAuthEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '6px',
+                    backgroundColor: '#0D121A',
+                    border: '1px solid #243042',
+                    color: '#E5EAF2',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowGoogleModal(false)}
+                    style={{
+                      backgroundColor: 'transparent',
+                      border: '1px solid #243042',
+                      borderRadius: '6px',
+                      padding: '7px 14px',
+                      fontSize: '12.5px',
+                      color: '#8C9BAE',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isGoogleLoading || !googleAuthEmail.trim()}
+                    style={{
+                      backgroundColor: '#3B82F6',
+                      color: '#FFFFFF',
+                      border: 0,
+                      borderRadius: '6px',
+                      padding: '7px 16px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      cursor: isGoogleLoading || !googleAuthEmail.trim() ? 'not-allowed' : 'pointer',
+                      opacity: isGoogleLoading || !googleAuthEmail.trim() ? 0.6 : 1,
+                    }}
+                  >
+                    {isGoogleLoading ? 'Simulating...' : 'Simulate Google Auth →'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

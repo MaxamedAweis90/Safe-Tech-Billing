@@ -14,6 +14,8 @@ export interface AuthContainerProps {
  */
 export const AuthContainer: React.FC<AuthContainerProps> = ({ initialMode }) => {
   const { activeTab, setActiveTab } = useNavStore();
+  const [isOnboardingSuccess, setIsOnboardingSuccess] = useState(false);
+  const [googleData, setGoogleData] = useState<{ email: string; name: string } | null>(null);
 
   const [mode, setMode] = useState<AuthMode>(() => {
     if (initialMode) return initialMode;
@@ -53,16 +55,23 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({ initialMode }) => 
     <AuthLayout
       mode={mode}
       onModeChange={handleModeChange}
+      isSuccess={isOnboardingSuccess}
       leftSlot={
         <AdminOnboardingView
           embedded
           onSwitchMode={handleModeChange}
+          onStepChange={(st) => setIsOnboardingSuccess(st === 'SUCCESS')}
+          googleData={googleData}
         />
       }
       rightSlot={
         <LoginView
           embedded
           onSwitchMode={handleModeChange}
+          onGoogleUnregistered={(data) => {
+            setGoogleData(data);
+            handleModeChange('register');
+          }}
         />
       }
     />

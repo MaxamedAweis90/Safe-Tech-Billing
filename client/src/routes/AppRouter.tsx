@@ -121,11 +121,7 @@ export const AppRouter: React.FC = () => {
           />
           <Route
             path="/accept-invite"
-            element={
-              <AuthBarrier mode="guest">
-                <StaffAcceptInviteView />
-              </AuthBarrier>
-            }
+            element={<StaffAcceptInviteView />}
           />
 
           {/* ========================================================================= */}

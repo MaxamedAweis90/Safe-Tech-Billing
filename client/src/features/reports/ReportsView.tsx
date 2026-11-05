@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { MOCK_CUSTOMERS, TODAY, getCustomerById } from '../../lib/mockData';
 import { fmtD, addDays } from '../../lib/formatters';
 import { IconCopy } from '../../components/icons';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useCustomers } from '../../hooks/useCustomers';
 import { exportCSV } from './csvExport';
 import { RevenueReport } from './RevenueReport';
@@ -61,16 +62,21 @@ export const ReportsView: React.FC = () => {
     return [from || y + '-01-01', to || TODAY];
   }, [range, from, to]);
 
+  const { user } = useAuthStore();
+  const isDemo = user?.isDemo === true;
+
   const { data: customersData } = useCustomers();
   const customerList = customersData?.customers && customersData.customers.length > 0
     ? customersData.customers.map((c: any) => ({
         id: c._id || c.id || String(c.code),
         name: c.name,
       }))
-    : MOCK_CUSTOMERS.map((c) => ({ id: c.id, name: c.name }));
+    : isDemo
+    ? MOCK_CUSTOMERS.map((c) => ({ id: c.id, name: c.name }))
+    : [];
 
   const selectedCustomer = cust !== 'all'
-    ? customerList.find((c) => c.id === cust) || getCustomerById(cust)
+    ? customerList.find((c) => c.id === cust) || (isDemo ? getCustomerById(cust) : null)
     : null;
 
   const handleCopyCSV = () => {

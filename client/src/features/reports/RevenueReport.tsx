@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { SkeletonBox } from 'skullet/react';
 import { MOCK_INVOICES, MOCK_PAYMENTS, getInvoiceById, toBase } from '../../lib/mockData';
 import { fmtD, formatMoney, milliStr, totalsOf } from '../../lib/formatters';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useReports } from '../../hooks/useReports';
 
 export interface RevenueReportProps {
@@ -21,6 +22,8 @@ export const RevenueReport: React.FC<RevenueReportProps> = ({
   onGroupChange,
   onUpdateCSV,
 }) => {
+  const { user } = useAuthStore();
+  const isDemo = user?.isDemo === true;
   const { data: apiData, isLoading } = useReports(
     'revenue',
     undefined,
@@ -83,7 +86,11 @@ export const RevenueReport: React.FC<RevenueReportProps> = ({
       return { keys: sortedKeys.reverse(), map: bucketMap, total: grandTotal };
     }
 
-    // Fallback calculation using mock data
+    if (!isDemo) {
+      return { keys: [], map: {}, total: { inv: 0, rec: 0 } };
+    }
+
+    // Fallback calculation using mock data strictly in Demo Mode
     const bucketMap: Record<string, { inv: number; rec: number; n: number }> = {};
 
     MOCK_INVOICES.filter(

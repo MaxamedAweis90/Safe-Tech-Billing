@@ -404,13 +404,17 @@ export const completeRegistration = async (req: Request, res: Response, next: Ne
       : (cleanAdminPhone || '+252 61 000 000');
     const currency = company.currency || company.default_currency || 'USD';
     const taxId = company.taxNumber || company.tax_id || '';
+    const tagline = company.tagline?.trim() || '';
+    const website = company.website?.trim() || '';
 
     let companyDoc = await Company.findOne();
     if (companyDoc) {
       companyDoc.name = company.name.trim();
+      companyDoc.tagline = tagline;
       companyDoc.address = company.address.trim();
       companyDoc.phone = cleanCompanyPhone;
       companyDoc.email = normalizedEmail;
+      companyDoc.website = website;
       companyDoc.default_currency = currency;
       companyDoc.tax_id = taxId;
       companyDoc.signatory = admin.fullName.trim();
@@ -420,9 +424,11 @@ export const completeRegistration = async (req: Request, res: Response, next: Ne
     } else {
       companyDoc = await Company.create({
         name: company.name.trim(),
+        tagline,
         address: company.address.trim(),
         phone: cleanCompanyPhone,
         email: normalizedEmail,
+        website,
         default_currency: currency,
         tax_id: taxId,
         signatory: admin.fullName.trim(),
@@ -1129,18 +1135,59 @@ export const demoLogin = async (_req: Request, res: Response, next: NextFunction
 /**
  * POST /api/v1/auth/google
  * Google OAuth onboarding resolution & login endpoint.
- * Authenticates existing accounts; intercepts unregistered accounts and responds with isUnregistered: true.
+ * Supports verifying official Google Identity Services tokens (credential / idToken)
+ * as well as direct email credentials for testing.
+ * Authenticates existing accounts; intercepts unregistered accounts with isUnregistered: true.
  */
 export const googleAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email, name } = req.body;
+    const { email: rawEmail, name: rawName, credential, idToken } = req.body;
+    let verifiedEmail = '';
+    let verifiedName = '';
 
-    if (!email || typeof email !== 'string') {
+    const tokenToVerify = credential || idToken;
+
+    if (tokenToVerify && typeof tokenToVerify === 'string') {
+      try {
+        const googleRes = await fetch(
+          `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenToVerify)}`
+        );
+        if (!googleRes.ok) {
+          res.status(401).json({ success: false, error: 'Invalid or expired Google authentication token' });
+          return;
+        }
+        const tokenInfo: any = await googleRes.json();
+
+        if (tokenInfo.email_verified !== 'true' && tokenInfo.email_verified !== true) {
+          res.status(403).json({ success: false, error: 'Google email address is not verified' });
+          return;
+        }
+
+        if (env.GOOGLE_CLIENT_ID && tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
+          res.status(401).json({ success: false, error: 'Google token audience mismatch' });
+          return;
+        }
+
+        verifiedEmail = tokenInfo.email || '';
+        verifiedName = tokenInfo.name || (tokenInfo.email ? tokenInfo.email.split('@')[0] : '');
+      } catch (tokenErr) {
+        res.status(401).json({ success: false, error: 'Failed to verify Google authentication token' });
+        return;
+      }
+    } else if (rawEmail && typeof rawEmail === 'string') {
+      verifiedEmail = rawEmail.trim().toLowerCase();
+      verifiedName = typeof rawName === 'string' ? rawName.trim() : verifiedEmail.split('@')[0];
+    } else {
+      res.status(400).json({ success: false, error: 'Google email or credential token is required' });
+      return;
+    }
+
+    if (!verifiedEmail) {
       res.status(400).json({ success: false, error: 'Google email is required' });
       return;
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = verifiedEmail.trim().toLowerCase();
     if (!EMAIL_REGEX.test(normalizedEmail)) {
       res.status(400).json({ success: false, error: 'Invalid Google email format' });
       return;
@@ -1155,7 +1202,7 @@ export const googleAuth = async (req: Request, res: Response, next: NextFunction
         registered: false,
         isUnregistered: true,
         email: normalizedEmail,
-        name: typeof name === 'string' ? name.trim() : '',
+        name: verifiedName,
         message: 'No Safe Tech Billing workspace exists for this Google account. Please complete administrator setup.',
       });
       return;

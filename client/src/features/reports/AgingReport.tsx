@@ -10,6 +10,7 @@ import {
 } from '../../lib/mockData';
 import { fmtD, formatMoney, milliStr, daysBetween } from '../../lib/formatters';
 import { useNavStore } from '../../store/useNavStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useReports } from '../../hooks/useReports';
 
 export interface AgingReportProps {
@@ -35,6 +36,8 @@ export const AgingReport: React.FC<AgingReportProps> = ({
   onUpdateCSV,
 }) => {
   const { setSelectedRecord } = useNavStore();
+  const { user } = useAuthStore();
+  const isDemo = user?.isDemo === true;
   const { data: apiData, isLoading } = useReports(
     'outstanding',
     undefined,
@@ -79,7 +82,11 @@ export const AgingReport: React.FC<AgingReportProps> = ({
       return { openInvoices: invs, agingBuckets: buckets };
     }
 
-    // Mock fallback
+    if (!isDemo) {
+      return { openInvoices: [], agingBuckets: [] };
+    }
+
+    // Mock fallback strictly for Demo Mode
     const open = MOCK_INVOICES.filter(
       (i) =>
         i.state === 'issued' &&

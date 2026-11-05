@@ -8,6 +8,7 @@ import {
 } from '../../lib/mockData';
 import { fmtD, formatMoney, milliStr, qStatus, totalsOf } from '../../lib/formatters';
 import { useNavStore } from '../../store/useNavStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useReports } from '../../hooks/useReports';
 
 export interface ConversionReportProps {
@@ -32,6 +33,8 @@ export const ConversionReport: React.FC<ConversionReportProps> = ({
   onUpdateCSV,
 }) => {
   const { setSelectedRecord } = useNavStore();
+  const { user } = useAuthStore();
+  const isDemo = user?.isDemo === true;
   const { data: apiData, isLoading } = useReports(
     'conversion',
     undefined,
@@ -77,6 +80,40 @@ export const ConversionReport: React.FC<ConversionReportProps> = ({
           },
         };
       }
+
+      if (!isDemo) {
+        return {
+          quotes: [],
+          stats: {
+            totalQuoted: 0,
+            totalQuotedVal: 0,
+            winRate: 0,
+            acceptedCount: 0,
+            decidedCount: 0,
+            convertedCount: 0,
+            convertedVal: 0,
+            openCount: 0,
+            openVal: 0,
+          },
+        };
+      }
+    }
+
+    if (!isDemo) {
+      return {
+        quotes: [],
+        stats: {
+          totalQuoted: 0,
+          totalQuotedVal: 0,
+          winRate: 0,
+          acceptedCount: 0,
+          decidedCount: 0,
+          convertedCount: 0,
+          convertedVal: 0,
+          openCount: 0,
+          openVal: 0,
+        },
+      };
     }
 
     // Fallback to local mock data

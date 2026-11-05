@@ -22,7 +22,7 @@ export interface DemoButtonProps {
  *   - Reveals "Explore Demo Mode" with "Live" badge.
  */
 export const DemoButton: React.FC<DemoButtonProps> = ({ mode, className = '' }) => {
-  const bootstrapDemoSession = useAuthStore((state) => state.bootstrapDemoSession);
+  const { isAuthenticated, user, bootstrapDemoSession } = useAuthStore();
   const { activeTab, setActiveTab } = useNavStore();
 
   const [isDesktop, setIsDesktop] = useState(
@@ -34,6 +34,11 @@ export const DemoButton: React.FC<DemoButtonProps> = ({ mode, className = '' }) 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Authenticated real users should never see or access Demo Mode
+  if (isAuthenticated && !user?.isDemo) {
+    return null;
+  }
 
   // Determine effective mode (fallback to activeTab if prop not explicitly provided)
   const effectiveMode =

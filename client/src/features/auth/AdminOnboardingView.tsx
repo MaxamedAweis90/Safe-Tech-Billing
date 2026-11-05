@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useNavStore } from '../../store/useNavStore';
@@ -12,6 +13,9 @@ export type OnboardingStep = WizardStep;
 export interface AdminOnboardingViewProps {
   onSwitchMode?: (mode: 'login' | 'register') => void;
   embedded?: boolean;
+  onStepChange?: (step: WizardStep) => void;
+  onSuccess?: () => void;
+  googleData?: { email: string; name: string } | null;
 }
 
 /**
@@ -24,8 +28,8 @@ const Stepper: React.FC<{ currentStep: 1 | 2 | 3 }> = ({ currentStep }) => {
   const steps = [1, 2, 3];
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: '24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', width: '220px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: '28px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', width: '240px' }}>
         {steps.map((num, idx) => {
           const isCompleted = currentStep > num;
           const isActive = currentStep === num;
@@ -44,15 +48,14 @@ const Stepper: React.FC<{ currentStep: 1 | 2 | 3 }> = ({ currentStep }) => {
                   fontSize: '14px',
                   fontWeight: 700,
                   flexShrink: 0,
-                  transition: 'all 200ms ease',
-                  backgroundColor: isActive ? '#2563EB' : '#FFFFFF',
+                  transition: 'all 250ms ease',
+                  backgroundColor: isActive ? '#2563EB' : '#151C27',
                   border: '2px solid #2563EB',
                   color: isActive ? '#FFFFFF' : '#2563EB',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
                 }}
               >
                 {isCompleted ? (
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 ) : (
@@ -89,22 +92,47 @@ const Stepper: React.FC<{ currentStep: 1 | 2 | 3 }> = ({ currentStep }) => {
 export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
   onSwitchMode,
   embedded = false,
+  onStepChange,
+  onSuccess,
+  googleData,
 }) => {
   const { user, setUser } = useAuthStore();
   const { setActiveTab } = useNavStore();
+  const navigate = useNavigate();
 
   // Wizard Step state machine
   const [step, setStep] = useState<WizardStep>('CREDENTIALS');
 
+  // Notify parent of step changes
+  useEffect(() => {
+    if (onStepChange) {
+      onStepChange(step);
+    }
+    if (step === 'SUCCESS' && onSuccess) {
+      onSuccess();
+    }
+  }, [step, onStepChange, onSuccess]);
+
   // Step 1: Admin Personal Credentials (in memory)
-  const [fullName, setFullName] = useState(user?.fullName || '');
-  const [email, setEmail] = useState(user?.email || '');
+  const [fullName, setFullName] = useState(googleData?.name || user?.fullName || '');
+  const [email, setEmail] = useState(googleData?.email || user?.email || '');
   const [phone, setPhone] = useState('');
+
+  // Sync Google verified credentials reactively
+  useEffect(() => {
+    if (googleData?.email) {
+      setEmail(googleData.email);
+      if (googleData.name) {
+        setFullName(googleData.name);
+      }
+    }
+  }, [googleData]);
 
   // Step 2: Company & Ledger Profile (in memory)
   const [companyName, setCompanyName] = useState('');
+  const [companyTagline, setCompanyTagline] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
-  const [businessPhone, setBusinessPhone] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
   const [baseCurrency, setBaseCurrency] = useState<'USD' | 'SOS'>('USD');
   const [taxId, setTaxId] = useState('');
 
@@ -139,16 +167,10 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
     }
   }, []);
 
-  const isGoogleOnboarding =
+  const isGoogleOnboarding = Boolean(googleData?.email) || (
     typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('from') === 'google';
-
-  // Keep business phone synced with admin phone if untouched
-  useEffect(() => {
-    if (phone && !businessPhone) {
-      setBusinessPhone(phone);
-    }
-  }, [phone]);
+    new URLSearchParams(window.location.search).get('from') === 'google'
+  );
 
   // Handle Step 1: Admin Personal Credentials (Pure Client-side validation, zero DB writes)
   const handleCredentialsSubmit = (e: React.FormEvent) => {
@@ -169,10 +191,6 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
     if (cleanDigits && (cleanDigits.length < 7 || cleanDigits.length > 9)) {
       setErrorMsg('Phone number must be between 7 and 9 digits');
       return;
-    }
-
-    if (!businessPhone) {
-      setBusinessPhone(phone);
     }
 
     setStep('COMPANY');
@@ -255,9 +273,6 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
       const cleanAdminPhone = phone.replace(/\D/g, '');
       const fullAdminPhone = cleanAdminPhone ? `+252${cleanAdminPhone}` : undefined;
 
-      const cleanCompanyPhone = (businessPhone || phone).replace(/\D/g, '');
-      const fullCompanyPhone = cleanCompanyPhone ? `+252${cleanCompanyPhone}` : fullAdminPhone;
-
       // Atomically verify OTP and create User + Company records in MongoDB
       const res = await api.post('/auth/complete-registration', {
         otp: otp.trim(),
@@ -268,8 +283,10 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
         },
         company: {
           name: companyName.trim(),
+          tagline: companyTagline.trim() || undefined,
           address: companyAddress.trim(),
-          phone: fullCompanyPhone || fullAdminPhone,
+          phone: fullAdminPhone || '+252610000000',
+          website: companyWebsite.trim() || undefined,
           currency: baseCurrency,
           taxNumber: taxId.trim() || undefined,
         },
@@ -305,8 +322,8 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
   const handleOpenDashboard = () => {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('safetech_just_onboarded');
-      window.history.pushState(null, '', '/dashboard');
     }
+    navigate('/dashboard', { replace: true });
     setActiveTab('dashboard');
   };
 
@@ -624,6 +641,54 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
               />
             </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
+                  Business Tagline
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Technology & Logistics"
+                  value={companyTagline}
+                  onChange={(e) => setCompanyTagline(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: '8px',
+                    backgroundColor: '#0D121A',
+                    border: '1px solid #243042',
+                    color: '#E5EAF2',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
+                  Corporate Website
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://company.so"
+                  value={companyWebsite}
+                  onChange={(e) => setCompanyWebsite(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: '8px',
+                    backgroundColor: '#0D121A',
+                    border: '1px solid #243042',
+                    color: '#E5EAF2',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
                 Physical Office Address <span style={{ color: '#F07A70' }}>*</span>
@@ -651,55 +716,6 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
-                  Official Phone
-                </label>
-                <div style={{ display: 'flex', alignItems: 'stretch' }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '0 12px',
-                      backgroundColor: '#151C27',
-                      border: '1px solid #243042',
-                      borderRight: '0',
-                      borderRadius: '8px 0 0 8px',
-                      color: '#B9C5DA',
-                      fontSize: '13px',
-                      fontFamily: "'IBM Plex Mono', monospace",
-                      fontWeight: 600,
-                      userSelect: 'none',
-                    }}
-                  >
-                    +252
-                  </div>
-                  <input
-                    type="tel"
-                    placeholder="xxxxxxxxx"
-                    value={businessPhone}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/\D/g, '');
-                      const stripped = raw.startsWith('252') ? raw.slice(3) : raw;
-                      setBusinessPhone(stripped.slice(0, 9));
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: '11px 12px',
-                      borderRadius: '0 8px 8px 0',
-                      backgroundColor: '#0D121A',
-                      border: '1px solid #243042',
-                      color: '#E5EAF2',
-                      fontSize: '13px',
-                      fontFamily: "'IBM Plex Mono', monospace",
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
                   Base Currency
                 </label>
                 <select
@@ -722,30 +738,30 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                   <option value="SOS">SOS (Sh.So.)</option>
                 </select>
               </div>
-            </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
-                Tax Identification Number (TIN)
-              </label>
-              <input
-                type="text"
-                placeholder="Optional (e.g. TAX-0012345)"
-                value={taxId}
-                onChange={(e) => setTaxId(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '11px 14px',
-                  borderRadius: '8px',
-                  backgroundColor: '#0D121A',
-                  border: '1px solid #243042',
-                  color: '#E5EAF2',
-                  fontSize: '13px',
-                  fontFamily: "'IBM Plex Mono', monospace",
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
+                  Tax Identification Number (TIN)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Optional (e.g. TAX-0012345)"
+                  value={taxId}
+                  onChange={(e) => setTaxId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: '8px',
+                    backgroundColor: '#0D121A',
+                    border: '1px solid #243042',
+                    color: '#E5EAF2',
+                    fontSize: '13px',
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
             </div>
 
             <div
@@ -943,7 +959,10 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
         <div
           style={{
             textAlign: 'center',
-            padding: '24px 8px',
+            padding: '32px 16px',
+            maxWidth: '520px',
+            width: '100%',
+            margin: '0 auto',
             animation: 'fadeIn 600ms cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
@@ -1002,10 +1021,22 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
               <span style={{ color: '#6F7B90' }}>Corporate Entity:</span>
               <span style={{ color: '#E5EAF2', fontWeight: 600 }}>{companyName}</span>
             </div>
+            {companyTagline && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                <span style={{ color: '#6F7B90' }}>Tagline:</span>
+                <span style={{ color: '#B9C5DA', fontStyle: 'italic' }}>{companyTagline}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
               <span style={{ color: '#6F7B90' }}>Headquarters:</span>
               <span style={{ color: '#B9C5DA' }}>{companyAddress}</span>
             </div>
+            {companyWebsite && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                <span style={{ color: '#6F7B90' }}>Website:</span>
+                <span style={{ color: '#6E9CF0' }}>{companyWebsite}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
               <span style={{ color: '#6F7B90' }}>Base Currency:</span>
               <span style={{ color: '#6E9CF0', fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace" }}>{baseCurrency}</span>
@@ -1049,7 +1080,7 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
   }
 
   return (
-    <AuthLayout mode="register" onModeChange={onSwitchMode}>
+    <AuthLayout mode="register" onModeChange={onSwitchMode} isSuccess={step === 'SUCCESS'}>
       {content}
     </AuthLayout>
   );
