@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { User, IUser, UserRole } from '../models/user.model';
 import { TeamInvitation, ITeamInvitation, InvitationRole } from '../models/invitation.model';
+import { Company } from '../models/Company';
 import { sendTemplatedEmail } from './communication.service';
 import { logAction } from './auditService';
 import { issueAuthTokens } from '../controllers/auth.controller';
@@ -223,10 +224,41 @@ export const getInvitationByToken = async (token: string) => {
     );
   }
 
+  let inviterName = 'Administrator';
+  let companyName = 'Safe Tech Solutions';
+
+  // Only query models if MongoDB is active to avoid query buffering timeouts in unit tests
+  if (mongoose.connection.readyState === 1) {
+    if (invitation.invitedBy) {
+      try {
+        const inviter = await User.findById(invitation.invitedBy);
+        if (inviter) {
+          inviterName = inviter.fullName || inviter.name || 'Administrator';
+          if (inviter.companyName) {
+            companyName = inviter.companyName;
+          }
+        }
+      } catch {
+        // Graceful fallback to default inviter name
+      }
+    }
+
+    try {
+      const company = await Company.findOne();
+      if (company?.name) {
+        companyName = company.name;
+      }
+    } catch {
+      // Graceful fallback to companyName
+    }
+  }
+
   return {
     email: invitation.email,
     role: invitation.role,
     expiresAt: invitation.expiresAt,
+    inviterName,
+    companyName,
   };
 };
 

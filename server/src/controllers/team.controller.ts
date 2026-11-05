@@ -155,6 +155,8 @@ export const getInvitationByToken = async (
       email: metadata.email,
       role: metadata.role,
       expiresAt: metadata.expiresAt,
+      inviterName: metadata.inviterName,
+      companyName: metadata.companyName,
     });
   } catch (err: any) {
     if (err instanceof teamService.TeamServiceError) {
