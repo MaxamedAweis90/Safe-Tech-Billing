@@ -14,6 +14,7 @@ import receiptRoutes from './routes/receiptRoutes';
 import settingsRoutes from './routes/settingsRoutes';
 import reportRoutes from './routes/reportRoutes';
 import auditRoutes from './routes/auditRoutes';
+import trashRoutes from './routes/trashRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import teamRoutes from './routes/team.routes';
 
@@ -54,6 +55,7 @@ app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/audit-log', auditRoutes);
+app.use('/api/v1/trash', trashRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 
 // 404 Route Catch-all

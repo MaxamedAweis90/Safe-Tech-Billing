@@ -88,4 +88,9 @@ export const auditKeys = {
   list: (params?: Record<string, any>) => ['audit', params] as const,
 };
 
+export const trashKeys = {
+  all: ['trash'] as const,
+  list: (params?: Record<string, any>) => ['trash', params] as const,
+};
+
 export default queryClient;

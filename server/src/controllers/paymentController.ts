@@ -76,7 +76,9 @@ export const listPayments = async (
   try {
     const { invoice_id, method, limit, skip } = req.query;
 
-    const baseFilter: Record<string, unknown> = {};
+    const baseFilter: Record<string, unknown> = {
+      isDeleted: { $ne: true },
+    };
     if (invoice_id && typeof invoice_id === "string") {
       baseFilter.invoice_id = invoice_id;
     }
@@ -131,7 +133,9 @@ export const listReceipts = async (
   try {
     const { method, customer_id, q, limit, skip } = req.query;
 
-    const baseFilter: Record<string, unknown> = {};
+    const baseFilter: Record<string, unknown> = {
+      isDeleted: { $ne: true },
+    };
     if (method && typeof method === "string" && method !== "all") {
       baseFilter.method = method;
     }
@@ -194,7 +198,7 @@ export const getReceipt = async (
       return;
     }
 
-    const filter = getTenantFilter(req, { _id: id });
+    const filter = getTenantFilter(req, { _id: id, isDeleted: { $ne: true } });
     if (!filter) {
       res.status(404).json({ success: false, error: "Receipt not found" });
       return;
@@ -213,6 +217,66 @@ export const getReceipt = async (
     res.status(200).json({
       success: true,
       receipt,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const removeReceipt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Receipt not found" });
+      return;
+    }
+
+    const filter = getTenantFilter(req, { _id: id, isDeleted: { $ne: true } });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Receipt not found" });
+      return;
+    }
+
+    const receipt = await Receipt.findOne(filter);
+    if (!receipt) {
+      res.status(404).json({ success: false, error: "Receipt not found" });
+      return;
+    }
+
+    const now = new Date();
+    const userId = req.user?.id ? new Types.ObjectId(req.user.id) : null;
+
+    receipt.isDeleted = true;
+    receipt.deletedAt = now;
+    receipt.deletedBy = userId;
+    await receipt.save();
+
+    if (receipt.payment_id) {
+      await Payment.updateOne(
+        { _id: receipt.payment_id },
+        { $set: { isDeleted: true, deletedAt: now, deletedBy: userId } }
+      );
+    }
+
+    if (req.user) {
+      const tenantCompanyId = req.user.companyId || (req.user.isDemo ? null : undefined);
+      await logAction({
+        companyId: tenantCompanyId,
+        user_name: req.user.name,
+        role: req.user.role,
+        action: "Moved receipt to trash",
+        ref: receipt.number,
+        detail: `Voided payment ${receipt.amount_milli} milli (${receipt.method}) and moved receipt to trash`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Receipt moved to trash successfully",
     });
   } catch (err) {
     next(err);

@@ -15,7 +15,7 @@ export const ROLES: Record<
   admin: {
     label: "Administrator",
     user: "Amina Yusuf",
-    can: ["quotes", "invoices", "payments", "customers", "settings", "audit"],
+    can: ["quotes", "invoices", "payments", "customers", "settings", "audit", "trash"],
   },
   accountant: {
     label: "Accountant",

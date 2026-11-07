@@ -67,6 +67,9 @@ export const TopBar: React.FC = () => {
       window.history.pushState(null, '', `/${tab}/${clean}`);
       setActiveTab(tab);
     } else {
+      if (typeof window !== 'undefined') {
+        window.history.pushState(null, '', `/${tab}`);
+      }
       setActiveTab(tab);
     }
   };
@@ -298,6 +301,37 @@ export const TopBar: React.FC = () => {
                     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                   </svg>
                   <span>Email Templates</span>
+                </button>
+              )}
+
+              {role === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => handleNav('trash')}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '9px 12px',
+                    borderRadius: '6px',
+                    border: 0,
+                    backgroundColor: 'transparent',
+                    color: '#E5EAF2',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background-color 0.12s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1C2636';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <Icon name="trash" size={16} />
+                  <span>Trash &amp; Recycle Bin</span>
                 </button>
               )}
 

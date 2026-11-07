@@ -26,13 +26,15 @@ export const getDashboardSummary = async (
     }
 
     const tenantCompanyId = req.user?.companyId;
-    let companyFilter: Record<string, unknown> = {};
+    let companyFilter: Record<string, unknown> = {
+      isDeleted: { $ne: true },
+    };
     if (tenantCompanyId) {
-      companyFilter = { companyId: tenantCompanyId };
+      companyFilter.companyId = tenantCompanyId;
     } else {
       const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
       if (isDemo) {
-        companyFilter = { companyId: null };
+        companyFilter.companyId = null;
       } else {
         res.status(200).json({
           success: true,

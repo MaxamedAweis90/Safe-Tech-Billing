@@ -15,7 +15,9 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useNavStore } from '../../store/useNavStore';
 import { IconPlus } from '../../components/icons';
 import { openCustomerModal } from './CustomerModal';
-import { useCustomerDetail } from '../../hooks/useCustomers';
+import { useCustomerDetail, useDeleteCustomer } from '../../hooks/useCustomers';
+import { confirmBox } from '../../store/useUIStore';
+import { Icon } from '../../components/icons';
 
 export interface CustomerProfileViewProps {
   customerId: string;
@@ -56,7 +58,8 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
   customerId,
   onBack,
 }) => {
-  const { can } = useAuthStore();
+  const { can, role } = useAuthStore();
+  const deleteCustomerMutation = useDeleteCustomer();
   const { setSelectedRecord, setPrefillCustomerId } = useNavStore();
 
   const { data: detailData, isLoading } = useCustomerDetail(customerId);
@@ -251,6 +254,24 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
     setSelectedRecord('invoices', 'new');
   };
 
+  const handleDeleteCustomer = async () => {
+    const confirmed = await confirmBox({
+      title: `Move ${c.name} to trash?`,
+      text: 'This customer will be moved to your company trash bin. You can restore or permanently delete them from the Trash view.',
+      ok: 'Move to trash',
+      danger: true,
+    });
+
+    if (confirmed) {
+      try {
+        await deleteCustomerMutation.mutateAsync(c.id);
+        onBack();
+      } catch {
+        // error toast handled in mutation
+      }
+    }
+  };
+
   return (
     <>
       {/* Page Header */}
@@ -301,6 +322,17 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
             >
               <IconPlus size={15} />
               Quotation
+            </button>
+          )}
+          {role === 'admin' && (
+            <button
+              type="button"
+              className="btn danger"
+              onClick={handleDeleteCustomer}
+              disabled={deleteCustomerMutation.isPending}
+            >
+              <Icon name="trash" size={14} />
+              <span>{deleteCustomerMutation.isPending ? 'Deleting…' : 'Delete'}</span>
             </button>
           )}
           {can('invoices') && (

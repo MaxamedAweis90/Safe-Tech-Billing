@@ -119,3 +119,28 @@ export function useRecordPayment() {
   });
 }
 
+/**
+ * Mutation hook to delete (void / move to trash) a receipt.
+ */
+export function useDeleteReceipt() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (receiptId: string) => {
+      const res = await api.delete(`/receipts/${receiptId}`);
+      return res.data as { success: boolean; message: string };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: receiptKeys.all });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+      queryClient.invalidateQueries({ queryKey: customerKeys.all });
+      queryClient.invalidateQueries({ queryKey: reportKeys.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
+      toast(data.message || 'Receipt moved to trash.');
+    },
+    onError: (err: any) => {
+      toast(err.message || 'Failed to delete receipt', true);
+    },
+  });
+}
+

@@ -234,6 +234,29 @@ export interface DashboardStats {
   }[];
 }
 
+export interface TrashedItem {
+  id: string;
+  type: 'quotation' | 'invoice' | 'receipt' | 'customer';
+  numberOrCode: string;
+  nameOrTitle: string;
+  deletedAt: string;
+  deletedBy?: {
+    id: string;
+    name?: string;
+  } | null;
+  amount_milli?: number;
+  currency?: string;
+  statusOrState?: string;
+}
+
+export interface TrashCounts {
+  all: number;
+  quotation: number;
+  invoice: number;
+  receipt: number;
+  customer: number;
+}
+
 export type NavTab =
   | "dashboard"
   | "quotations"
@@ -243,6 +266,7 @@ export type NavTab =
   | "reports"
   | "settings"
   | "audit"
+  | "trash"
   | "blueprint"
   | "login"
   | "signup"

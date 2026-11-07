@@ -23,7 +23,9 @@ export const listQuotations = async (
   try {
     const { state, customer_id, q, limit, skip } = req.query;
 
-    const baseFilter: Record<string, unknown> = {};
+    const baseFilter: Record<string, unknown> = {
+      isDeleted: { $ne: true },
+    };
     if (state && typeof state === "string") {
       baseFilter.state = state as QuotationState;
     }
@@ -465,21 +467,22 @@ export const deleteQuotation = async (
       return;
     }
 
-    await quotationService.deleteDraft(id);
+    await quotationService.deleteDraft(id, req.user?.id);
 
     if (req.user && existing) {
       await logAction({
         companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
-        action: "Deleted draft quotation",
+        action: "Moved draft quotation to trash",
         ref: existing.number,
+        detail: "Draft quotation moved to trash",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: "Draft quotation deleted successfully",
+      message: "Draft quotation moved to trash successfully",
     });
   } catch (err) {
     next(err);

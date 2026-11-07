@@ -29,6 +29,7 @@ import { CustomersView } from '../features/customers/CustomersView';
 import { ReportsView } from '../features/reports/ReportsView';
 import { SettingsView } from '../features/settings/SettingsView';
 import { AuditView } from '../features/audit/AuditView';
+import { TrashView } from '../features/trash/TrashView';
 import { BlueprintView } from '../features/blueprint/BlueprintView';
 
 /**
@@ -281,6 +282,20 @@ export const AppRouter: React.FC = () => {
                 <RoleGuard permission="audit">
                   <AppShell>
                     <AuditView />
+                  </AppShell>
+                </RoleGuard>
+              </AuthBarrier>
+            }
+          />
+
+          {/* Trash & Recycle Bin (Restricted to roles with 'trash' capability) */}
+          <Route
+            path="/trash"
+            element={
+              <AuthBarrier mode="protected">
+                <RoleGuard permission="trash">
+                  <AppShell>
+                    <TrashView />
                   </AppShell>
                 </RoleGuard>
               </AuthBarrier>

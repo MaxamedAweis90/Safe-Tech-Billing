@@ -25,7 +25,9 @@ export const listInvoices = async (
   try {
     const { status, customer_id, q, limit, skip } = req.query;
 
-    const baseFilter: Record<string, unknown> = {};
+    const baseFilter: Record<string, unknown> = {
+      isDeleted: { $ne: true },
+    };
     if (customer_id && typeof customer_id === "string") {
       baseFilter.customer_id = customer_id;
     }
@@ -446,21 +448,22 @@ export const deleteInvoiceHandler = async (
       return;
     }
 
-    await invoiceService.deleteDraft(id);
+    await invoiceService.deleteDraft(id, req.user?.id);
 
     if (req.user) {
       await logAction({
         companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
-        action: "Deleted draft invoice",
-        ref: invoice._id.toString(),
+        action: "Moved draft invoice to trash",
+        ref: invoice.number || invoice._id.toString(),
+        detail: "Draft invoice moved to trash",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: "Draft invoice deleted successfully",
+      message: "Draft invoice moved to trash successfully",
     });
   } catch (err) {
     next(err);

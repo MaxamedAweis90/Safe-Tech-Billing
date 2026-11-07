@@ -203,7 +203,10 @@ export const duplicateQuote = async (id: string | Types.ObjectId): Promise<IQuot
 /**
  * Deletes a draft quotation. Non-drafts or already converted quotations cannot be deleted.
  */
-export const deleteDraft = async (id: string | Types.ObjectId): Promise<boolean> => {
+export const deleteDraft = async (
+  id: string | Types.ObjectId,
+  userId?: string | Types.ObjectId | null
+): Promise<boolean> => {
   const quotation = await Quotation.findById(id);
   if (!quotation) throw new Error('Quotation not found');
 
@@ -215,7 +218,10 @@ export const deleteDraft = async (id: string | Types.ObjectId): Promise<boolean>
     throw new Error('Cannot delete quotation linked to an invoice');
   }
 
-  await Quotation.findByIdAndDelete(id);
+  quotation.isDeleted = true;
+  quotation.deletedAt = new Date();
+  quotation.deletedBy = userId ? new Types.ObjectId(userId) : null;
+  await quotation.save();
   return true;
 };
 

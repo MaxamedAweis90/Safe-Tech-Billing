@@ -15,6 +15,9 @@ export interface IReceipt extends Document {
   prev_paid_milli: number;
   invoice_total_milli: number;
   currency: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: Types.ObjectId | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

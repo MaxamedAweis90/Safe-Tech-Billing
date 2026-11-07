@@ -16,6 +16,9 @@ export interface IQuotation extends Document {
   reject_reason?: string;
   invoice_id?: Types.ObjectId | null;
   items: IDocumentItem[];
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: Types.ObjectId | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -89,6 +92,20 @@ const QuotationSchema = new Schema<IQuotation>(
         validator: (items: IDocumentItem[]) => Array.isArray(items) && items.length > 0,
         message: 'Quotation must have at least one line item',
       },
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
     },
   },
   {

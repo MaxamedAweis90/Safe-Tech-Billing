@@ -11,7 +11,9 @@ import {
 } from '../../lib/mockData';
 import { formatMoney } from '../../lib/formatters';
 import { useNavStore } from '../../store/useNavStore';
-import { useReceiptDetail } from '../../hooks/useReceipts';
+import { useAuthStore } from '../../store/useAuthStore';
+import { confirmBox } from '../../store/useUIStore';
+import { useReceiptDetail, useDeleteReceipt } from '../../hooks/useReceipts';
 
 export interface ReceiptDetailViewProps {
   receiptId?: string;
@@ -29,6 +31,8 @@ export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
   onNavigateCustomer,
 }) => {
   const { setSelectedRecord } = useNavStore();
+  const { role } = useAuthStore();
+  const deleteReceiptMutation = useDeleteReceipt();
 
   const targetId = receiptId || propReceipt?.id;
   const { data: detailData, isLoading } = useReceiptDetail(targetId);
@@ -129,6 +133,24 @@ export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
     }
   };
 
+  const handleDeleteReceipt = async () => {
+    const confirmed = await confirmBox({
+      title: `Move receipt ${r.number} to trash?`,
+      text: 'Moving this receipt to trash will void the recorded payment and restore the outstanding balance on the linked invoice. This action is recorded in the company audit trail.',
+      ok: 'Void & Move to Trash',
+      danger: true,
+    });
+
+    if (confirmed && targetId) {
+      try {
+        await deleteReceiptMutation.mutateAsync(targetId);
+        onBack();
+      } catch {
+        // error handled in mutation
+      }
+    }
+  };
+
   return (
     <>
       {/* Page Header */}
@@ -189,6 +211,17 @@ export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
             <Icon name="send" />
             Share
           </button>
+          {role === 'admin' && (
+            <button
+              type="button"
+              className="btn danger"
+              onClick={handleDeleteReceipt}
+              disabled={deleteReceiptMutation.isPending}
+            >
+              <Icon name="trash" size={14} />
+              <span>{deleteReceiptMutation.isPending ? 'Voiding…' : 'Move to trash'}</span>
+            </button>
+          )}
           {linkedInvoice && (
             <button
               type="button"

@@ -161,7 +161,8 @@ export const updateCustomer = async (
  */
 export const deleteCustomer = async (
   id: string | Types.ObjectId,
-  tenantCompanyId?: string | Types.ObjectId | null
+  tenantCompanyId?: string | Types.ObjectId | null,
+  userId?: string | Types.ObjectId | null
 ): Promise<boolean> => {
   const query: Record<string, unknown> = { _id: id };
   if (tenantCompanyId) {
@@ -172,18 +173,11 @@ export const deleteCustomer = async (
     throw new Error('Customer not found');
   }
 
-  const hasInvoices = await Invoice.exists({ customer_id: id });
-  if (hasInvoices) {
-    throw new Error('Cannot delete customer with existing invoices');
-  }
-
-  const hasQuotes = await Quotation.exists({ customer_id: id });
-  if (hasQuotes) {
-    throw new Error('Cannot delete customer with existing quotations');
-  }
-
-  const result = await Customer.deleteOne({ _id: id });
-  return result.deletedCount === 1;
+  customer.isDeleted = true;
+  customer.deletedAt = new Date();
+  customer.deletedBy = userId ? new Types.ObjectId(userId) : null;
+  await customer.save();
+  return true;
 };
 
 /**
@@ -197,9 +191,14 @@ export const listCustomers = async (
   const limit = options.limit || 50;
   const skip = options.skip || 0;
 
+  const actualFilter = {
+    isDeleted: { $ne: true },
+    ...filter,
+  };
+
   const [customers, total] = await Promise.all([
-    Customer.find(filter).sort(sort).skip(skip).limit(limit),
-    Customer.countDocuments(filter),
+    Customer.find(actualFilter).sort(sort).skip(skip).limit(limit),
+    Customer.countDocuments(actualFilter),
   ]);
 
   return { customers, total };

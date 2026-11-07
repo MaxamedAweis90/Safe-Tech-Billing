@@ -10,6 +10,9 @@ export interface ICustomer extends Document {
   tax_id?: string;
   address?: string;
   since: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: Types.ObjectId | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

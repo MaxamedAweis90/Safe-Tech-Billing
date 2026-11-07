@@ -20,6 +20,9 @@ export interface IInvoice extends Document {
   cancelled_at?: Date | null;
   cancel_reason?: string;
   items: IDocumentItem[];
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: Types.ObjectId | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

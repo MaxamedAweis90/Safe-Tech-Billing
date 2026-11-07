@@ -229,22 +229,22 @@ export const removeCustomer = async (
       return;
     }
 
-    await deleteCustomer(id, tenantId);
+    await deleteCustomer(id, tenantId, req.user?.id);
 
     if (req.user && existing) {
       await logAction({
         companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
-        action: "Deleted customer",
+        action: "Moved customer to trash",
         ref: String(existing.code),
-        detail: `Customer ${existing.name} deleted`,
+        detail: `Customer ${existing.name} (Code: ${existing.code}) moved to trash`,
       });
     }
 
     res.status(200).json({
       success: true,
-      message: "Customer deleted successfully",
+      message: "Customer moved to trash successfully",
     });
   } catch (err: any) {
     if (err?.message === "Customer not found") {

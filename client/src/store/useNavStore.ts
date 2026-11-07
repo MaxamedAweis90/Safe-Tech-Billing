@@ -29,6 +29,7 @@ export function tabToPath(tab: NavTab, recordId?: string | null): string {
   if (tab === 'reports') return '/reports';
   if (tab === 'settings') return '/settings';
   if (tab === 'audit') return '/audit';
+  if (tab === 'trash') return '/trash';
   if (tab === 'blueprint') return '/blueprint';
   return `/${tab}`;
 }
@@ -52,6 +53,7 @@ export function parsePath(pathnameStr: string): { tab: NavTab; recordId: string 
   if (base === 'reports') return { tab: 'reports', recordId: null };
   if (base === 'settings') return { tab: 'settings', recordId: null };
   if (base === 'audit') return { tab: 'audit', recordId: null };
+  if (base === 'trash') return { tab: 'trash', recordId: null };
   if (base === 'blueprint') return { tab: 'blueprint', recordId: null };
 
   return { tab: 'dashboard', recordId: null };

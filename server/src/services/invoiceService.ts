@@ -234,7 +234,10 @@ export const cancelInvoice = async (
 /**
  * Deletes a draft invoice. Issued or cancelled invoices cannot be deleted.
  */
-export const deleteDraft = async (id: string | Types.ObjectId): Promise<boolean> => {
+export const deleteDraft = async (
+  id: string | Types.ObjectId,
+  userId?: string | Types.ObjectId | null
+): Promise<boolean> => {
   const invoice = await Invoice.findById(id);
   if (!invoice) throw new Error('Invoice not found');
 
@@ -242,7 +245,10 @@ export const deleteDraft = async (id: string | Types.ObjectId): Promise<boolean>
     throw new Error(`Cannot delete invoice in "${invoice.state}" state. Only drafts can be deleted.`);
   }
 
-  await Invoice.findByIdAndDelete(id);
+  invoice.isDeleted = true;
+  invoice.deletedAt = new Date();
+  invoice.deletedBy = userId ? new Types.ObjectId(userId) : null;
+  await invoice.save();
   return true;
 };
 
@@ -259,7 +265,7 @@ export const getInvoiceFinancials = async (
   const total_milli = totals.total_milli;
 
   const [payments, creditNotes] = await Promise.all([
-    Payment.find({ invoice_id: invoiceId }),
+    Payment.find({ invoice_id: invoiceId, isDeleted: { $ne: true } }),
     CreditNote.find({ invoice_id: invoiceId }),
   ]);
 

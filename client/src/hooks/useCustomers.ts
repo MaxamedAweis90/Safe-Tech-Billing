@@ -131,3 +131,24 @@ export function useUpdateCustomer() {
   });
 }
 
+/**
+ * Mutation hook to delete (soft-delete / move to trash) a customer.
+ */
+export function useDeleteCustomer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`/customers/${id}`);
+      return res.data as { success: boolean; message: string };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: customerKeys.all });
+      toast(data.message || 'Customer moved to trash.');
+    },
+    onError: (err: any) => {
+      toast(err.message || 'Failed to delete customer', true);
+    },
+  });
+}
+

@@ -11,6 +11,9 @@ export interface IPayment extends Document {
   method: PaymentMethod;
   reference: string;
   recorded_at: Date;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: Types.ObjectId | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
