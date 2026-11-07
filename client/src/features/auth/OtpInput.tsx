@@ -72,7 +72,7 @@ export const OtpInput: React.FC<OtpInputProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', margin: '20px 0' }}>
+    <div className="flex items-center justify-center gap-1.5 sm:gap-2.5 my-5 w-full max-w-full">
       {Array.from({ length }).map((_, i) => (
         <input
           key={i}
@@ -86,19 +86,9 @@ export const OtpInput: React.FC<OtpInputProps> = ({
           onChange={(e) => handleChange(i, e)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
+          className="w-10 h-12 sm:w-11 sm:h-13 md:w-12 md:h-14 text-center text-lg sm:text-xl font-bold font-mono rounded-md outline-none bg-[#0D121A] text-[#E5EAF2] transition-all duration-150 shrink-0"
           style={{
-            width: '46px',
-            height: '52px',
-            textAlign: 'center',
-            fontSize: '22px',
-            fontWeight: 700,
-            fontFamily: "'IBM Plex Mono', Menlo, Consolas, monospace",
-            backgroundColor: '#0D121A',
-            color: '#E5EAF2',
             border: `1.5px solid ${hasError ? 'var(--bad, #F07A70)' : digits[i] ? 'var(--accent, #6E9CF0)' : 'var(--line, #243042)'}`,
-            borderRadius: '6px',
-            outline: 'none',
-            transition: 'border-color 0.15s ease',
           }}
           onFocus={(e) => {
             e.currentTarget.style.borderColor = 'var(--accent, #6E9CF0)';

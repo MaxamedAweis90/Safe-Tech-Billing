@@ -34,7 +34,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   // If children is passed directly without dual slots, render classic single-mode layout
   if (!leftSlot && !rightSlot && children) {
     return (
-      <div className="relative w-screen h-screen overflow-hidden flex bg-[#0D121A] text-[#E1E7F0] select-none font-sans">
+      <div className="relative w-full min-h-[100dvh] lg:h-screen lg:overflow-hidden overflow-x-hidden flex bg-[#0D121A] text-[#E1E7F0] select-none font-sans">
         {/* Floating Demo Trigger Pill - hidden during success */}
         {!isSuccess && <DemoButton mode={mode} />}
 
@@ -60,7 +60,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 
         {/* Form Slot - morphs to full-width centered on success */}
         <div
-          className={`h-full flex items-center justify-center p-6 sm:p-12 lg:p-16 overflow-y-auto bg-[#151C27] transition-all duration-750 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          className={`min-h-[100dvh] lg:min-h-0 lg:h-full flex items-center justify-center px-4 py-8 sm:px-8 sm:py-12 md:px-12 lg:p-16 overflow-y-auto bg-[#151C27] transition-all duration-750 ease-[cubic-bezier(0.16,1,0.3,1)] ${
             isSuccess
               ? 'w-full lg:w-full lg:ml-0 z-30'
               : mode === 'register'
@@ -70,12 +70,12 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
         >
           <div
             className={`w-full my-auto transition-all duration-750 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-              isSuccess ? 'max-w-xl mx-auto' : 'max-w-md'
+              isSuccess ? 'max-w-xl mx-auto' : 'max-w-sm sm:max-w-md md:max-w-lg lg:max-w-md mx-auto'
             }`}
           >
             {/* Mobile-only compact brand header (<1024px) */}
             {!isSuccess && (
-              <div className="lg:hidden flex items-center gap-3 mb-8">
+              <div className="lg:hidden flex items-center gap-3 mb-6 sm:mb-8 pr-14 sm:pr-0">
                 <div className="w-9 h-9 rounded-lg bg-[#0A0F17] border border-[#243042] flex items-center justify-center overflow-hidden flex-none">
                   <img
                     src="/logo.png"
@@ -103,7 +103,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden flex bg-[#0D121A] text-[#E1E7F0] select-none font-sans">
+    <div className="relative w-full min-h-[100dvh] lg:h-screen lg:overflow-hidden overflow-x-hidden flex bg-[#0D121A] text-[#E1E7F0] select-none font-sans">
       {/* Floating Demo Trigger Pill - hidden during success */}
       {!isSuccess && <DemoButton mode={mode} />}
 
@@ -134,22 +134,22 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
       {/* 2. LEFT FORM SLOT (Active during 'register' & Morphs to Full-Width)      */}
       {/* ========================================================================= */}
       <div
-        className={`h-full flex items-center justify-center p-6 sm:p-12 lg:p-16 overflow-y-auto bg-[#151C27] transition-all duration-750 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        className={`min-h-[100dvh] lg:min-h-0 lg:h-full flex items-center justify-center px-4 py-8 sm:px-8 sm:py-12 md:px-12 lg:p-16 overflow-y-auto bg-[#151C27] transition-all duration-750 ease-[cubic-bezier(0.16,1,0.3,1)] ${
           isSuccess
             ? 'w-full lg:w-full opacity-100 pointer-events-auto z-30'
             : mode === 'register'
-            ? 'w-full lg:w-1/2 opacity-100 pointer-events-auto z-10'
-            : 'w-full lg:w-1/2 opacity-0 pointer-events-none z-0'
+            ? 'w-full lg:w-1/2 opacity-100 pointer-events-auto z-10 flex'
+            : 'hidden lg:flex lg:w-1/2 opacity-0 pointer-events-none z-0'
         }`}
       >
         <div
           className={`w-full my-auto transition-all duration-750 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            isSuccess ? 'max-w-xl mx-auto' : 'max-w-md'
+            isSuccess ? 'max-w-xl mx-auto' : 'max-w-sm sm:max-w-md md:max-w-lg lg:max-w-md mx-auto'
           }`}
         >
           {/* Mobile-only compact brand header shown on small viewports (<1024px) */}
           {!isSuccess && (
-            <div className="lg:hidden flex items-center gap-3 mb-8">
+            <div className="lg:hidden flex items-center gap-3 mb-6 sm:mb-8 pr-14 sm:pr-0">
               <div className="w-9 h-9 rounded-lg bg-[#0A0F17] border border-[#243042] flex items-center justify-center overflow-hidden flex-none">
                 <img
                   src="/logo.png"
@@ -177,20 +177,20 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
       {/* 3. RIGHT FORM SLOT (Active during 'login' at 50%)                        */}
       {/* ========================================================================= */}
       <div
-        className={`h-full flex items-center justify-center p-6 sm:p-12 lg:p-16 overflow-y-auto bg-[#151C27] ${
+        className={`min-h-[100dvh] lg:min-h-0 lg:h-full flex items-center justify-center px-4 py-8 sm:px-8 sm:py-12 md:px-12 lg:p-16 overflow-y-auto bg-[#151C27] ${
           !isSuccess && mode === 'login'
             ? 'w-full lg:w-1/2 opacity-100 pointer-events-auto z-10 flex'
             : isSuccess
             ? 'hidden w-0 pointer-events-none opacity-0'
-            : 'w-full lg:w-1/2 opacity-0 pointer-events-none z-0 hidden lg:flex'
+            : 'hidden lg:flex lg:w-1/2 opacity-0 pointer-events-none z-0'
         }`}
         style={{
           transition: 'opacity 500ms cubic-bezier(0.16, 1, 0.3, 1) 150ms',
         }}
       >
-        <div className="w-full max-w-md my-auto">
+        <div className="w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-md my-auto mx-auto">
           {/* Mobile-only compact brand header shown on small viewports (<1024px) */}
-          <div className="lg:hidden flex items-center gap-3 mb-8">
+          <div className="lg:hidden flex items-center gap-3 mb-6 sm:mb-8 pr-14 sm:pr-0">
             <div className="w-9 h-9 rounded-lg bg-[#0A0F17] border border-[#243042] flex items-center justify-center overflow-hidden flex-none">
               <img
                 src="/logo.png"

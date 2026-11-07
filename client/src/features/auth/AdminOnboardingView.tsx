@@ -28,8 +28,8 @@ const Stepper: React.FC<{ currentStep: 1 | 2 | 3 }> = ({ currentStep }) => {
   const steps = [1, 2, 3];
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: '28px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', width: '240px' }}>
+    <div className="flex items-center justify-center w-full mb-5 sm:mb-7">
+      <div className="flex items-center w-full max-w-[240px]">
         {steps.map((num, idx) => {
           const isCompleted = currentStep > num;
           const isActive = currentStep === num;
@@ -38,24 +38,16 @@ const Stepper: React.FC<{ currentStep: 1 | 2 | 3 }> = ({ currentStep }) => {
             <React.Fragment key={num}>
               {/* Step Circle Node */}
               <div
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  flexShrink: 0,
-                  transition: 'all 250ms ease',
-                  backgroundColor: isActive ? '#2563EB' : '#151C27',
-                  border: '2px solid #2563EB',
-                  color: isActive ? '#FFFFFF' : '#2563EB',
-                }}
+                className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 transition-all duration-200 border-2 ${
+                  isActive
+                    ? 'bg-[#2563EB] border-[#2563EB] text-white'
+                    : isCompleted
+                    ? 'bg-[#151C27] border-[#2563EB] text-[#2563EB]'
+                    : 'bg-[#151C27] border-[#243042] text-[#6F7B90]'
+                }`}
               >
                 {isCompleted ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[#2563EB]" viewBox="0 0 24 24" fill="none" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 ) : (
@@ -66,11 +58,9 @@ const Stepper: React.FC<{ currentStep: 1 | 2 | 3 }> = ({ currentStep }) => {
               {/* Connecting Line */}
               {idx < steps.length - 1 && (
                 <div
-                  style={{
-                    flex: 1,
-                    height: '2.5px',
-                    backgroundColor: '#2563EB',
-                  }}
+                  className={`flex-1 h-[2px] transition-all duration-200 ${
+                    currentStep > num ? 'bg-[#2563EB]' : 'bg-[#243042]'
+                  }`}
                 />
               )}
             </React.Fragment>
@@ -426,14 +416,15 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                 placeholder="John Doe"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                className="w-full text-base sm:text-sm"
                 style={{
                   width: '100%',
                   padding: '11px 14px',
+                  minHeight: '44px',
                   borderRadius: '8px',
                   backgroundColor: '#0D121A',
                   border: '1px solid #243042',
                   color: '#E5EAF2',
-                  fontSize: '13.5px',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
@@ -450,14 +441,15 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                 placeholder="john.doe@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="w-full text-base sm:text-sm"
                 style={{
                   width: '100%',
                   padding: '11px 14px',
+                  minHeight: '44px',
                   borderRadius: '8px',
                   backgroundColor: '#0D121A',
                   border: '1px solid #243042',
                   color: '#E5EAF2',
-                  fontSize: '13.5px',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
@@ -497,9 +489,11 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                     const stripped = raw.startsWith('252') ? raw.slice(3) : raw;
                     setPhone(stripped.slice(0, 9));
                   }}
+                  className="w-full text-base sm:text-sm"
                   style={{
                     flex: 1,
                     padding: '11px 14px',
+                    minHeight: '44px',
                     borderRadius: '0 8px 8px 0',
                     backgroundColor: '#0D121A',
                     border: '1px solid #243042',
@@ -627,21 +621,22 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                 placeholder="Acme Corporation"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
+                className="w-full text-base sm:text-sm"
                 style={{
                   width: '100%',
                   padding: '11px 14px',
+                  minHeight: '44px',
                   borderRadius: '8px',
                   backgroundColor: '#0D121A',
                   border: '1px solid #243042',
                   color: '#E5EAF2',
-                  fontSize: '13.5px',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
                   Business Tagline
@@ -651,14 +646,15 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                   placeholder="e.g. Technology & Logistics"
                   value={companyTagline}
                   onChange={(e) => setCompanyTagline(e.target.value)}
+                  className="w-full text-base sm:text-sm"
                   style={{
                     width: '100%',
                     padding: '11px 14px',
+                    minHeight: '44px',
                     borderRadius: '8px',
                     backgroundColor: '#0D121A',
                     border: '1px solid #243042',
                     color: '#E5EAF2',
-                    fontSize: '13px',
                     outline: 'none',
                     boxSizing: 'border-box',
                   }}
@@ -674,14 +670,15 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                   placeholder="https://company.so"
                   value={companyWebsite}
                   onChange={(e) => setCompanyWebsite(e.target.value)}
+                  className="w-full text-base sm:text-sm"
                   style={{
                     width: '100%',
                     padding: '11px 14px',
+                    minHeight: '44px',
                     borderRadius: '8px',
                     backgroundColor: '#0D121A',
                     border: '1px solid #243042',
                     color: '#E5EAF2',
-                    fontSize: '13px',
                     outline: 'none',
                     boxSizing: 'border-box',
                   }}
@@ -699,21 +696,22 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                 placeholder="123 Business Way, Suite 400"
                 value={companyAddress}
                 onChange={(e) => setCompanyAddress(e.target.value)}
+                className="w-full text-base sm:text-sm"
                 style={{
                   width: '100%',
                   padding: '11px 14px',
+                  minHeight: '44px',
                   borderRadius: '8px',
                   backgroundColor: '#0D121A',
                   border: '1px solid #243042',
                   color: '#E5EAF2',
-                  fontSize: '13.5px',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#B9C5DA', marginBottom: '6px' }}>
                   Base Currency
@@ -721,14 +719,15 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                 <select
                   value={baseCurrency}
                   onChange={(e) => setBaseCurrency(e.target.value as 'USD' | 'SOS')}
+                  className="w-full text-base sm:text-sm"
                   style={{
                     width: '100%',
                     padding: '11px 12px',
+                    minHeight: '44px',
                     borderRadius: '8px',
                     backgroundColor: '#0D121A',
                     border: '1px solid #243042',
                     color: '#E5EAF2',
-                    fontSize: '13px',
                     outline: 'none',
                     boxSizing: 'border-box',
                     cursor: 'pointer',
@@ -748,14 +747,15 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                   placeholder="Optional (e.g. TAX-0012345)"
                   value={taxId}
                   onChange={(e) => setTaxId(e.target.value)}
+                  className="w-full text-base sm:text-sm"
                   style={{
                     width: '100%',
                     padding: '11px 14px',
+                    minHeight: '44px',
                     borderRadius: '8px',
                     backgroundColor: '#0D121A',
                     border: '1px solid #243042',
                     color: '#E5EAF2',
-                    fontSize: '13px',
                     fontFamily: "'IBM Plex Mono', monospace",
                     outline: 'none',
                     boxSizing: 'border-box',

@@ -356,14 +356,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="w-full text-base sm:text-sm"
                   style={{
                     width: '100%',
                     padding: '11px 14px',
+                    minHeight: '44px',
                     borderRadius: '8px',
                     backgroundColor: '#0D121A',
                     border: '1px solid #243042',
                     color: '#E5EAF2',
-                    fontSize: '13.5px',
                     outline: 'none',
                     boxSizing: 'border-box',
                   }}
@@ -404,14 +405,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       const stripped = raw.startsWith('252') ? raw.slice(3) : raw;
                       setPhone(stripped.slice(0, 9));
                     }}
+                    className="w-full text-base sm:text-sm"
                     style={{
                       flex: 1,
                       padding: '11px 14px',
+                      minHeight: '44px',
                       borderRadius: '0 8px 8px 0',
                       backgroundColor: '#0D121A',
                       border: '1px solid #243042',
                       color: '#E5EAF2',
-                      fontSize: '13.5px',
                       fontFamily: "'IBM Plex Mono', monospace",
                       outline: 'none',
                       boxSizing: 'border-box',
