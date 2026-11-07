@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useNavStore } from '../../store/useNavStore';
 import { toast, confirmBox } from '../../store/useUIStore';
 import { CurrencyTaxSettings } from './CurrencyTaxSettings';
+import { PROTOTYPE_LOGO, PROTOTYPE_STAMP } from '../documents/brandingAssets';
 import { EmailTemplatesView } from './EmailTemplatesView';
 import { TeamSettingsView } from '../team/TeamSettingsView';
 import {
@@ -31,7 +32,8 @@ export const getSettingsTabFromHash = (hash: string): SettingsTab => {
 };
 
 export const SettingsView: React.FC = () => {
-  const { role, can } = useAuthStore();
+  const { role, can, user } = useAuthStore();
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const isAdmin = role === 'admin';
   const { setActiveTab } = useNavStore();
 
@@ -70,7 +72,28 @@ export const SettingsView: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHash);
   }, [isAdmin]);
 
-  const [company, setCompany] = useState({ ...SYSTEM_SETTINGS.company });
+  const [company, setCompany] = useState(() => {
+    if (isDemo) {
+      return { ...SYSTEM_SETTINGS.company };
+    }
+    return {
+      name: user?.companyName || '',
+      tagline: '',
+      address: '',
+      phone: '',
+      email: user?.email || '',
+      website: '',
+      taxId: '',
+      bankName: '',
+      accountName: '',
+      accountNo: '',
+      mobileMoney: '',
+      signatory: user?.fullName || 'Authorized Signatory',
+      logo: '',
+      stamp: '',
+      signature: '',
+    };
+  });
   const [currencies, setCurrencies] = useState([
     ...SYSTEM_SETTINGS.currencies.map((c) => ({ ...c })),
   ]);
@@ -90,30 +113,29 @@ export const SettingsView: React.FC = () => {
 
   useEffect(() => {
     if (companyData?.company) {
-      const c = companyData.company;
-      setCompany((prev) => ({
-        ...prev,
-        name: c.name || prev.name,
-        tagline: c.tagline !== undefined ? c.tagline : prev.tagline,
-        address: c.address !== undefined ? c.address : prev.address,
-        phone: c.phone !== undefined ? c.phone : prev.phone,
-        email: c.email !== undefined ? c.email : prev.email,
-        website: c.website !== undefined ? c.website : prev.website,
-        taxId: c.tax_id !== undefined ? c.tax_id : prev.taxId,
-        bankName: c.bank_name !== undefined ? c.bank_name : prev.bankName,
-        accountName: c.account_name !== undefined ? c.account_name : prev.accountName,
-        accountNo: c.account_no !== undefined ? c.account_no : prev.accountNo,
-        mobileMoney: c.mobile_money !== undefined ? c.mobile_money : prev.mobileMoney,
-        signatory: c.signatory !== undefined ? c.signatory : prev.signatory,
-        logo: c.logo || prev.logo,
-        stamp: c.stamp || prev.stamp,
-        signature: c.signature || prev.signature,
-      }));
-      if (c.quote_terms) setQuoteTerms(c.quote_terms);
-      if (c.invoice_terms) setInvoiceTerms(c.invoice_terms);
-      if (c.default_currency) setDefaultCurrency(c.default_currency);
+      const comp = companyData.company;
+      setCompany({
+        name: comp.name || (isDemo ? 'SAFE TECH SOLUTIONS' : user?.companyName || ''),
+        tagline: comp.tagline || (isDemo ? 'Innovator in Electronics' : ''),
+        address: comp.address || (isDemo ? 'Bakara Howlwadag, Mogadishu, Banadir 252' : ''),
+        phone: comp.phone || (isDemo ? '+252 61 000 0000' : ''),
+        email: comp.email || user?.email || (isDemo ? 'info@safetech.so' : ''),
+        website: comp.website || (isDemo ? 'www.safetech.so' : ''),
+        taxId: comp.tax_id || '',
+        bankName: comp.bank_name || (isDemo ? 'SALAAM SOMALI BANK' : ''),
+        accountName: comp.account_name || (isDemo ? 'SAFE TECH SOLUTIONS' : ''),
+        accountNo: comp.account_no || (isDemo ? '33354053' : ''),
+        mobileMoney: comp.mobile_money || (isDemo ? 'EVC Plus: +252 61 000 0000' : ''),
+        signatory: comp.signatory || user?.fullName || 'Authorized Signatory',
+        logo: comp.logo || (isDemo ? PROTOTYPE_LOGO : ''),
+        stamp: comp.stamp || (isDemo ? PROTOTYPE_STAMP : ''),
+        signature: comp.signature || '',
+      });
+      if (comp.quote_terms) setQuoteTerms(comp.quote_terms);
+      if (comp.invoice_terms) setInvoiceTerms(comp.invoice_terms);
+      if (comp.default_currency) setDefaultCurrency(comp.default_currency);
     }
-  }, [companyData]);
+  }, [companyData, isDemo, user]);
 
   if (!can('settings')) {
     return (
@@ -318,6 +340,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sName"
                 className="inp"
+                placeholder="e.g. Acme Corporation"
                 value={company.name}
                 onChange={(e) =>
                   setCompany({ ...company, name: e.target.value })
@@ -329,6 +352,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sTag"
                 className="inp"
+                placeholder="e.g. Innovative IT Solutions & Retail"
                 value={company.tagline}
                 onChange={(e) =>
                   setCompany({ ...company, tagline: e.target.value })
@@ -340,6 +364,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sAddr"
                 className="inp"
+                placeholder="e.g. 100 Main St, Suite 200, City"
                 value={company.address}
                 onChange={(e) =>
                   setCompany({ ...company, address: e.target.value })
@@ -351,6 +376,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sPhone"
                 className="inp"
+                placeholder="e.g. +1 555 123 4567 or +252 61 000 0000"
                 value={company.phone}
                 onChange={(e) =>
                   setCompany({ ...company, phone: e.target.value })
@@ -363,6 +389,7 @@ export const SettingsView: React.FC = () => {
                 id="sEmail"
                 className="inp"
                 type="email"
+                placeholder="e.g. billing@mybusiness.com"
                 value={company.email}
                 onChange={(e) =>
                   setCompany({ ...company, email: e.target.value })
@@ -374,6 +401,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sWeb"
                 className="inp"
+                placeholder="e.g. www.mybusiness.com"
                 value={company.website}
                 onChange={(e) =>
                   setCompany({ ...company, website: e.target.value })
@@ -385,6 +413,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sTax"
                 className="inp"
+                placeholder="e.g. TAX-12345678"
                 value={company.taxId}
                 onChange={(e) =>
                   setCompany({ ...company, taxId: e.target.value })
@@ -397,6 +426,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sSigName"
                 className="inp"
+                placeholder="e.g. Jane Doe, Managing Director"
                 value={company.signatory}
                 onChange={(e) =>
                   setCompany({ ...company, signatory: e.target.value })
@@ -607,6 +637,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sBank"
                 className="inp"
+                placeholder="e.g. Premier Bank"
                 value={company.bankName}
                 onChange={(e) =>
                   setCompany({ ...company, bankName: e.target.value })
@@ -618,6 +649,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sAccName"
                 className="inp"
+                placeholder="e.g. Acme Corporation LLC"
                 value={company.accountName}
                 onChange={(e) =>
                   setCompany({ ...company, accountName: e.target.value })
@@ -629,6 +661,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sAccNo"
                 className="inp"
+                placeholder="e.g. 1234567890"
                 value={company.accountNo}
                 onChange={(e) =>
                   setCompany({ ...company, accountNo: e.target.value })
@@ -640,6 +673,7 @@ export const SettingsView: React.FC = () => {
               <input
                 id="sMM"
                 className="inp"
+                placeholder="e.g. EVC Plus: +252 61 000 0000"
                 value={company.mobileMoney}
                 onChange={(e) =>
                   setCompany({ ...company, mobileMoney: e.target.value })
@@ -651,35 +685,36 @@ export const SettingsView: React.FC = () => {
         </div>
       </section>
 
-      {/* 7. Prototype Data Panel */}
-      <section className="panel">
-        <div className="panel-head">
-          <h2>Prototype data</h2>
-        </div>
-        <div
-          className="panel-body"
-          style={{
-            display: 'flex',
-            gap: 14,
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={{ color: 'var(--muted)', maxWidth: '60ch' }}>
-            Everything you create is kept in this browser only. Reset to restore
-            invoice 10456 and the sample records.
-          </span>
-          <button
-            type="button"
-            className="btn danger"
-            data-act="reset"
-            onClick={handleReset}
+      {/* 7. Prototype Data Panel (Demo mode only) */}
+      {isDemo && (
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Demo sample data</h2>
+          </div>
+          <div
+            className="panel-body"
+            style={{
+              display: 'flex',
+              gap: 14,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+            }}
           >
-            Reset sample data
-          </button>
-        </div>
-      </section>
+            <span style={{ color: 'var(--muted)', maxWidth: '60ch' }}>
+              Reset to restore the default demo records and initial sample company profile.
+            </span>
+            <button
+              type="button"
+              className="btn danger"
+              data-act="reset"
+              onClick={handleReset}
+            >
+              Reset sample data
+            </button>
+          </div>
+        </section>
+      )}
     </>
   )}
 

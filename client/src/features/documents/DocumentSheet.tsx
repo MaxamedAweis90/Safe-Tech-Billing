@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  COMPANY_SETTINGS,
   getCustomerById,
   getInvoiceById,
   invFin,
@@ -17,13 +16,16 @@ import {
   CURRENCY_SYMBOLS,
 } from '../../lib/formatters';
 import { amountWords } from './amountWords';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useCompanySettings } from '../../hooks/useSettings';
+import { PROTOTYPE_LOGO, PROTOTYPE_STAMP } from './brandingAssets';
 
 export type DocumentKind = 'invoice' | 'quote' | 'receipt';
 
 export interface DocumentSheetProps {
   kind: DocumentKind;
   document: any;
-  company?: typeof COMPANY_SETTINGS;
+  company?: any;
   className?: string;
   id?: string;
 }
@@ -54,11 +56,32 @@ const METHOD_LABELS: Record<string, string> = {
 export const DocumentSheet: React.FC<DocumentSheetProps> = ({
   kind,
   document: d,
-  company = COMPANY_SETTINGS,
+  company: propCompany,
   className = '',
   id,
 }) => {
-  const co = company;
+  const { user } = useAuthStore();
+  const { data: companyData } = useCompanySettings();
+  const liveCompany = companyData?.company;
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
+
+  const co = {
+    name: propCompany?.name || liveCompany?.name || user?.companyName || (isDemo ? 'SAFE TECH SOLUTIONS' : 'My Business'),
+    tagline: propCompany?.tagline ?? liveCompany?.tagline ?? (isDemo ? 'Innovator in Electronics' : ''),
+    address: propCompany?.address ?? liveCompany?.address ?? (isDemo ? 'Bakara Howlwadag, Mogadishu, Banadir 252' : ''),
+    phone: propCompany?.phone ?? liveCompany?.phone ?? (isDemo ? '+252 61 000 0000' : ''),
+    email: propCompany?.email ?? liveCompany?.email ?? user?.email ?? (isDemo ? 'info@safetech.so' : ''),
+    website: propCompany?.website ?? liveCompany?.website ?? (isDemo ? 'www.safetech.so' : ''),
+    bankName: propCompany?.bankName ?? (propCompany as any)?.bank_name ?? liveCompany?.bank_name ?? (isDemo ? 'SALAAM SOMALI BANK' : ''),
+    accountName: propCompany?.accountName ?? (propCompany as any)?.account_name ?? liveCompany?.account_name ?? (isDemo ? 'SAFE TECH SOLUTIONS' : ''),
+    accountNo: propCompany?.accountNo ?? (propCompany as any)?.account_no ?? liveCompany?.account_no ?? (isDemo ? '33354053' : ''),
+    mobileMoney: propCompany?.mobileMoney ?? (propCompany as any)?.mobile_money ?? liveCompany?.mobile_money ?? (isDemo ? 'EVC Plus: +252 61 000 0000' : ''),
+    signatory: propCompany?.signatory ?? liveCompany?.signatory ?? user?.fullName ?? 'Authorized Signatory',
+    logo: propCompany?.logo ?? liveCompany?.logo ?? (isDemo ? PROTOTYPE_LOGO : ''),
+    stamp: propCompany?.stamp ?? liveCompany?.stamp ?? (isDemo ? PROTOTYPE_STAMP : ''),
+    signature: propCompany?.signature ?? liveCompany?.signature ?? '',
+  };
+
   const c = getCustomerById(d.customerId) || {
     id: d.customerId || '',
     name: d.customerName || 'Customer not selected',
@@ -79,7 +102,7 @@ export const DocumentSheet: React.FC<DocumentSheetProps> = ({
         {co.logo ? (
           <img src={co.logo} alt={co.name} />
         ) : (
-          <b>{co.name}</b>
+          <b style={{ fontSize: '18px', letterSpacing: '0.5px' }}>{co.name}</b>
         )}
       </div>
       <div className="dtitle">{title}</div>
@@ -139,7 +162,7 @@ export const DocumentSheet: React.FC<DocumentSheetProps> = ({
     <div className="dco">
       <div>
         <h3>{co.name}</h3>
-        <div className="tag">{co.tagline}</div>
+        {co.tagline ? <div className="tag">{co.tagline}</div> : null}
       </div>
       {renderMeta()}
     </div>
@@ -208,12 +231,16 @@ export const DocumentSheet: React.FC<DocumentSheetProps> = ({
     <div className="dfine">
       <div>Make all checks payable to {co.name}</div>
       <div className="thanks">Thank you for your business!</div>
-      <div>
-        {co.address}, {co.phone}
-      </div>
-      <div>
-        Email: {co.email} &nbsp; {co.website}
-      </div>
+      {(co.address || co.phone) ? (
+        <div>
+          {[co.address, co.phone].filter(Boolean).join(', ')}
+        </div>
+      ) : null}
+      {(co.email || co.website) ? (
+        <div>
+          {[co.email ? `Email: ${co.email}` : '', co.website].filter(Boolean).join(' \u00A0 ')}
+        </div>
+      ) : null}
     </div>
   );
 
@@ -334,14 +361,31 @@ export const DocumentSheet: React.FC<DocumentSheetProps> = ({
   // Left instructions column
   const renderLeftInstructions = () => {
     if (kind === 'invoice') {
+      const hasBank = Boolean(co.bankName || co.accountNo);
       return (
         <dl className="pay">
-          <dt>Bank Name:</dt>
-          <dd>{co.bankName}</dd>
-          <dt>Account Name:</dt>
-          <dd>{co.accountName}</dd>
-          <dt>Account No:</dt>
-          <dd>{co.accountNo}</dd>
+          {hasBank && (
+            <>
+              {co.bankName ? (
+                <>
+                  <dt>Bank Name:</dt>
+                  <dd>{co.bankName}</dd>
+                </>
+              ) : null}
+              {co.accountName ? (
+                <>
+                  <dt>Account Name:</dt>
+                  <dd>{co.accountName}</dd>
+                </>
+              ) : null}
+              {co.accountNo ? (
+                <>
+                  <dt>Account No:</dt>
+                  <dd>{co.accountNo}</dd>
+                </>
+              ) : null}
+            </>
+          )}
           {co.mobileMoney ? (
             <>
               <dt>Mobile money:</dt>
@@ -364,8 +408,12 @@ export const DocumentSheet: React.FC<DocumentSheetProps> = ({
         </dd>
         <dt>Prepared by:</dt>
         <dd>{co.name}</dd>
-        <dt>Contact:</dt>
-        <dd>{co.phone}</dd>
+        {co.phone ? (
+          <>
+            <dt>Contact:</dt>
+            <dd>{co.phone}</dd>
+          </>
+        ) : null}
       </dl>
     );
   };

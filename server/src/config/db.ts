@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { env } from './env';
+import { migrateIndexes } from './migrateIndexes';
 
 let isListenersAttached = false;
 
@@ -46,6 +47,7 @@ export const connectDatabase = async (): Promise<typeof mongoose> => {
       dbName: 'safetech_billing',
       serverSelectionTimeoutMS: 10000,
     });
+    await migrateIndexes(conn);
     return conn;
   } catch (error) {
     console.error('[Database] Failed to connect to MongoDB:', error);

@@ -34,9 +34,7 @@ const QuotationSchema = new Schema<IQuotation>(
     number: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
-      index: true,
     },
     customer_id: {
       type: Schema.Types.ObjectId,
@@ -113,6 +111,9 @@ const QuotationSchema = new Schema<IQuotation>(
     collection: 'quotations',
   }
 );
+
+// Multi-tenant compound unique index: quotation number is strictly unique per company
+QuotationSchema.index({ companyId: 1, number: 1 }, { unique: true });
 
 export const Quotation = model<IQuotation>('Quotation', QuotationSchema);
 

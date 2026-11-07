@@ -30,6 +30,12 @@ app.use(
 
 app.use(cookieParser());
 
+// Cross-Origin-Opener-Policy header for OAuth popup window communication
+app.use((_req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
+
 // Body parser with 10mb limit for Base64 document assets (logo, stamp, signature)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

@@ -62,7 +62,8 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
   onBack,
   onNavigateInvoice,
 }) => {
-  const { can, role } = useAuthStore();
+  const { can, role, user } = useAuthStore();
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const isNew = !quoteId || quoteId === 'new';
 
   // Live queries
@@ -149,6 +150,24 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     }
   }, [detailData, quoteId]);
 
+  // Auto-select first real customer if current selection is mock or empty when creating new quotation
+  useEffect(() => {
+    if (isNew && customersData?.customers && customersData.customers.length > 0) {
+      setDoc((prev) => {
+        const isMockCust = !prev.customerId || prev.customerId.startsWith('c') || prev.customerId === 'new';
+        if (isMockCust) {
+          const first = customersData.customers[0];
+          return {
+            ...prev,
+            customerId: (first._id || first.id || '') as string,
+            customerName: first.name,
+          };
+        }
+        return prev;
+      });
+    }
+  }, [isNew, customersData]);
+
   const isExisting = Boolean(!isNew && doc.id !== 'new');
   const resolvedStatus = isExisting ? qStatus(doc, TODAY) : 'draft';
   const readOnly = !(can('quotes') && (!isExisting || doc.state === 'draft'));
@@ -190,6 +209,19 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     if (!doc.customerId) {
       toast('Select a customer before saving.', true);
       setItemError('Select a customer before saving.');
+      return false;
+    }
+    if (doc.customerId.startsWith('c') && !isDemo && (!customersData?.customers || customersData.customers.length === 0)) {
+      toast('Please add your first customer before saving the quotation.', true);
+      openCustomerModal(null, (c: any) => {
+        if (c?._id || c?.id) {
+          setDoc((prev) => ({
+            ...prev,
+            customerId: (c._id || c.id || '') as string,
+            customerName: c.name,
+          }));
+        }
+      });
       return false;
     }
     const validItems = doc.items.filter((i) => i.desc.trim() || i.price > 0);

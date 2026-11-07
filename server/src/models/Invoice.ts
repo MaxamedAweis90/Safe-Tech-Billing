@@ -39,7 +39,6 @@ const InvoiceSchema = new Schema<IInvoice>(
       type: String,
       default: null,
       trim: true,
-      index: true,
     },
     customer_id: {
       type: Schema.Types.ObjectId,
@@ -123,6 +122,6 @@ const InvoiceSchema = new Schema<IInvoice>(
 );
 
 // Multi-tenant compound unique index: invoice number is strictly unique per company
-InvoiceSchema.index({ companyId: 1, number: 1 }, { unique: true, sparse: true });
+InvoiceSchema.index({ companyId: 1, number: 1 }, { unique: true, partialFilterExpression: { number: { $type: 'string' } } });
 
 export const Invoice = model<IInvoice>('Invoice', InvoiceSchema);

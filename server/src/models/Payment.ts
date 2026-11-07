@@ -76,7 +76,7 @@ const PaymentSchema = new Schema<IPayment>(
 
 // Prevent duplicate transaction references for non-empty references per payment method
 PaymentSchema.index(
-  { method: 1, reference: 1 },
+  { companyId: 1, method: 1, reference: 1 },
   {
     unique: true,
     partialFilterExpression: {

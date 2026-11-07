@@ -23,7 +23,6 @@ const CreditNoteSchema = new Schema<ICreditNote>(
       type: String,
       required: true,
       trim: true,
-      index: true,
     },
     invoice_id: {
       type: Schema.Types.ObjectId,

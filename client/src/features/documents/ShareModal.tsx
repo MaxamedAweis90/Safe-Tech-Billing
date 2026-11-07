@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  COMPANY_SETTINGS,
   getCustomerById,
   getInvoiceById,
   getQuoteById,
@@ -17,6 +16,7 @@ import {
   lineCalc,
 } from '../../lib/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useCompanySettings } from '../../hooks/useSettings';
 import { openModal, closeModal, toast } from '../../store/useUIStore';
 import { copyText } from '../reports/csvExport';
 import { Icon, IconSend, IconCopy } from '../../components/icons';
@@ -42,7 +42,20 @@ export const ShareModalContent: React.FC<ShareModalContentProps> = ({
   onShared,
   onClose,
 }) => {
-  const { can } = useAuthStore();
+  const { can, user } = useAuthStore();
+  const { data: companyData } = useCompanySettings();
+  const liveCompany = companyData?.company;
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
+
+  const compName = liveCompany?.name || user?.companyName || (isDemo ? 'SAFE TECH SOLUTIONS' : 'My Business');
+  const compPhone = liveCompany?.phone || (isDemo ? '+252 61 000 0000' : '');
+  const compEmail = liveCompany?.email || user?.email || (isDemo ? 'info@safetech.so' : '');
+  const compWebsite = liveCompany?.website || (isDemo ? 'www.safetech.so' : '');
+  const compBank = liveCompany?.bank_name || (isDemo ? 'SALAAM SOMALI BANK' : '');
+  const compAccountNo = liveCompany?.account_no || (isDemo ? '33354053' : '');
+  const compAccountName = liveCompany?.account_name || (isDemo ? 'SAFE TECH SOLUTIONS' : '');
+  const compMobile = liveCompany?.mobile_money || (isDemo ? 'EVC Plus: +252 61 000 0000' : '');
+
   const c = getCustomerById(record.customerId);
   const cur = record.currency || 'USD';
 
@@ -54,19 +67,20 @@ export const ShareModalContent: React.FC<ShareModalContentProps> = ({
       const tot = totalsOf({ items: record.items || [] }).total;
       const bal = invFin(record).balance;
       const dueDate = fmtLong(record.due || record.due_date);
-      const mmLine = COMPANY_SETTINGS.mobileMoney
-        ? `, or ${COMPANY_SETTINGS.mobileMoney}`
+      const mmLine = compMobile ? `, or ${compMobile}` : '';
+      const bankLine = (compBank && compAccountNo)
+        ? `Pay to ${compBank}, account ${compAccountNo}${compAccountName ? ' (' + compAccountName + ')' : ''}${mmLine}.\nPlease quote ${record.number} as the reference.\n\n`
         : '';
+      const contactLine = [compPhone, compEmail].filter(Boolean).join(' · ');
 
       return (
         `Dear ${custAttn},\n\n` +
         `Please find invoice ${record.number} dated ${fmtLong(record.date)} for ${formatMoney(tot, cur)}. ` +
         `Balance due: ${formatMoney(bal, cur)} by ${dueDate}.\n\n` +
-        `Pay to ${COMPANY_SETTINGS.bankName}, account ${COMPANY_SETTINGS.accountNo} (${COMPANY_SETTINGS.accountName})${mmLine}. ` +
-        `Please quote ${record.number} as the reference.\n\n` +
+        `${bankLine}` +
         `Thank you for your business,\n` +
-        `${COMPANY_SETTINGS.name}\n` +
-        `${COMPANY_SETTINGS.phone}`
+        `${compName}\n` +
+        (contactLine ? `${contactLine}\n` : '')
       );
     }
 
@@ -81,6 +95,7 @@ export const ShareModalContent: React.FC<ShareModalContentProps> = ({
       const discLine = t.disc ? `Discount: −${formatMoney(t.disc, cur)}\n` : '';
       const taxLine = t.tax ? `Tax: ${formatMoney(t.tax, cur)}\n` : '';
       const termsLine = record.terms ? `Terms:\n${record.terms}\n\n` : '';
+      const contactInfo = [compPhone, compEmail, compWebsite].filter(Boolean).join(' · ');
 
       return (
         `Dear ${custAttn},\n\n` +
@@ -89,9 +104,9 @@ export const ShareModalContent: React.FC<ShareModalContentProps> = ({
         `${discLine}${taxLine}Total: ${formatMoney(t.total, cur)}\n` +
         `Valid until: ${fmtLong(record.expiry || record.expiry_date)}\n\n` +
         `${termsLine}` +
-        `Reply to this message to accept, or call us on ${COMPANY_SETTINGS.phone}.\n\n` +
-        `${COMPANY_SETTINGS.name}\n` +
-        `${COMPANY_SETTINGS.email} · ${COMPANY_SETTINGS.website}`
+        (compPhone ? `Reply to this message to accept, or call us on ${compPhone}.\n\n` : 'Reply to this message to accept.\n\n') +
+        `${compName}\n` +
+        (contactInfo ? `${contactInfo}\n` : '')
       );
     }
 
@@ -105,9 +120,9 @@ export const ShareModalContent: React.FC<ShareModalContentProps> = ({
       `We confirm receipt of ${formatMoney(record.amount_milli ?? record.amount, cur)} by ${methodStr}${refStr} on ${fmtLong(record.date)} against invoice ${inv?.number || record.invoiceNumber}. ` +
       `Receipt number: ${record.number}. Remaining balance: ${formatMoney(record.balanceAfter_milli ?? 0, cur)}.\n\n` +
       `Thank you,\n` +
-      `${COMPANY_SETTINGS.name}`
+      `${compName}`
     );
-  }, [kind, record, c, cur]);
+  }, [kind, record, c, cur, compName, compPhone, compEmail, compWebsite, compBank, compAccountNo, compAccountName, compMobile]);
 
   const [message, setMessage] = useState(defaultText);
 

@@ -28,7 +28,6 @@ const CustomerSchema = new Schema<ICustomer>(
     code: {
       type: Number,
       required: true,
-      index: true,
       validate: {
         validator: Number.isInteger,
         message: '{VALUE} is not a valid integer customer code',

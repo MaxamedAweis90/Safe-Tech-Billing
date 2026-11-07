@@ -85,20 +85,27 @@ export const createDraft = async (data: CreateInvoiceInput): Promise<IInvoice> =
   const items = mapAndCalculateInvoiceItems(data.items);
 
   let custId = data.customer_id;
+  const companyScope: Record<string, unknown> = data.companyId
+    ? { companyId: data.companyId }
+    : { companyId: null };
+
   if (!Types.ObjectId.isValid(custId)) {
     const codeNum = parseInt(String(custId).replace(/\D/g, ''), 10);
     const existing = await Customer.findOne(
-      codeNum ? { $or: [{ code: codeNum }, { name: 'Dr. SUMAIT Hospital - SIMAD University' }] } : { name: 'Dr. SUMAIT Hospital - SIMAD University' }
+      codeNum ? { ...companyScope, code: codeNum } : companyScope
     );
     if (existing) {
       custId = existing._id;
     } else {
+      const highest = await Customer.findOne(companyScope).sort({ code: -1 });
+      const nextCode = highest ? highest.code + 1 : 1001;
       const newCust = await Customer.create({
-        code: codeNum || 1001,
-        name: 'Dr. SUMAIT Hospital - SIMAD University',
-        phone: '252 613 939 999',
-        address: 'Wadadda Albarako, Hodan\nMogadishu, Banadir 252',
-        since: '2024-03-01',
+        ...companyScope,
+        code: nextCode,
+        name: 'Default Customer',
+        phone: '+252 61 000 0000',
+        address: 'Mogadishu, Somalia',
+        since: new Date().toISOString().split('T')[0],
       });
       custId = newCust._id;
     }

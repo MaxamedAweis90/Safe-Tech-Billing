@@ -34,7 +34,6 @@ const ReceiptSchema = new Schema<IReceipt>(
       type: String,
       required: true,
       trim: true,
-      index: true,
     },
     payment_id: {
       type: Schema.Types.ObjectId,

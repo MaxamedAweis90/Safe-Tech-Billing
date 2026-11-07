@@ -136,7 +136,7 @@ export interface SystemSettings {
   invoiceTerms: string;
 }
 
-export const COMPANY_SETTINGS = {
+export const DEMO_COMPANY_SETTINGS = {
   name: 'SAFE TECH SOLUTIONS',
   tagline: 'Innovator in Electronics',
   address: 'Bakara Howlwadag, Mogadishu, Banadir 252',
@@ -153,6 +153,26 @@ export const COMPANY_SETTINGS = {
   stamp: PROTOTYPE_STAMP,
   signature: '',
 };
+
+export const DEFAULT_USER_COMPANY_SETTINGS = {
+  name: '',
+  tagline: '',
+  address: '',
+  phone: '',
+  email: '',
+  website: '',
+  taxId: '',
+  bankName: '',
+  accountName: '',
+  accountNo: '',
+  mobileMoney: '',
+  signatory: 'Authorized Signatory',
+  logo: '',
+  stamp: '',
+  signature: '',
+};
+
+export const COMPANY_SETTINGS = DEMO_COMPANY_SETTINGS;
 
 export const SYSTEM_SETTINGS: SystemSettings = {
   company: COMPANY_SETTINGS,

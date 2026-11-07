@@ -4,7 +4,7 @@ import { flushSync } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { DocumentSheet, DocumentKind } from './DocumentSheet';
-import { COMPANY_SETTINGS, getCustomerById, logAuditEvent } from '../../lib/mockData';
+import { getCustomerById, logAuditEvent } from '../../lib/mockData';
 import { toast } from '../../store/useUIStore';
 
 export function pdfName(kind: DocumentKind, obj: any): string {
@@ -36,8 +36,7 @@ export async function makePdf(
         React.createElement(DocumentSheet, {
           kind,
           document: obj,
-          company: COMPANY_SETTINGS,
-        })
+                  })
       );
     });
 
@@ -89,8 +88,8 @@ export async function makePdf(
     };
     pdf.setProperties({
       title: `${docTypeLabel[kind]} ${obj.number || 'Draft'}`,
-      author: COMPANY_SETTINGS.name,
-      creator: COMPANY_SETTINGS.name,
+      author: (obj as any)?.companyName || 'My Business',
+      creator: (obj as any)?.companyName || 'My Business',
     });
 
     const pageH = Math.round((canvas.width * 297) / 210);
