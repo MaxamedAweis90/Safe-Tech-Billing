@@ -450,6 +450,7 @@ export const completeRegistration = async (req: Request, res: Response, next: Ne
 
     // 4. Log Audit Event
     await logAction({
+      companyId: companyDoc._id,
       user_name: user.fullName,
       role: user.role,
       action: 'Administrator registered and created company',
@@ -563,6 +564,7 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
 
     // Audit log
     await logAction({
+      companyId: user.companyId || undefined,
       user_name: user.fullName,
       role: user.role,
       action: 'User verified email',
@@ -867,6 +869,7 @@ export const verifyOtp = async (req: Request, res: Response, next: NextFunction)
 
     // Audit log
     await logAction({
+      companyId: user.companyId || undefined,
       user_name: user.fullName,
       role: user.role,
       action: `User logged in via OTP (${otpDoc.channel})`,
@@ -1076,6 +1079,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
     setAuthCookies(res, accessToken, refreshTok);
 
     await logAction({
+      companyId: user.companyId || undefined,
       user_name: user.fullName,
       role: user.role,
       action: 'User login',
@@ -1295,6 +1299,7 @@ export const googleAuth = async (req: Request, res: Response, next: NextFunction
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 
     await logAction({
+      companyId: user.companyId || undefined,
       user_name: user.fullName,
       role: user.role,
       action: 'Google SSO login',

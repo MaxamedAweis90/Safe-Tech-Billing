@@ -25,7 +25,6 @@ const CustomerSchema = new Schema<ICustomer>(
     code: {
       type: Number,
       required: true,
-      unique: true,
       index: true,
       validate: {
         validator: Number.isInteger,
@@ -78,5 +77,7 @@ const CustomerSchema = new Schema<ICustomer>(
   }
 );
 
-export const Customer = model<ICustomer>('Customer', CustomerSchema);
+// Multi-tenant compound unique index: code is unique per company
+CustomerSchema.index({ companyId: 1, code: 1 }, { unique: true });
 
+export const Customer = model<ICustomer>('Customer', CustomerSchema);

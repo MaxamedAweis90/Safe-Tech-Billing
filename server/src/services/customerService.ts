@@ -8,6 +8,7 @@ import { Receipt } from '../models/Receipt';
 import { calculateDocumentTotals } from './mathService';
 
 export interface CustomerInput {
+  companyId?: string | Types.ObjectId | null;
   code?: number;
   name: string;
   attn?: string;
@@ -45,20 +46,25 @@ export interface CustomerStatementSummary {
 }
 
 /**
- * Creates a new customer ensuring code, name, and phone uniqueness.
+ * Creates a new customer ensuring code, name, and phone uniqueness within the company partition.
  */
 export const createCustomer = async (data: CustomerInput): Promise<ICustomer> => {
+  const companyScope: Record<string, unknown> = data.companyId
+    ? { companyId: data.companyId }
+    : { companyId: null };
+
   if (!data.code) {
-    const highestCustomer = await Customer.findOne().sort({ code: -1 });
+    const highestCustomer = await Customer.findOne(companyScope).sort({ code: -1 });
     data.code = highestCustomer ? highestCustomer.code + 1 : 1001;
   }
 
-  const existingCode = await Customer.findOne({ code: data.code });
+  const existingCode = await Customer.findOne({ ...companyScope, code: data.code });
   if (existingCode) {
     throw new Error(`Customer with code ${data.code} already exists`);
   }
 
   const existingNameOrPhone = await Customer.findOne({
+    ...companyScope,
     $or: [{ name: data.name }, { phone: data.phone }],
   });
   if (existingNameOrPhone) {
@@ -77,47 +83,70 @@ export const createCustomer = async (data: CustomerInput): Promise<ICustomer> =>
 };
 
 /**
- * Retrieves a customer by ObjectId.
+ * Retrieves a customer by ObjectId, optionally checking tenant ownership.
  */
-export const getCustomerById = async (id: string | Types.ObjectId): Promise<ICustomer | null> => {
-  return await Customer.findById(id);
+export const getCustomerById = async (
+  id: string | Types.ObjectId,
+  tenantCompanyId?: string | Types.ObjectId | null
+): Promise<ICustomer | null> => {
+  const query: Record<string, unknown> = { _id: id };
+  if (tenantCompanyId) {
+    query.companyId = tenantCompanyId;
+  }
+  return await Customer.findOne(query);
 };
 
 /**
- * Retrieves a customer by unique code.
+ * Retrieves a customer by code within a company partition.
  */
-export const getCustomerByCode = async (code: number): Promise<ICustomer | null> => {
-  return await Customer.findOne({ code });
+export const getCustomerByCode = async (
+  code: number,
+  companyId?: string | Types.ObjectId | null
+): Promise<ICustomer | null> => {
+  const query: Record<string, unknown> = { code };
+  if (companyId) {
+    query.companyId = companyId;
+  }
+  return await Customer.findOne(query);
 };
 
 /**
- * Updates customer details while validating uniqueness constraints.
+ * Updates customer details while validating tenant-scoped uniqueness constraints.
  */
 export const updateCustomer = async (
   id: string | Types.ObjectId,
-  data: Partial<CustomerInput>
+  data: Partial<CustomerInput>,
+  tenantCompanyId?: string | Types.ObjectId | null
 ): Promise<ICustomer | null> => {
-  const customer = await Customer.findById(id);
+  const query: Record<string, unknown> = { _id: id };
+  if (tenantCompanyId) {
+    query.companyId = tenantCompanyId;
+  }
+  const customer = await Customer.findOne(query);
   if (!customer) {
     throw new Error('Customer not found');
   }
 
+  const companyScope: Record<string, unknown> = customer.companyId
+    ? { companyId: customer.companyId }
+    : { companyId: null };
+
   if (data.code !== undefined && data.code !== customer.code) {
-    const existingCode = await Customer.findOne({ code: data.code, _id: { $ne: id } });
+    const existingCode = await Customer.findOne({ ...companyScope, code: data.code, _id: { $ne: id } });
     if (existingCode) {
       throw new Error(`Customer with code ${data.code} already exists`);
     }
   }
 
   if (data.name && data.name !== customer.name) {
-    const existingName = await Customer.findOne({ name: data.name, _id: { $ne: id } });
+    const existingName = await Customer.findOne({ ...companyScope, name: data.name, _id: { $ne: id } });
     if (existingName) {
       throw new Error(`Customer with name "${data.name}" already exists`);
     }
   }
 
   if (data.phone && data.phone !== customer.phone) {
-    const existingPhone = await Customer.findOne({ phone: data.phone, _id: { $ne: id } });
+    const existingPhone = await Customer.findOne({ ...companyScope, phone: data.phone, _id: { $ne: id } });
     if (existingPhone) {
       throw new Error(`Customer with phone "${data.phone}" already exists`);
     }
@@ -128,9 +157,21 @@ export const updateCustomer = async (
 };
 
 /**
- * Deletes customer if no linked financial documents exist.
+ * Deletes customer if no linked financial documents exist, strictly within tenant boundary.
  */
-export const deleteCustomer = async (id: string | Types.ObjectId): Promise<boolean> => {
+export const deleteCustomer = async (
+  id: string | Types.ObjectId,
+  tenantCompanyId?: string | Types.ObjectId | null
+): Promise<boolean> => {
+  const query: Record<string, unknown> = { _id: id };
+  if (tenantCompanyId) {
+    query.companyId = tenantCompanyId;
+  }
+  const customer = await Customer.findOne(query);
+  if (!customer) {
+    throw new Error('Customer not found');
+  }
+
   const hasInvoices = await Invoice.exists({ customer_id: id });
   if (hasInvoices) {
     throw new Error('Cannot delete customer with existing invoices');
@@ -141,12 +182,12 @@ export const deleteCustomer = async (id: string | Types.ObjectId): Promise<boole
     throw new Error('Cannot delete customer with existing quotations');
   }
 
-  const result = await Customer.findByIdAndDelete(id);
-  return result !== null;
+  const result = await Customer.deleteOne({ _id: id });
+  return result.deletedCount === 1;
 };
 
 /**
- * Lists customers with optional search and pagination.
+ * Lists customers with optional search and pagination, strictly partitioned by company.
  */
 export const listCustomers = async (
   filter: Record<string, unknown> = {},
@@ -165,12 +206,17 @@ export const listCustomers = async (
 };
 
 /**
- * Computes live financial statement metrics for a customer.
+ * Computes live financial statement metrics for a customer within tenant boundaries.
  */
 export const getCustomerStatement = async (
-  customerId: string | Types.ObjectId
+  customerId: string | Types.ObjectId,
+  tenantCompanyId?: string | Types.ObjectId | null
 ): Promise<CustomerStatementSummary> => {
-  const customer = await Customer.findById(customerId);
+  const query: Record<string, unknown> = { _id: customerId };
+  if (tenantCompanyId) {
+    query.companyId = tenantCompanyId;
+  }
+  const customer = await Customer.findOne(query);
   if (!customer) {
     throw new Error('Customer not found');
   }
@@ -271,4 +317,3 @@ export const getCustomerStatement = async (
     transactions,
   };
 };
-

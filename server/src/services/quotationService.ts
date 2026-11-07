@@ -52,7 +52,7 @@ const mapAndCalculateItems = (items: CreateQuotationInput['items']): IDocumentIt
  * Creates a new draft quotation with auto-generated sequential quote number.
  */
 export const createDraft = async (data: CreateQuotationInput): Promise<IQuotation> => {
-  const number = await getNextNumber('quote', data.date);
+  const number = await getNextNumber('quote', data.date, data.companyId);
   const items = mapAndCalculateItems(data.items);
 
   let custId = data.customer_id;
@@ -182,9 +182,10 @@ export const duplicateQuote = async (id: string | Types.ObjectId): Promise<IQuot
   expiryDate.setDate(expiryDate.getDate() + 14);
   const expiry = expiryDate.toISOString().split('T')[0];
 
-  const number = await getNextNumber('quote', today);
+  const number = await getNextNumber('quote', today, (source as any).companyId);
 
   const duplicate = new Quotation({
+    companyId: (source as any).companyId || null,
     number,
     customer_id: source.customer_id,
     date: today,

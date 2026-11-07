@@ -36,8 +36,6 @@ const InvoiceSchema = new Schema<IInvoice>(
       type: String,
       default: null,
       trim: true,
-      sparse: true,
-      unique: true,
       index: true,
     },
     customer_id: {
@@ -121,5 +119,7 @@ const InvoiceSchema = new Schema<IInvoice>(
   }
 );
 
-export const Invoice = model<IInvoice>('Invoice', InvoiceSchema);
+// Multi-tenant compound unique index: invoice number is strictly unique per company
+InvoiceSchema.index({ companyId: 1, number: 1 }, { unique: true, sparse: true });
 
+export const Invoice = model<IInvoice>('Invoice', InvoiceSchema);

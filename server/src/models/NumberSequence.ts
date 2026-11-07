@@ -1,8 +1,9 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export type SequenceKind = 'quote' | 'invoice' | 'receipt' | 'credit';
 
 export interface INumberSequence extends Document {
+  companyId?: Types.ObjectId | null;
   kind: SequenceKind;
   format: string;
   current_seq: number;
@@ -12,10 +13,15 @@ export interface INumberSequence extends Document {
 
 const NumberSequenceSchema = new Schema<INumberSequence>(
   {
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true,
+    },
     kind: {
       type: String,
       required: true,
-      unique: true,
       enum: ['quote', 'invoice', 'receipt', 'credit'],
       index: true,
     },
@@ -40,6 +46,9 @@ const NumberSequenceSchema = new Schema<INumberSequence>(
     collection: 'number_sequences',
   }
 );
+
+// Multi-tenant compound index ensuring sequence counters are unique per company
+NumberSequenceSchema.index({ companyId: 1, kind: 1 }, { unique: true });
 
 export const NumberSequence = model<INumberSequence>('NumberSequence', NumberSequenceSchema);
 

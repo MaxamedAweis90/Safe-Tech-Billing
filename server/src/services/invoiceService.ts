@@ -176,7 +176,7 @@ export const issueInvoice = async (id: string | Types.ObjectId): Promise<IInvoic
     throw new Error(`Invoice has already been transitioned to "${invoice.state}"`);
   }
 
-  const number = await getNextNumber('invoice', invoice.date);
+  const number = await getNextNumber('invoice', invoice.date, (invoice as any).companyId);
   invoice.number = number;
   invoice.state = 'issued';
   invoice.issued_at = new Date();

@@ -55,7 +55,8 @@ const AuditLogSchema = new Schema<IAuditLog>(
   }
 );
 
-// Compound / sorting index for temporal queries
+// Multi-tenant compound sorting index for scoped temporal queries
+AuditLogSchema.index({ companyId: 1, ts: -1, ref: 1 });
 AuditLogSchema.index({ ts: -1, ref: 1 });
 
 // Immutability enforcement: Strictly disallow updates and deletions
@@ -78,4 +79,3 @@ AuditLogSchema.pre('deleteMany', rejectModification);
 AuditLogSchema.pre('findOneAndDelete', rejectModification);
 
 export const AuditLog = model<IAuditLog>('AuditLog', AuditLogSchema);
-

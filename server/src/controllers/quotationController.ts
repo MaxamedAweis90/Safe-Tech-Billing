@@ -1,34 +1,59 @@
-import { Request, Response, NextFunction } from 'express';
-import { Types } from 'mongoose';
-import { Quotation, QuotationState } from '../models/Quotation';
-import * as quotationService from '../services/quotationService';
-import { calculateDocumentTotals } from '../services/mathService';
-import { logAction } from '../services/auditService';
+import { Request, Response, NextFunction } from "express";
+import { Types } from "mongoose";
+import { Quotation, QuotationState } from "../models/Quotation";
+import * as quotationService from "../services/quotationService";
+import { calculateDocumentTotals } from "../services/mathService";
+import { logAction } from "../services/auditService";
 
-export const listQuotations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+const getTenantFilter = (req: Request, baseFilter: Record<string, unknown> = {}): Record<string, unknown> | null => {
+  if (req.user?.companyId) {
+    return { ...baseFilter, companyId: req.user.companyId };
+  }
+  if (req.user?.isDemo) {
+    return { ...baseFilter, companyId: null };
+  }
+  return null;
+};
+
+export const listQuotations = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { state, customer_id, q, limit, skip } = req.query;
 
-    const filter: Record<string, unknown> = {};
-    if (req.user?.companyId) {
-      filter.companyId = req.user.companyId;
+    const baseFilter: Record<string, unknown> = {};
+    if (state && typeof state === "string") {
+      baseFilter.state = state as QuotationState;
     }
-    if (state && typeof state === 'string') {
-      filter.state = state as QuotationState;
+    if (customer_id && typeof customer_id === "string") {
+      baseFilter.customer_id = customer_id;
     }
-    if (customer_id && typeof customer_id === 'string') {
-      filter.customer_id = customer_id;
-    }
-    if (q && typeof q === 'string' && q.trim()) {
-      filter.number = new RegExp(q.trim(), 'i');
+    if (q && typeof q === "string" && q.trim()) {
+      baseFilter.number = new RegExp(q.trim(), "i");
     }
 
-    const parsedLimit = limit ? Math.min(100, Math.max(1, parseInt(limit as string, 10))) : 50;
+    const filter = getTenantFilter(req, baseFilter);
+    if (!filter) {
+      res.status(200).json({
+        success: true,
+        quotations: [],
+        total: 0,
+        limit: 50,
+        skip: 0,
+      });
+      return;
+    }
+
+    const parsedLimit = limit
+      ? Math.min(100, Math.max(1, parseInt(limit as string, 10)))
+      : 50;
     const parsedSkip = skip ? Math.max(0, parseInt(skip as string, 10)) : 0;
 
     const [quotations, total] = await Promise.all([
       Quotation.find(filter)
-        .populate('customer_id', 'code name phone email')
+        .populate("customer_id", "code name phone email")
         .sort({ createdAt: -1 })
         .skip(parsedSkip)
         .limit(parsedLimit),
@@ -55,17 +80,28 @@ export const listQuotations = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-export const getQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getQuotation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Quotation not found' });
+      res.status(404).json({ success: false, error: "Quotation not found" });
       return;
     }
-    const quotation = await Quotation.findById(id).populate('customer_id');
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
+    const quotation = await Quotation.findOne(filter).populate("customer_id");
 
     if (!quotation) {
-      res.status(404).json({ success: false, error: 'Quotation not found' });
+      res.status(404).json({ success: false, error: "Quotation not found" });
       return;
     }
 
@@ -83,19 +119,25 @@ export const getQuotation = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-export const createQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const createQuotation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
+    const tenantId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
     const payload = {
       ...req.body,
-      companyId: req.user?.companyId || undefined,
+      companyId: tenantId,
     };
     const quote = await quotationService.createDraft(payload);
 
     if (req.user) {
       await logAction({
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Created draft quotation',
+        action: "Created draft quotation",
         ref: quote.number,
       });
     }
@@ -109,20 +151,38 @@ export const createQuotation = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const updateQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const updateQuotation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Quotation not found' });
+      res.status(404).json({ success: false, error: "Quotation not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
+    const existing = await Quotation.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
     const quote = await quotationService.updateDraft(id, req.body);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Updated draft quotation',
+        action: "Updated draft quotation",
         ref: quote.number,
       });
     }
@@ -132,7 +192,7 @@ export const updateQuotation = async (req: Request, res: Response, next: NextFun
       quotation: quote,
     });
   } catch (err: any) {
-    if (err.message && err.message.includes('Only drafts are editable')) {
+    if (err.message && err.message.includes("Only drafts are editable")) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -140,20 +200,38 @@ export const updateQuotation = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const sendQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const sendQuotation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Quotation not found' });
+      res.status(404).json({ success: false, error: "Quotation not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
+    const existing = await Quotation.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
     const quote = await quotationService.markSent(id);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Marked quotation as sent',
+        action: "Marked quotation as sent",
         ref: quote.number,
       });
     }
@@ -163,7 +241,7 @@ export const sendQuotation = async (req: Request, res: Response, next: NextFunct
       quotation: quote,
     });
   } catch (err: any) {
-    if (err.message && err.message.includes('Only drafts are editable')) {
+    if (err.message && err.message.includes("Only drafts are editable")) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -171,20 +249,38 @@ export const sendQuotation = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-export const acceptQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const acceptQuotation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Quotation not found' });
+      res.status(404).json({ success: false, error: "Quotation not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
+    const existing = await Quotation.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
     const quote = await quotationService.markAccepted(id);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Accepted quotation',
+        action: "Accepted quotation",
         ref: quote.number,
       });
     }
@@ -194,7 +290,7 @@ export const acceptQuotation = async (req: Request, res: Response, next: NextFun
       quotation: quote,
     });
   } catch (err: any) {
-    if (err.message && err.message.includes('Only drafts are editable')) {
+    if (err.message && err.message.includes("Only drafts are editable")) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -202,21 +298,39 @@ export const acceptQuotation = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const rejectQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const rejectQuotation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Quotation not found' });
+      res.status(404).json({ success: false, error: "Quotation not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
+    const existing = await Quotation.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
     const { reason } = req.body;
     const quote = await quotationService.markRejected(id, reason);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Rejected quotation',
+        action: "Rejected quotation",
         ref: quote.number,
         detail: reason,
       });
@@ -227,7 +341,7 @@ export const rejectQuotation = async (req: Request, res: Response, next: NextFun
       quotation: quote,
     });
   } catch (err: any) {
-    if (err.message && err.message.includes('Only drafts are editable')) {
+    if (err.message && err.message.includes("Only drafts are editable")) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -235,20 +349,38 @@ export const rejectQuotation = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const convertQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const convertQuotation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Quotation not found' });
+      res.status(404).json({ success: false, error: "Quotation not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
+    const existing = await Quotation.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
     const invoice = await quotationService.convertToInvoice(id);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Converted quotation to draft invoice',
+        action: "Converted quotation to draft invoice",
         ref: invoice._id.toString(),
         detail: `Linked to quotation ID: ${id}`,
       });
@@ -263,20 +395,38 @@ export const convertQuotation = async (req: Request, res: Response, next: NextFu
   }
 };
 
-export const duplicateQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const duplicateQuotation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Quotation not found' });
+      res.status(404).json({ success: false, error: "Quotation not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
+    const existing = await Quotation.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
     const quote = await quotationService.duplicateQuote(id);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Duplicated quotation',
+        action: "Duplicated quotation",
         ref: quote.number,
         detail: `Cloned from quotation ID: ${id}`,
       });
@@ -291,31 +441,47 @@ export const duplicateQuotation = async (req: Request, res: Response, next: Next
   }
 };
 
-export const deleteQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const deleteQuotation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Quotation not found' });
+      res.status(404).json({ success: false, error: "Quotation not found" });
       return;
     }
-    const existing = await Quotation.findById(id);
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
+    const existing = await Quotation.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Quotation not found" });
+      return;
+    }
+
     await quotationService.deleteDraft(id);
 
     if (req.user && existing) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Deleted draft quotation',
+        action: "Deleted draft quotation",
         ref: existing.number,
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'Draft quotation deleted successfully',
+      message: "Draft quotation deleted successfully",
     });
   } catch (err) {
     next(err);
   }
 };
-

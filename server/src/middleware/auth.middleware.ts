@@ -11,6 +11,7 @@ export interface AuthUserPayload {
   isVerified?: boolean;
   companyId?: string | null;
   isOwner?: boolean;
+  isDemo?: boolean;
 }
 
 declare global {
@@ -99,6 +100,8 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
       email: `${role}@safetech.so`,
       role,
       isVerified: true,
+      isDemo: true,
+      companyId: null,
     };
     next();
     return;
@@ -106,7 +109,11 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
 
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET) as AuthUserPayload;
-    req.user = decoded;
+    const isDemo = Boolean(decoded.isDemo || decoded.id?.startsWith('usr_') || decoded.email === 'demo@account.com');
+    req.user = {
+      ...decoded,
+      isDemo: isDemo || Boolean(decoded.isDemo),
+    };
     next();
   } catch (err) {
     res.status(401).json({
@@ -195,4 +202,3 @@ export const requireOwner = (req: Request, res: Response, next: NextFunction): v
 
   next();
 };
-

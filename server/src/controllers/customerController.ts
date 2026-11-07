@@ -21,7 +21,19 @@ export const getCustomers = async (
     const filter: Record<string, unknown> = {};
     if (req.user?.companyId) {
       filter.companyId = req.user.companyId;
+    } else if (req.user?.isDemo) {
+      filter.companyId = null;
+    } else {
+      res.status(200).json({
+        success: true,
+        customers: [],
+        total: 0,
+        limit: 50,
+        skip: 0,
+      });
+      return;
     }
+
     if (q && typeof q === "string" && q.trim()) {
       const regex = new RegExp(q.trim(), "i");
       const numCode = parseInt(q.trim(), 10);
@@ -45,10 +57,12 @@ export const getCustomers = async (
       skip: parsedSkip,
     });
 
+    const tenantId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
+
     const populated = await Promise.all(
       result.customers.map(async (c) => {
         try {
-          const stmt = await getCustomerStatement(c._id);
+          const stmt = await getCustomerStatement(c._id, tenantId);
           return {
             ...c.toObject(),
             id: c._id.toString(),
@@ -95,14 +109,19 @@ export const getCustomer = async (
       res.status(404).json({ success: false, error: "Customer not found" });
       return;
     }
-    const statement = await getCustomerStatement(id);
+    const tenantId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
+    const statement = await getCustomerStatement(id, tenantId);
 
     res.status(200).json({
       success: true,
       data: statement,
       customer: statement.customer,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.message === "Customer not found") {
+      res.status(404).json({ success: false, error: "Customer not found" });
+      return;
+    }
     next(err);
   }
 };
@@ -113,14 +132,16 @@ export const postCustomer = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const tenantId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
     const payload = {
       ...req.body,
-      companyId: req.user?.companyId || undefined,
+      companyId: tenantId,
     };
     const customer = await createCustomer(payload);
 
     if (req.user) {
       await logAction({
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
         action: "Created customer",
@@ -156,10 +177,12 @@ export const putCustomer = async (
       res.status(404).json({ success: false, error: "Customer not found" });
       return;
     }
-    const customer = await updateCustomer(id, req.body);
+    const tenantId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
+    const customer = await updateCustomer(id, req.body, tenantId);
 
     if (req.user && customer) {
       await logAction({
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
         action: "Updated customer",
@@ -173,6 +196,10 @@ export const putCustomer = async (
       customer,
     });
   } catch (err: any) {
+    if (err?.message === "Customer not found") {
+      res.status(404).json({ success: false, error: "Customer not found" });
+      return;
+    }
     if (
       err.code === 11000 ||
       (err.message && err.message.includes("already exists"))
@@ -191,11 +218,22 @@ export const removeCustomer = async (
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const existing = await getCustomerById(id);
-    await deleteCustomer(id);
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(404).json({ success: false, error: "Customer not found" });
+      return;
+    }
+    const tenantId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
+    const existing = await getCustomerById(id, tenantId);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Customer not found" });
+      return;
+    }
+
+    await deleteCustomer(id, tenantId);
 
     if (req.user && existing) {
       await logAction({
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
         action: "Deleted customer",
@@ -208,7 +246,15 @@ export const removeCustomer = async (
       success: true,
       message: "Customer deleted successfully",
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.message === "Customer not found") {
+      res.status(404).json({ success: false, error: "Customer not found" });
+      return;
+    }
+    if (err?.message?.includes("Cannot delete customer")) {
+      res.status(400).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 };

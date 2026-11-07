@@ -7,6 +7,16 @@ import * as invoiceService from "../services/invoiceService";
 import { issueCreditNote } from "../services/paymentService";
 import { logAction } from "../services/auditService";
 
+const getTenantFilter = (req: Request, baseFilter: Record<string, unknown> = {}): Record<string, unknown> | null => {
+  if (req.user?.companyId) {
+    return { ...baseFilter, companyId: req.user.companyId };
+  }
+  if (req.user?.isDemo) {
+    return { ...baseFilter, companyId: null };
+  }
+  return null;
+};
+
 export const listInvoices = async (
   req: Request,
   res: Response,
@@ -15,15 +25,24 @@ export const listInvoices = async (
   try {
     const { status, customer_id, q, limit, skip } = req.query;
 
-    const filter: Record<string, unknown> = {};
-    if (req.user?.companyId) {
-      filter.companyId = req.user.companyId;
-    }
+    const baseFilter: Record<string, unknown> = {};
     if (customer_id && typeof customer_id === "string") {
-      filter.customer_id = customer_id;
+      baseFilter.customer_id = customer_id;
     }
     if (q && typeof q === "string" && q.trim()) {
-      filter.number = new RegExp(q.trim(), "i");
+      baseFilter.number = new RegExp(q.trim(), "i");
+    }
+
+    const filter = getTenantFilter(req, baseFilter);
+    if (!filter) {
+      res.status(200).json({
+        success: true,
+        invoices: [],
+        total: 0,
+        limit: 50,
+        skip: 0,
+      });
+      return;
     }
 
     const parsedLimit = limit
@@ -82,8 +101,14 @@ export const getInvoice = async (
       res.status(404).json({ success: false, error: "Invoice not found" });
       return;
     }
-    const financials = await invoiceService.getInvoiceFinancials(id);
-    const invoice = await Invoice.findById(id)
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const invoice = await Invoice.findOne(filter)
       .populate("customer_id")
       .populate("quote_id");
 
@@ -91,6 +116,8 @@ export const getInvoice = async (
       res.status(404).json({ success: false, error: "Invoice not found" });
       return;
     }
+
+    const financials = await invoiceService.getInvoiceFinancials(id);
 
     const [payments, creditNotes] = await Promise.all([
       Payment.find({ invoice_id: id }).populate("receipt_id").sort({ date: -1 }),
@@ -121,14 +148,16 @@ export const createInvoice = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const tenantId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
     const payload = {
       ...req.body,
-      companyId: req.user?.companyId || undefined,
+      companyId: tenantId,
     };
     const invoice = await invoiceService.createDraft(payload);
 
     if (req.user) {
       await logAction({
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
         action: "Created draft invoice",
@@ -156,10 +185,24 @@ export const updateInvoice = async (
       res.status(404).json({ success: false, error: "Invoice not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const existing = await Invoice.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
     const invoice = await invoiceService.updateDraft(id, req.body);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
         action: "Updated draft invoice",
@@ -172,7 +215,7 @@ export const updateInvoice = async (
       invoice,
     });
   } catch (err: any) {
-    if (err.message && err.message.includes('Only drafts are editable')) {
+    if (err.message && err.message.includes("Only drafts are editable")) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -191,10 +234,24 @@ export const issueInvoiceHandler = async (
       res.status(404).json({ success: false, error: "Invoice not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const existing = await Invoice.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
     const invoice = await invoiceService.issueInvoice(id);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
         action: "Formally issued invoice",
@@ -207,7 +264,7 @@ export const issueInvoiceHandler = async (
       invoice,
     });
   } catch (err: any) {
-    if (err.message && err.message.includes('Only drafts are editable')) {
+    if (err.message && err.message.includes("Only drafts are editable")) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -226,10 +283,24 @@ export const markSentHandler = async (
       res.status(404).json({ success: false, error: "Invoice not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const existing = await Invoice.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
     const invoice = await invoiceService.markSent(id);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
         action: "Marked invoice as sent",
@@ -242,7 +313,7 @@ export const markSentHandler = async (
       invoice,
     });
   } catch (err: any) {
-    if (err.message && err.message.includes('Only drafts are editable')) {
+    if (err.message && err.message.includes("Only drafts are editable")) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -261,11 +332,25 @@ export const cancelInvoiceHandler = async (
       res.status(404).json({ success: false, error: "Invoice not found" });
       return;
     }
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const existing = await Invoice.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
     const { reason } = req.body;
     const invoice = await invoiceService.cancelInvoice(id, reason);
 
     if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
         action: "Cancelled invoice",
@@ -279,7 +364,7 @@ export const cancelInvoiceHandler = async (
       invoice,
     });
   } catch (err: any) {
-    if (err.message && err.message.includes('Only drafts are editable')) {
+    if (err.message && err.message.includes("Only drafts are editable")) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -298,10 +383,28 @@ export const creditNoteHandler = async (
       res.status(404).json({ success: false, error: "Invoice not found" });
       return;
     }
-    const creditNote = await issueCreditNote(id, req.body);
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const existing = await Invoice.findOne(filter);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const tenantId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
+    const creditNote = await issueCreditNote(id, {
+      ...req.body,
+      companyId: tenantId,
+    });
 
     if (req.user) {
       await logAction({
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
         action: "Issued credit note",
@@ -330,11 +433,24 @@ export const deleteInvoiceHandler = async (
       res.status(404).json({ success: false, error: "Invoice not found" });
       return;
     }
-    const invoice = await Invoice.findById(id);
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const invoice = await Invoice.findOne(filter);
+    if (!invoice) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
     await invoiceService.deleteDraft(id);
 
-    if (req.user && invoice) {
+    if (req.user) {
       await logAction({
+        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
         action: "Deleted draft invoice",
@@ -354,7 +470,7 @@ export const deleteInvoiceHandler = async (
 export const listInvoicePaymentsHandler = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const id = req.params.id as string;
@@ -362,7 +478,23 @@ export const listInvoicePaymentsHandler = async (
       res.status(404).json({ success: false, error: "Invoice not found" });
       return;
     }
-    const payments = await Payment.find({ invoice_id: id }).populate("receipt_id").sort({ date: -1 });
+
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const invoice = await Invoice.findOne(filter);
+    if (!invoice) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const payments = await Payment.find({ invoice_id: id })
+      .populate("receipt_id")
+      .sort({ date: -1 });
+
     res.status(200).json({
       success: true,
       payments,

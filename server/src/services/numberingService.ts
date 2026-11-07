@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 import { NumberSequence, SequenceKind } from '../models/NumberSequence';
 
 export const DEFAULT_NUMBER_PATTERNS: Record<SequenceKind, string> = {
@@ -36,16 +37,26 @@ export const formatNumber = (pattern: string, seq: number, dateISO: string = new
 
 /**
  * Atomically increments and retrieves the next sequential number for a given document kind.
- * Guarantees zero duplicate sequence counters across concurrent requests.
+ * Strictly scoped by companyId to guarantee tenant isolation and independent sequence counters.
  */
 export const getNextNumber = async (
   kind: SequenceKind,
-  dateISO: string = new Date().toISOString()
+  dateISO: string = new Date().toISOString(),
+  companyId?: string | Types.ObjectId | null
 ): Promise<string> => {
   const defaultPattern = DEFAULT_NUMBER_PATTERNS[kind] || '{SEQ}';
 
+  let resolvedCompanyId: Types.ObjectId | null = null;
+  if (companyId) {
+    if (companyId instanceof Types.ObjectId) {
+      resolvedCompanyId = companyId;
+    } else if (typeof companyId === 'string' && Types.ObjectId.isValid(companyId)) {
+      resolvedCompanyId = new Types.ObjectId(companyId);
+    }
+  }
+
   const sequenceDoc = await NumberSequence.findOneAndUpdate(
-    { kind },
+    { companyId: resolvedCompanyId, kind },
     {
       $inc: { current_seq: 1 },
       $setOnInsert: { format: defaultPattern },
@@ -62,17 +73,26 @@ export const getNextNumber = async (
 };
 
 /**
- * Previews the upcoming sequential number without incrementing the persistent sequence counter.
+ * Previews the upcoming sequential number for a specific company without incrementing the persistent sequence counter.
  */
 export const peekNextNumber = async (
   kind: SequenceKind,
-  dateISO: string = new Date().toISOString()
+  dateISO: string = new Date().toISOString(),
+  companyId?: string | Types.ObjectId | null
 ): Promise<string> => {
   const defaultPattern = DEFAULT_NUMBER_PATTERNS[kind] || '{SEQ}';
-  const sequenceDoc = await NumberSequence.findOne({ kind });
+
+  let resolvedCompanyId: Types.ObjectId | null = null;
+  if (companyId) {
+    if (companyId instanceof Types.ObjectId) {
+      resolvedCompanyId = companyId;
+    } else if (typeof companyId === 'string' && Types.ObjectId.isValid(companyId)) {
+      resolvedCompanyId = new Types.ObjectId(companyId);
+    }
+  }
+
+  const sequenceDoc = await NumberSequence.findOne({ companyId: resolvedCompanyId, kind });
   const currentSeq = sequenceDoc ? sequenceDoc.current_seq : (kind === 'invoice' ? 10471 : 0);
   const pattern = sequenceDoc?.format || defaultPattern;
   return formatNumber(pattern, currentSeq + 1, dateISO);
 };
-
-

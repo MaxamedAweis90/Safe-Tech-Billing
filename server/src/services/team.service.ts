@@ -18,7 +18,7 @@ export interface InviteMemberParams {
   invitedBy: string;
   inviterName?: string;
   inviterEmail?: string;
-  companyId?: string;
+  companyId?: string | mongoose.Types.ObjectId | null;
 }
 
 export interface AcceptInviteParams {
@@ -38,13 +38,10 @@ export class TeamServiceError extends Error {
 }
 
 /**
- * Returns list of team members (excluding sensitive fields like password_hash).
+ * Returns list of team members strictly partitioned by company (excluding password_hash).
  */
-export const listTeamMembers = async (companyId?: string) => {
-  const filter: Record<string, any> = {};
-  if (companyId) {
-    filter.companyId = companyId;
-  }
+export const listTeamMembers = async (companyId?: string | mongoose.Types.ObjectId | null) => {
+  const filter: Record<string, any> = companyId ? { companyId } : { companyId: null };
   const users = await User.find(filter)
     .select('-password_hash')
     .sort({ createdAt: -1 });
@@ -64,7 +61,7 @@ export const listTeamMembers = async (companyId?: string) => {
 };
 
 /**
- * Creates and dispatches a team invitation.
+ * Creates and dispatches a team invitation scoped to the inviter's company.
  */
 export const createInvitation = async (params: InviteMemberParams) => {
   const { email, role, fullName, invitedBy, inviterName, inviterEmail, companyId } = params;
@@ -126,6 +123,7 @@ export const createInvitation = async (params: InviteMemberParams) => {
 
   // Audit log
   await logAction({
+    companyId: companyId || undefined,
     user_name: inviterName || 'Admin',
     role: 'admin',
     action: 'Invited staff member',
@@ -143,13 +141,10 @@ export const createInvitation = async (params: InviteMemberParams) => {
 };
 
 /**
- * Returns list of team invitations with calculated expiration status.
+ * Returns list of team invitations partitioned by company with calculated expiration status.
  */
-export const listInvitations = async (companyId?: string) => {
-  const filter: Record<string, any> = {};
-  if (companyId) {
-    filter.companyId = companyId;
-  }
+export const listInvitations = async (companyId?: string | mongoose.Types.ObjectId | null) => {
+  const filter: Record<string, any> = companyId ? { companyId } : { companyId: null };
   const invitations = await TeamInvitation.find(filter)
     .populate('invitedBy', 'fullName email')
     .sort({ createdAt: -1 });
@@ -178,12 +173,13 @@ export const listInvitations = async (companyId?: string) => {
 };
 
 /**
- * Revokes a pending invitation.
+ * Revokes a pending invitation within tenant boundary.
  */
 export const revokeInvitation = async (
   invitationId: string,
   revokedByName: string,
-  revokedByRole: string
+  revokedByRole: string,
+  tenantCompanyId?: string | mongoose.Types.ObjectId | null
 ) => {
   if (!mongoose.Types.ObjectId.isValid(invitationId)) {
     throw new TeamServiceError('Invalid invitation identifier', 400);
@@ -194,6 +190,12 @@ export const revokeInvitation = async (
     throw new TeamServiceError('Invitation not found', 404);
   }
 
+  if (tenantCompanyId !== undefined && tenantCompanyId !== null) {
+    if (String(invitation.companyId) !== String(tenantCompanyId)) {
+      throw new TeamServiceError('Invitation not found', 404);
+    }
+  }
+
   if (invitation.acceptedAt) {
     throw new TeamServiceError('Cannot revoke an invitation that has already been accepted', 400);
   }
@@ -201,6 +203,7 @@ export const revokeInvitation = async (
   await TeamInvitation.deleteOne({ _id: invitation._id });
 
   await logAction({
+    companyId: tenantCompanyId || undefined,
     user_name: revokedByName,
     role: revokedByRole,
     action: 'Revoked staff invitation',
@@ -238,7 +241,6 @@ export const getInvitationByToken = async (token: string) => {
   let inviterName = 'Administrator';
   let companyName = 'Safe Tech Solutions';
 
-  // Only query models if MongoDB is active to avoid query buffering timeouts in unit tests
   if (mongoose.connection.readyState === 1) {
     if (invitation.invitedBy) {
       try {
@@ -334,9 +336,9 @@ export const acceptInvitation = async (params: AcceptInviteParams) => {
     email: invitation.email,
     fullName: fullName.trim(),
     phone: normalizedPhone,
-    role: invitation.role, // Strictly enforces the role designated in the invitation token
+    role: invitation.role,
     companyId: invitation.companyId || undefined,
-    isVerified: true, // Verified by virtue of token receipt via email
+    isVerified: true,
     status: 'active',
     invitedBy: invitation.invitedBy,
     onboardingCompleted: true,
@@ -352,6 +354,7 @@ export const acceptInvitation = async (params: AcceptInviteParams) => {
 
   // Audit log
   await logAction({
+    companyId: invitation.companyId || undefined,
     user_name: user.fullName,
     role: user.role,
     action: 'Staff joined team',
@@ -376,14 +379,15 @@ export const acceptInvitation = async (params: AcceptInviteParams) => {
 };
 
 /**
- * Updates a team member's role (Strictly permitted to Company Owner only).
+ * Updates a team member's role (Strictly permitted to Company Owner only, within tenant boundary).
  */
 export const updateMemberRole = async (
   targetUserId: string,
   newRole: 'accountant' | 'sales' | 'viewer',
   updaterId: string,
   updaterRole: string,
-  updaterIsOwner?: boolean
+  updaterIsOwner?: boolean,
+  tenantCompanyId?: string | mongoose.Types.ObjectId | null
 ) => {
   if (!updaterIsOwner && updaterRole !== 'admin') {
     throw new TeamServiceError('Only the company owner can modify member roles', 403);
@@ -406,6 +410,12 @@ export const updateMemberRole = async (
     throw new TeamServiceError('Member not found', 404);
   }
 
+  if (tenantCompanyId !== undefined && tenantCompanyId !== null) {
+    if (String(targetUser.companyId) !== String(tenantCompanyId)) {
+      throw new TeamServiceError('Member not found', 404);
+    }
+  }
+
   if (targetUser.isOwner) {
     throw new TeamServiceError('Cannot change the role of the company owner', 400);
   }
@@ -415,6 +425,7 @@ export const updateMemberRole = async (
   await targetUser.save();
 
   await logAction({
+    companyId: tenantCompanyId || undefined,
     user_name: 'Administrator',
     role: updaterRole,
     action: 'Changed staff role',
@@ -429,4 +440,3 @@ export const updateMemberRole = async (
     role: targetUser.role,
   };
 };
-

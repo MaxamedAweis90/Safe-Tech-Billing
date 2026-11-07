@@ -14,6 +14,7 @@ export interface RecordPaymentInput {
 }
 
 export interface IssueCreditNoteInput {
+  companyId?: string | Types.ObjectId | null;
   amount_milli: number;
   reason: string;
   date: string;
@@ -53,9 +54,10 @@ export const recordPayment = async (
 
   const cleanReference = input.reference ? input.reference.trim() : '';
 
-  // Duplicate transaction reference validation for non-cash rails
+  // Duplicate transaction reference validation for non-cash rails scoped to tenant
   if (input.method !== 'cash' && cleanReference !== '') {
     const duplicate = await Payment.findOne({
+      companyId: input.companyId || (invoice as any).companyId || null,
       method: input.method,
       reference: cleanReference,
     });
@@ -66,7 +68,7 @@ export const recordPayment = async (
     }
   }
 
-  const receiptNumber = await getNextNumber('receipt', input.date);
+  const receiptNumber = await getNextNumber('receipt', input.date, input.companyId || (invoice as any).companyId);
   const paymentId = new Types.ObjectId();
   const receiptId = new Types.ObjectId();
   const balanceAfter = balance_milli - input.amount_milli;
@@ -84,6 +86,7 @@ export const recordPayment = async (
   });
 
   const receiptDoc = new Receipt({
+    companyId: input.companyId || (invoice as any).companyId || null,
     _id: receiptId,
     number: receiptNumber,
     payment_id: paymentId,
@@ -165,9 +168,10 @@ export const issueCreditNote = async (
   }
 
   const creditDate = input.date || new Date().toISOString().slice(0, 10);
-  const creditNumber = await getNextNumber('credit', creditDate);
+  const creditNumber = await getNextNumber('credit', creditDate, input.companyId || (invoice as any).companyId);
 
   const creditNote = new CreditNote({
+    companyId: input.companyId || (invoice as any).companyId || null,
     number: creditNumber,
     invoice_id: invoice._id,
     amount_milli: input.amount_milli,

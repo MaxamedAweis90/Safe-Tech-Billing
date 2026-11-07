@@ -2,8 +2,19 @@ import { Request, Response, NextFunction } from "express";
 import { Types } from "mongoose";
 import { Payment } from "../models/Payment";
 import { Receipt } from "../models/Receipt";
+import { Invoice } from "../models/Invoice";
 import { recordPayment } from "../services/paymentService";
 import { logAction } from "../services/auditService";
+
+const getTenantFilter = (req: Request, baseFilter: Record<string, unknown> = {}): Record<string, unknown> | null => {
+  if (req.user?.companyId) {
+    return { ...baseFilter, companyId: req.user.companyId };
+  }
+  if (req.user?.isDemo) {
+    return { ...baseFilter, companyId: null };
+  }
+  return null;
+};
 
 export const postPayment = async (
   req: Request,
@@ -17,14 +28,28 @@ export const postPayment = async (
       return;
     }
 
+    const invoiceFilter = getTenantFilter(req, { _id: id });
+    if (!invoiceFilter) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const invoice = await Invoice.findOne(invoiceFilter);
+    if (!invoice) {
+      res.status(404).json({ success: false, error: "Invoice not found" });
+      return;
+    }
+
+    const tenantId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
     const payload = {
       ...req.body,
-      companyId: req.user?.companyId || undefined,
+      companyId: tenantId,
     };
     const result = await recordPayment(id, payload);
 
     if (req.user) {
       await logAction({
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
         action: "Recorded payment",
@@ -51,13 +76,25 @@ export const listPayments = async (
   try {
     const { invoice_id, method, limit, skip } = req.query;
 
-    const filter: Record<string, unknown> = {};
-    if (req.user?.companyId) {
-      filter.companyId = req.user.companyId;
+    const baseFilter: Record<string, unknown> = {};
+    if (invoice_id && typeof invoice_id === "string") {
+      baseFilter.invoice_id = invoice_id;
     }
-    if (invoice_id && typeof invoice_id === "string")
-      filter.invoice_id = invoice_id;
-    if (method && typeof method === "string") filter.method = method;
+    if (method && typeof method === "string") {
+      baseFilter.method = method;
+    }
+
+    const filter = getTenantFilter(req, baseFilter);
+    if (!filter) {
+      res.status(200).json({
+        success: true,
+        payments: [],
+        total: 0,
+        limit: 50,
+        skip: 0,
+      });
+      return;
+    }
 
     const parsedLimit = limit
       ? Math.min(100, Math.max(1, parseInt(limit as string, 10)))
@@ -94,14 +131,28 @@ export const listReceipts = async (
   try {
     const { method, customer_id, q, limit, skip } = req.query;
 
-    const filter: Record<string, unknown> = {};
-    if (method && typeof method === "string" && method !== "all")
-      filter.method = method;
-    if (customer_id && typeof customer_id === "string" && customer_id !== "all")
-      filter.customer_id = customer_id;
+    const baseFilter: Record<string, unknown> = {};
+    if (method && typeof method === "string" && method !== "all") {
+      baseFilter.method = method;
+    }
+    if (customer_id && typeof customer_id === "string" && customer_id !== "all") {
+      baseFilter.customer_id = customer_id;
+    }
     if (q && typeof q === "string" && q.trim()) {
       const regex = new RegExp(q.trim(), "i");
-      filter.$or = [{ number: regex }, { reference: regex }];
+      baseFilter.$or = [{ number: regex }, { reference: regex }];
+    }
+
+    const filter = getTenantFilter(req, baseFilter);
+    if (!filter) {
+      res.status(200).json({
+        success: true,
+        receipts: [],
+        total: 0,
+        limit: 50,
+        skip: 0,
+      });
+      return;
     }
 
     const parsedLimit = limit
@@ -143,7 +194,13 @@ export const getReceipt = async (
       return;
     }
 
-    const receipt = await Receipt.findById(id)
+    const filter = getTenantFilter(req, { _id: id });
+    if (!filter) {
+      res.status(404).json({ success: false, error: "Receipt not found" });
+      return;
+    }
+
+    const receipt = await Receipt.findOne(filter)
       .populate("customer_id")
       .populate("invoice_id")
       .populate("payment_id");

@@ -8,24 +8,24 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
   try {
     if (force) {
       await Promise.all([
-        NumberSequence.deleteMany({}),
+        NumberSequence.deleteMany({ companyId: null }),
         Currency.deleteMany({}),
         TaxRate.deleteMany({}),
-        Customer.deleteMany({}),
+        Customer.deleteMany({ companyId: null }),
       ]);
     }
-    // 1. Number Sequences
-    const seqCount = await NumberSequence.countDocuments();
+    // 1. Number Sequences (Scoped strictly to unassigned/demo: companyId: null)
+    const seqCount = await NumberSequence.countDocuments({ companyId: null });
     if (seqCount === 0) {
       await NumberSequence.create([
-        { kind: 'quote', format: 'QT-{YYYY}-{SEQ4}', current_seq: 10 },
-        { kind: 'invoice', format: '{SEQ}', current_seq: 10471 },
-        { kind: 'receipt', format: 'RC-{SEQ5}', current_seq: 12 },
-        { kind: 'credit', format: 'CN-{SEQ4}', current_seq: 1 },
+        { companyId: null, kind: 'quote', format: 'QT-{YYYY}-{SEQ4}', current_seq: 10 },
+        { companyId: null, kind: 'invoice', format: '{SEQ}', current_seq: 10471 },
+        { companyId: null, kind: 'receipt', format: 'RC-{SEQ5}', current_seq: 12 },
+        { companyId: null, kind: 'credit', format: 'CN-{SEQ4}', current_seq: 1 },
       ]);
     }
 
-    // 2. Currencies
+    // 2. Currencies (Global catalog)
     const curCount = await Currency.countDocuments();
     if (curCount === 0) {
       await Currency.create([
@@ -34,7 +34,7 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
       ]);
     }
 
-    // 3. Tax Rates
+    // 3. Tax Rates (Global catalog)
     const taxCount = await TaxRate.countDocuments();
     if (taxCount === 0) {
       await TaxRate.create([
@@ -44,11 +44,12 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
       ]);
     }
 
-    // 4. Customers
-    const custCount = await Customer.countDocuments();
+    // 4. Customers (Scoped strictly to demo: companyId: null)
+    const custCount = await Customer.countDocuments({ companyId: null });
     if (custCount === 0) {
       await Customer.create([
         {
+          companyId: null,
           code: 1001,
           name: 'Dr. SUMAIT Hospital - SIMAD University',
           attn: 'Procurement',
@@ -58,6 +59,7 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
           since: '2024-03-01',
         },
         {
+          companyId: null,
           code: 1002,
           name: 'Hodan Medical Centre',
           attn: 'Procurement Office',
@@ -67,6 +69,7 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
           since: '2026-04-12',
         },
         {
+          companyId: null,
           code: 1003,
           name: 'Shabelle Logistics Ltd',
           attn: 'Ayaan Warsame',
@@ -76,6 +79,7 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
           since: '2026-05-02',
         },
         {
+          companyId: null,
           code: 1004,
           name: 'Jazeera Coffee House',
           attn: 'Liban Hashi',
@@ -85,6 +89,7 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
           since: '2026-06-10',
         },
         {
+          companyId: null,
           code: 1005,
           name: 'Bakaara Traders Co.',
           attn: 'Warsame Duale',
@@ -94,6 +99,7 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
           since: '2026-06-15',
         },
         {
+          companyId: null,
           code: 1006,
           name: 'Lido Seaside Hotel',
           attn: 'Safiya Barre',
@@ -103,6 +109,7 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
           since: '2026-07-01',
         },
         {
+          companyId: null,
           code: 1007,
           name: 'Waaberi Primary School',
           attn: 'Headmaster Office',
@@ -112,6 +119,7 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
           since: '2026-08-14',
         },
         {
+          companyId: null,
           code: 1008,
           name: 'Benadir Engineering Works',
           attn: 'Engineer Hassan',
@@ -130,4 +138,3 @@ export const seedDefaultData = async (force: boolean = false): Promise<void> => 
     console.warn('[Database] Seed default baseline skipped or errored:', err);
   }
 };
-

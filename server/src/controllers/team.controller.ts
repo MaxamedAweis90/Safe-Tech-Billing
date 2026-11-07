@@ -5,7 +5,7 @@ import { setAuthCookies } from './auth.controller';
 /**
  * 1. GET /api/v1/team/members
  * Guarded: Admin only.
- * Returns all organization members.
+ * Returns organization members strictly scoped to the caller's company.
  */
 export const getMembers = async (
   req: Request,
@@ -13,7 +13,7 @@ export const getMembers = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const companyId = req.user?.companyId || undefined;
+    const companyId = req.user?.companyId || null;
     const members = await teamService.listTeamMembers(companyId);
     res.status(200).json({
       success: true,
@@ -59,6 +59,8 @@ export const inviteMember = async (
       return;
     }
 
+    const companyId = req.user.companyId || (req.user.isDemo ? null : undefined);
+
     const invitation = await teamService.createInvitation({
       email,
       role,
@@ -66,7 +68,7 @@ export const inviteMember = async (
       invitedBy: req.user.id,
       inviterName: req.user.name,
       inviterEmail: req.user.email,
-      companyId: req.user.companyId || undefined,
+      companyId,
     });
 
     res.status(201).json({
@@ -88,7 +90,7 @@ export const inviteMember = async (
 /**
  * 3. GET /api/v1/team/invitations
  * Guarded: Admin only.
- * Lists all invitations with status.
+ * Lists all invitations with status for the caller's company.
  */
 export const getInvitations = async (
   req: Request,
@@ -96,7 +98,7 @@ export const getInvitations = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const companyId = req.user?.companyId || undefined;
+    const companyId = req.user?.companyId || null;
     const invitations = await teamService.listInvitations(companyId);
     res.status(200).json({
       success: true,
@@ -110,7 +112,7 @@ export const getInvitations = async (
 /**
  * 4. DELETE /api/v1/team/invitations/:id
  * Guarded: Admin only.
- * Revokes a pending invitation.
+ * Revokes a pending invitation within tenant boundary.
  */
 export const revokeInvitation = async (
   req: Request,
@@ -125,7 +127,14 @@ export const revokeInvitation = async (
       return;
     }
 
-    await teamService.revokeInvitation(id as string, req.user.name, req.user.role);
+    const tenantCompanyId = req.user.companyId || (req.user.isDemo ? null : undefined);
+
+    await teamService.revokeInvitation(
+      id as string,
+      req.user.name,
+      req.user.role,
+      tenantCompanyId
+    );
 
     res.status(200).json({
       success: true,
@@ -210,7 +219,7 @@ export const acceptInvitation = async (
 /**
  * 7. PATCH /api/v1/team/members/:id/role
  * Guarded: Company Owner only.
- * Updates a staff member's assigned role.
+ * Updates a staff member's assigned role within tenant boundary.
  */
 export const updateMemberRole = async (
   req: Request,
@@ -226,12 +235,15 @@ export const updateMemberRole = async (
       return;
     }
 
+    const tenantCompanyId = req.user.companyId || (req.user.isDemo ? null : undefined);
+
     const updated = await teamService.updateMemberRole(
       id as string,
       role,
       req.user.id,
       req.user.role,
-      req.user.isOwner
+      req.user.isOwner,
+      tenantCompanyId
     );
 
     res.status(200).json({
@@ -247,4 +259,3 @@ export const updateMemberRole = async (
     next(err);
   }
 };
-

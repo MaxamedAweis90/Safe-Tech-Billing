@@ -2,6 +2,7 @@ import { Schema, model, Document, Types } from 'mongoose';
 import { PaymentMethod } from './Payment';
 
 export interface IReceipt extends Document {
+  companyId?: Types.ObjectId | null;
   number: string;
   payment_id: Types.ObjectId;
   invoice_id: Types.ObjectId;
@@ -20,10 +21,15 @@ export interface IReceipt extends Document {
 
 const ReceiptSchema = new Schema<IReceipt>(
   {
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true,
+    },
     number: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       index: true,
     },
@@ -106,6 +112,9 @@ const ReceiptSchema = new Schema<IReceipt>(
     collection: 'receipts',
   }
 );
+
+// Multi-tenant compound index ensuring sequential receipt numbers are strictly unique per company
+ReceiptSchema.index({ companyId: 1, number: 1 }, { unique: true });
 
 export const Receipt = model<IReceipt>('Receipt', ReceiptSchema);
 

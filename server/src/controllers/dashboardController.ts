@@ -25,7 +25,49 @@ export const getDashboardSummary = async (
       months.push(d.toISOString().slice(0, 7));
     }
 
-    const companyFilter = req.user?.companyId ? { companyId: req.user.companyId } : {};
+    const tenantCompanyId = req.user?.companyId;
+    let companyFilter: Record<string, unknown> = {};
+    if (tenantCompanyId) {
+      companyFilter = { companyId: tenantCompanyId };
+    } else {
+      const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+      if (isDemo) {
+        companyFilter = { companyId: null };
+      } else {
+        res.status(200).json({
+          success: true,
+          summary: {
+            kpis: {
+              totalQuotes: 0,
+              winRate: 0,
+              issuedInvoices: 0,
+              draftCount: 0,
+              cancelledCount: 0,
+              received: 0,
+              thisMonth: 0,
+              outstanding: 0,
+              openInvoicesCount: 0,
+              overdueAmt: 0,
+              overdueCount: 0,
+            },
+            revenueData: {
+              months,
+              invoiced: months.map(() => 0),
+              received: months.map(() => 0),
+            },
+            statusDist: {
+              paid: { count: 0, total_milli: 0 },
+              partial: { count: 0, total_milli: 0 },
+              sent: { count: 0, total_milli: 0 },
+              unpaid: { count: 0, total_milli: 0 },
+              overdue: { count: 0, total_milli: 0 },
+            },
+            recentTransactions: [],
+          },
+        });
+        return;
+      }
+    }
 
     const [invoices, quotations, payments, customers] = await Promise.all([
       Invoice.find(companyFilter).populate('customer_id', 'name code'),

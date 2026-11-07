@@ -6,6 +6,26 @@ export const listAuditLogs = async (req: Request, res: Response, next: NextFunct
     const { q, user_name, ref, limit, skip } = req.query;
 
     const filter: Record<string, unknown> = {};
+
+    const tenantCompanyId = req.user?.companyId;
+    if (!tenantCompanyId) {
+      const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+      if (isDemo) {
+        filter.companyId = null;
+      } else {
+        res.status(200).json({
+          success: true,
+          logs: [],
+          total: 0,
+          limit: limit ? Math.min(100, Math.max(1, parseInt(limit as string, 10))) : 50,
+          skip: skip ? Math.max(0, parseInt(skip as string, 10)) : 0,
+        });
+        return;
+      }
+    } else {
+      filter.companyId = tenantCompanyId;
+    }
+
     if (user_name && typeof user_name === 'string') {
       filter.user_name = user_name;
     }
@@ -36,4 +56,3 @@ export const listAuditLogs = async (req: Request, res: Response, next: NextFunct
     next(err);
   }
 };
-

@@ -7,6 +7,18 @@ import { Customer } from "../models/Customer";
 import { getInvoiceFinancials } from "../services/invoiceService";
 import { calculateDocumentTotals } from "../services/mathService";
 
+const getTenantCompanyFilter = (req: Request): Record<string, unknown> | null => {
+  const companyId = req.user?.companyId;
+  if (companyId) {
+    return { companyId };
+  }
+  const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+  if (isDemo) {
+    return { companyId: null };
+  }
+  return null;
+};
+
 export const getSummary = async (
   req: Request,
   res: Response,
@@ -14,7 +26,25 @@ export const getSummary = async (
 ): Promise<void> => {
   try {
     const todayStr = new Date().toISOString().split("T")[0];
-    const companyFilter = req.user?.companyId ? { companyId: req.user.companyId } : {};
+    const companyFilter = getTenantCompanyFilter(req);
+
+    if (!companyFilter) {
+      res.status(200).json({
+        success: true,
+        summary: {
+          total_invoiced_milli: 0,
+          total_revenue_milli: 0,
+          total_credited_milli: 0,
+          total_outstanding_milli: 0,
+          total_overdue_milli: 0,
+          overdue_invoices_count: 0,
+          invoices_count: 0,
+          quotations_count: 0,
+          customers_count: 0,
+        },
+      });
+      return;
+    }
 
     const [invoices, payments, creditNotes, quotationsCount, customersCount] =
       await Promise.all([
@@ -90,8 +120,19 @@ export const getRevenueReport = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const companyFilter = getTenantCompanyFilter(req);
+    if (!companyFilter) {
+      res.status(200).json({
+        success: true,
+        series: [],
+        total_invoiced_milli: 0,
+        total_paid_milli: 0,
+      });
+      return;
+    }
+
     const { from, to, customer_id, group } = req.query;
-    const invFilter: Record<string, unknown> = { state: { $ne: "cancelled" } };
+    const invFilter: Record<string, unknown> = { ...companyFilter, state: { $ne: "cancelled" } };
     if (from || to) {
       invFilter.date = {};
       if (from) (invFilter.date as any).$gte = from;
@@ -101,7 +142,7 @@ export const getRevenueReport = async (
       invFilter.customer_id = customer_id;
     }
 
-    const payFilter: Record<string, unknown> = {};
+    const payFilter: Record<string, unknown> = { ...companyFilter };
     if (from || to) {
       payFilter.date = {};
       if (from) (payFilter.date as any).$gte = from;
@@ -168,11 +209,21 @@ export const getOutstandingReport = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const companyFilter = getTenantCompanyFilter(req);
+    if (!companyFilter) {
+      res.status(200).json({
+        success: true,
+        buckets: { current: 0, d1_30: 0, d31_60: 0, d60_plus: 0 },
+        invoices: [],
+      });
+      return;
+    }
+
     const { to, customer_id } = req.query;
     const todayStr = (to as string) || new Date().toISOString().split("T")[0];
     const today = new Date(todayStr);
 
-    const filter: Record<string, unknown> = { state: "issued" };
+    const filter: Record<string, unknown> = { ...companyFilter, state: "issued" };
     if (customer_id && customer_id !== "all") {
       filter.customer_id = customer_id;
     }
@@ -231,8 +282,19 @@ export const getPaymentsReport = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const companyFilter = getTenantCompanyFilter(req);
+    if (!companyFilter) {
+      res.status(200).json({
+        success: true,
+        by_method: { cash: { count: 0, total_milli: 0 }, bank: { count: 0, total_milli: 0 }, mobile: { count: 0, total_milli: 0 }, card: { count: 0, total_milli: 0 } },
+        total_amount_milli: 0,
+        total_payments_count: 0,
+      });
+      return;
+    }
+
     const { from, to, customer_id } = req.query;
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = { ...companyFilter };
     if (from || to) {
       filter.date = {};
       if (from) (filter.date as any).$gte = from;
@@ -280,8 +342,22 @@ export const getConversionReport = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const companyFilter = getTenantCompanyFilter(req);
+    if (!companyFilter) {
+      res.status(200).json({
+        success: true,
+        conversion: {
+          total_quotes: 0,
+          accepted_quotes: 0,
+          converted_to_invoices: 0,
+          conversion_rate_pct: 0,
+        },
+      });
+      return;
+    }
+
     const { from, to, customer_id } = req.query;
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = { ...companyFilter };
     if (from || to) {
       filter.date = {};
       if (from) (filter.date as any).$gte = from;
@@ -319,8 +395,19 @@ export const getPaidUnpaidReport = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const companyFilter = getTenantCompanyFilter(req);
+    if (!companyFilter) {
+      res.status(200).json({
+        success: true,
+        paid_total_milli: 0,
+        unpaid_total_milli: 0,
+        invoices: [],
+      });
+      return;
+    }
+
     const { from, to, customer_id } = req.query;
-    const filter: Record<string, unknown> = { state: "issued" };
+    const filter: Record<string, unknown> = { ...companyFilter, state: "issued" };
     if (from || to) {
       filter.date = {};
       if (from) (filter.date as any).$gte = from;

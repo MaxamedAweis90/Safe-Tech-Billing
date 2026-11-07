@@ -22,7 +22,6 @@ const CreditNoteSchema = new Schema<ICreditNote>(
     number: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       index: true,
     },
@@ -58,5 +57,7 @@ const CreditNoteSchema = new Schema<ICreditNote>(
   }
 );
 
-export const CreditNote = model<ICreditNote>('CreditNote', CreditNoteSchema);
+// Multi-tenant compound unique index: credit note number is strictly unique per company
+CreditNoteSchema.index({ companyId: 1, number: 1 }, { unique: true });
 
+export const CreditNote = model<ICreditNote>('CreditNote', CreditNoteSchema);

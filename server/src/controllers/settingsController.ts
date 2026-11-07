@@ -156,6 +156,7 @@ export const onboardCompany = async (req: Request, res: Response, next: NextFunc
 
     if (req.user) {
       await logAction({
+        companyId: company._id,
         user_name: req.user.name,
         role: req.user.role,
         action: 'Completed company onboarding',
@@ -213,6 +214,7 @@ export const updateCompany = async (req: Request, res: Response, next: NextFunct
 
     if (req.user) {
       await logAction({
+        companyId: company._id,
         user_name: req.user.name,
         role: req.user.role,
         action: 'Updated company settings',
@@ -320,6 +322,7 @@ export const resetSampleData = async (req: Request, res: Response, next: NextFun
 
     if (req.user) {
       await logAction({
+        companyId: null,
         user_name: req.user.name,
         role: req.user.role,
         action: 'Reset demo sample database',
@@ -345,7 +348,8 @@ export const getNumberingPreview = async (
   try {
     const type = (req.query.type as SequenceKind) || 'invoice';
     const date = (req.query.date as string) || new Date().toISOString();
-    const preview = await peekNextNumber(type, date);
+    const companyId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
+    const preview = await peekNextNumber(type, date, companyId);
     res.status(200).json({
       success: true,
       type,
@@ -453,6 +457,7 @@ export const updateEmailTemplate = async (
 
     if (req.user) {
       await logAction({
+        companyId: req.user.companyId || (req.user.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
         action: `Updated email template: ${slug}`,
@@ -511,6 +516,7 @@ export const sendTestEmailTemplate = async (
 
     if (req.user) {
       await logAction({
+        companyId: req.user.companyId || (req.user.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
         action: `Sent test email: ${slug}`,
@@ -554,6 +560,7 @@ export const resetEmailTemplate = async (
 
     if (req.user) {
       await logAction({
+        companyId: req.user.companyId || (req.user.isDemo ? null : undefined),
         user_name: req.user.name,
         role: req.user.role,
         action: `Reset email template to default: ${slug}`,
