@@ -135,7 +135,7 @@ export const AgingReport: React.FC<AgingReportProps> = ({
     });
 
     return { openInvoices: open, agingBuckets: buckets };
-  }, [apiData, to, cust]);
+  }, [apiData, to, cust, isDemo]);
 
   // Construct CSV matrix matching prototype line 911
   const csv = useMemo(() => {

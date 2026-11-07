@@ -140,6 +140,7 @@ export const useAuthStore = create<AuthState>()(
               localStorage.removeItem("safetech_is_demo");
             }
           }
+          queryClient.clear();
           set((state) => {
             const baseUser: UserProfile =
               state.user && !state.user.isDemo
@@ -330,6 +331,7 @@ export const useAuthStore = create<AuthState>()(
           });
 
           queryClient.invalidateQueries();
+          queryClient.clear();
           toast("Entered Live Demo Mode as Demo Administrator");
         },
 

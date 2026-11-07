@@ -24,7 +24,9 @@ export const CustomerModalContent: React.FC<CustomerModalContentProps> = ({
   onSuccess,
   onCancel,
 }) => {
-  const existingMock = customerId ? getCustomerById(customerId) : undefined;
+  const { user } = useAuthStore();
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
+  const existingMock = isDemo && customerId ? getCustomerById(customerId) : undefined;
   const { data: detailData } = useCustomerDetail(customerId);
   const liveCust = detailData?.data?.customer || (detailData as any)?.customer;
 
@@ -85,8 +87,8 @@ export const CustomerModalContent: React.FC<CustomerModalContentProps> = ({
           data: v,
         });
 
-        // Also update local mock data if exists
-        const local = updateCustomer(customerId, { ...v, taxId: v.tax_id });
+        // Also update local mock data strictly in Demo Mode if exists
+        const local = isDemo ? updateCustomer(customerId, { ...v, taxId: v.tax_id }) : undefined;
         savedCust = {
           id: res.customer._id || res.customer.id || customerId,
           code: res.customer.code || local?.code || 1000,

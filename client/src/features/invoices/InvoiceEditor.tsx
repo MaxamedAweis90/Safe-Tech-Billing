@@ -71,21 +71,22 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
       useNavStore.getState().setPrefillCustomerId(null);
     }
     const defaultTermsDays = 30;
-    const targetCust = prefillCust || MOCK_CUSTOMERS[0];
+    const targetCust = prefillCust || (isDemo ? MOCK_CUSTOMERS[0] : null);
+    const todayStr = isDemo ? TODAY : new Date().toISOString().slice(0, 10);
     return {
       id: 'new',
       number: '',
       customerId: targetCust?.id || '',
       customerName: targetCust?.name || '',
-      date: TODAY,
-      due: addDays(TODAY, defaultTermsDays),
-      due_date: addDays(TODAY, defaultTermsDays),
+      date: todayStr,
+      due: addDays(todayStr, defaultTermsDays),
+      due_date: addDays(todayStr, defaultTermsDays),
       termsDays: defaultTermsDays,
       state: 'draft',
       status: 'draft',
       currency: 'USD',
       items: [{ desc: '', qty: 1, price: 0, disc: 0, taxRate: 0, taxName: '' }],
-      terms: INVOICE_TERMS,
+      terms: isDemo ? INVOICE_TERMS : 'Payment due within 30 days. Please quote invoice number on payment.',
       notes: '',
       total_milli: 0,
       paid_milli: 0,
@@ -171,11 +172,11 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
         address: c.address || '',
         email: c.email || '',
       }))
-    : MOCK_CUSTOMERS;
+    : (isDemo ? MOCK_CUSTOMERS : []);
 
   const selectedCustomer =
     customersList.find((c) => c.id === doc.customerId) ||
-    getCustomerById(doc.customerId);
+    (isDemo ? getCustomerById(doc.customerId) : null);
 
   const totals = totalsOf({ items: doc.items });
   const linkedQuote = doc.quoteId ? getQuoteById(doc.quoteId) : undefined;

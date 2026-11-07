@@ -170,7 +170,8 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   onNavigateCustomer,
   onNavigateQuote,
 }) => {
-  const { can } = useAuthStore();
+  const { can, user } = useAuthStore();
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const queryClient = useQueryClient();
   const [, setTick] = useState(0); // For forcing re-render after local fallback mutations
   const triggerUpdate = () => setTick((t) => t + 1);
@@ -182,7 +183,7 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   const sendMutation = useMarkInvoiceSent();
   const cancelMutation = useCancelInvoice();
 
-  const mockInv = getInvoiceById(invoiceId);
+  const mockInv = isDemo ? getInvoiceById(invoiceId) : undefined;
   const liveInv = detailData?.invoice;
 
   // Audit logs query for this invoice
@@ -230,15 +231,15 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
     ? {
         id: liveInv._id || liveInv.id || invoiceId,
         number: liveInv.number,
-        customerId: custId || mockInv?.customerId || '',
-        customerName: custName || mockInv?.customerName || 'Customer',
-        quoteId: quoteId || mockInv?.quoteId,
+        customerId: custId || (isDemo ? mockInv?.customerId : '') || '',
+        customerName: custName || (isDemo ? mockInv?.customerName : '') || 'Customer',
+        quoteId: quoteId || (isDemo ? mockInv?.quoteId : undefined),
         date: liveInv.date,
-        due: liveInv.due || (liveInv as any).due_date || mockInv?.due || '',
-        due_date: liveInv.due || (liveInv as any).due_date || mockInv?.due_date || '',
-        termsDays: liveInv.terms_days ?? mockInv?.termsDays ?? 30,
+        due: liveInv.due || (liveInv as any).due_date || (isDemo ? mockInv?.due : '') || '',
+        due_date: liveInv.due || (liveInv as any).due_date || (isDemo ? mockInv?.due_date : '') || '',
+        termsDays: liveInv.terms_days ?? (isDemo ? mockInv?.termsDays : 30) ?? 30,
         state: liveInv.state,
-        status: (liveInv.status as any) || mockInv?.status || 'draft',
+        status: (liveInv.status as any) || (isDemo ? mockInv?.status : 'draft') || 'draft',
         currency: liveInv.currency || 'USD',
         items: (liveInv.items || []).map((it: any) => ({
           desc: it.desc,
@@ -248,17 +249,17 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
           taxRate: it.tax_rate ?? it.taxRate ?? 0,
           taxName: it.tax_name ?? it.taxName ?? '',
         })),
-        terms: liveInv.terms || mockInv?.terms || '',
-        notes: liveInv.notes || mockInv?.notes || '',
-        total_milli: liveInv.total_milli ?? mockInv?.total_milli ?? 0,
-        paid_milli: liveInv.paid_milli ?? mockInv?.paid_milli ?? 0,
-        credited_milli: liveInv.credited_milli ?? (mockInv as any)?.credited_milli ?? 0,
-        balance_milli: liveInv.balance_milli ?? mockInv?.balance_milli ?? 0,
-        sentAt: liveInv.sent_at || mockInv?.sentAt,
-        cancelledAt: liveInv.cancelled_at || mockInv?.cancelledAt,
-        cancelReason: liveInv.cancel_reason || mockInv?.cancelReason,
+        terms: liveInv.terms || (isDemo ? mockInv?.terms : '') || '',
+        notes: liveInv.notes || (isDemo ? mockInv?.notes : '') || '',
+        total_milli: liveInv.total_milli ?? (isDemo ? mockInv?.total_milli : 0) ?? 0,
+        paid_milli: liveInv.paid_milli ?? (isDemo ? mockInv?.paid_milli : 0) ?? 0,
+        credited_milli: liveInv.credited_milli ?? (isDemo ? (mockInv as any)?.credited_milli : 0) ?? 0,
+        balance_milli: liveInv.balance_milli ?? (isDemo ? mockInv?.balance_milli : 0) ?? 0,
+        sentAt: liveInv.sent_at || (isDemo ? mockInv?.sentAt : undefined),
+        cancelledAt: liveInv.cancelled_at || (isDemo ? mockInv?.cancelledAt : undefined),
+        cancelReason: liveInv.cancel_reason || (isDemo ? mockInv?.cancelReason : undefined),
       }
-    : mockInv!;
+    : (isDemo && mockInv ? mockInv : (null as any));
 
   const f = liveInv
     ? {

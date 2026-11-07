@@ -75,7 +75,7 @@ export const InvoicesView: React.FC = () => {
     const liveMatch = apiData?.invoices?.find(
       (i: any) => i._id === selectedRecordId || i.id === selectedRecordId
     );
-    const mockMatch = getInvoiceById(selectedRecordId);
+    const mockMatch = isDemo ? getInvoiceById(selectedRecordId) : undefined;
     const isDraft = (liveMatch?.state || mockMatch?.state) === 'draft';
 
     if (isDraft) {

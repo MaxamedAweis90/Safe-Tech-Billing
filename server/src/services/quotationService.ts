@@ -256,6 +256,7 @@ export const convertToInvoice = async (quoteId: string | Types.ObjectId): Promis
 
   // Create draft invoice with frozen line item snapshots from the quote
   const invoice = new Invoice({
+    companyId: (quotation as any).companyId || null,
     number: null,
     customer_id: quotation.customer_id,
     quote_id: quotation._id,

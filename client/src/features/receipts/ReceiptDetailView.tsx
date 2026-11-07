@@ -31,14 +31,15 @@ export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
   onNavigateCustomer,
 }) => {
   const { setSelectedRecord } = useNavStore();
-  const { role } = useAuthStore();
+  const { role, user } = useAuthStore();
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const deleteReceiptMutation = useDeleteReceipt();
 
   const targetId = receiptId || propReceipt?.id;
   const { data: detailData, isLoading } = useReceiptDetail(targetId);
 
   const liveReceipt = detailData?.receipt;
-  const mockReceipt = propReceipt || (targetId ? MOCK_RECEIPTS.find((r) => r.id === targetId) : undefined);
+  const mockReceipt = isDemo ? (propReceipt || (targetId ? MOCK_RECEIPTS.find((r) => r.id === targetId) : undefined)) : undefined;
 
   if (isLoading && !mockReceipt) {
     return (
@@ -84,23 +85,23 @@ export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
         id: liveReceipt._id || liveReceipt.id || targetId || '',
         number: liveReceipt.number,
         date: liveReceipt.date,
-        customerId: custId || mockReceipt?.customerId || '',
-        customerName: custName || mockReceipt?.customerName || 'Customer',
-        customerCode: custCode || (mockReceipt as any)?.customerCode,
-        invoiceId: invId || mockReceipt?.invoiceId,
-        invoiceNumber: invNumber || mockReceipt?.invoiceNumber,
-        invoiceDate: invDate || (mockReceipt as any)?.invoiceDate,
-        amount_milli: liveReceipt.amount_milli ?? mockReceipt?.amount_milli ?? 0,
-        amount: liveReceipt.amount_milli ?? mockReceipt?.amount ?? 0,
-        currency: liveReceipt.currency || mockReceipt?.currency || 'USD',
-        method: liveReceipt.method || mockReceipt?.method || 'mobile',
-        reference: liveReceipt.reference || mockReceipt?.reference || '',
-        balanceAfter_milli: liveReceipt.balance_after_milli ?? mockReceipt?.balanceAfter_milli ?? 0,
-        balanceAfter: liveReceipt.balance_after_milli ?? mockReceipt?.balanceAfter ?? 0,
-        prevPaid: liveReceipt.prev_paid_milli ?? mockReceipt?.prevPaid ?? 0,
-        invoiceTotal: liveReceipt.invoice_total_milli ?? mockReceipt?.invoiceTotal ?? 0,
+        customerId: custId || (isDemo ? mockReceipt?.customerId : '') || '',
+        customerName: custName || (isDemo ? mockReceipt?.customerName : '') || 'Customer',
+        customerCode: custCode || (isDemo ? (mockReceipt as any)?.customerCode : undefined),
+        invoiceId: invId || (isDemo ? mockReceipt?.invoiceId : undefined),
+        invoiceNumber: invNumber || (isDemo ? mockReceipt?.invoiceNumber : undefined),
+        invoiceDate: invDate || (isDemo ? (mockReceipt as any)?.invoiceDate : undefined),
+        amount_milli: liveReceipt.amount_milli ?? (isDemo ? mockReceipt?.amount_milli : 0) ?? 0,
+        amount: liveReceipt.amount_milli ?? (isDemo ? mockReceipt?.amount : 0) ?? 0,
+        currency: liveReceipt.currency || (isDemo ? mockReceipt?.currency : 'USD') || 'USD',
+        method: liveReceipt.method || (isDemo ? mockReceipt?.method : 'mobile') || 'mobile',
+        reference: liveReceipt.reference || (isDemo ? mockReceipt?.reference : '') || '',
+        balanceAfter_milli: liveReceipt.balance_after_milli ?? (isDemo ? mockReceipt?.balanceAfter_milli : 0) ?? 0,
+        balanceAfter: liveReceipt.balance_after_milli ?? (isDemo ? mockReceipt?.balanceAfter : 0) ?? 0,
+        prevPaid: liveReceipt.prev_paid_milli ?? (isDemo ? mockReceipt?.prevPaid : 0) ?? 0,
+        invoiceTotal: liveReceipt.invoice_total_milli ?? (isDemo ? mockReceipt?.invoiceTotal : 0) ?? 0,
       } as any
-    : mockReceipt!;
+    : (isDemo && mockReceipt ? mockReceipt : (null as any));
 
   const linkedInvoice = r.invoiceId ? getInvoiceById(r.invoiceId) : undefined;
   const customer = getCustomerById(r.customerId);

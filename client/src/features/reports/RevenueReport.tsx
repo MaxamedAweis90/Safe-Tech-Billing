@@ -125,7 +125,7 @@ export const RevenueReport: React.FC<RevenueReportProps> = ({
     );
 
     return { keys: sortedKeys, map: bucketMap, total: grandTotal };
-  }, [apiData, from, to, cust, keyf]);
+  }, [apiData, from, to, cust, keyf, isDemo]);
 
   // Construct CSV matrix matching prototype line 906
   const csv = useMemo(() => {

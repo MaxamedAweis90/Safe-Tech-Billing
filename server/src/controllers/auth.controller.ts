@@ -957,8 +957,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
         } else if (isDemo) {
           const demoComp =
             (await Company.findOne({ ownerId: null })) ||
-            (await Company.findOne({ email: 'billing@safetech.so' })) ||
-            (await Company.findOne());
+            (await Company.findOne({ email: 'billing@safetech.so' }));
           if (demoComp) {
             companyName = demoComp.name;
             companyId = demoComp._id.toString();

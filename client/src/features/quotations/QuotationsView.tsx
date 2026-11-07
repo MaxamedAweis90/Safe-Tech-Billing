@@ -215,7 +215,7 @@ export const QuotationsView: React.FC = () => {
                   // Locate linked invoice from API or mock
                   const linkedInvId = q.invoiceId;
                   const inv = linkedInvId
-                    ? (invoicesApiData?.invoices || MOCK_INVOICES).find(
+                    ? (invoicesApiData?.invoices || (isDemo ? MOCK_INVOICES : [])).find(
                         (i: any) => i._id === linkedInvId || i.id === linkedInvId
                       )
                     : undefined;

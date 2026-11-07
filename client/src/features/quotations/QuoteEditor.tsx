@@ -91,21 +91,22 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     if (prefillId) {
       useNavStore.getState().setPrefillCustomerId(null);
     }
-    const targetCust = prefillCust || MOCK_CUSTOMERS[0];
+    const targetCust = prefillCust || (isDemo ? MOCK_CUSTOMERS[0] : null);
+    const todayStr = isDemo ? TODAY : new Date().toISOString().slice(0, 10);
     return {
       id: 'new',
       number: 'New',
       customerId: targetCust?.id || '',
       customerName: targetCust?.name || '',
-      date: TODAY,
-      expiry: addDays(TODAY, 30),
+      date: todayStr,
+      expiry: addDays(todayStr, 30),
       state: 'draft',
       currency: 'USD',
       items: [{ desc: '', qty: 1, price: 0, disc: 0, taxRate: 0, taxName: '' }],
-      terms: QUOTE_TERMS,
+      terms: isDemo ? QUOTE_TERMS : 'Prices are valid for 30 days from quotation date.',
       notes: '',
       total_milli: 0,
-      createdAt: TODAY,
+      createdAt: todayStr,
     };
   });
 
@@ -182,11 +183,11 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
         address: c.address || '',
         email: c.email || '',
       }))
-    : MOCK_CUSTOMERS;
+    : (isDemo ? MOCK_CUSTOMERS : []);
 
   const selectedCustomer =
     customersList.find((c) => c.id === doc.customerId) ||
-    getCustomerById(doc.customerId);
+    (isDemo ? getCustomerById(doc.customerId) : null);
 
   const totals = totalsOf({ items: doc.items });
   const auditEvents = isExisting ? getAuditEventsForRef(doc.number) : [];

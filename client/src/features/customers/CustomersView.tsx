@@ -89,7 +89,7 @@ export const CustomersView: React.FC = () => {
     })
     .sort((a, b) => b.f.bal - a.f.bal || a.c.name.localeCompare(b.c.name));
 
-  const totalCount = hasLiveCustomers && apiData?.total !== undefined ? apiData.total : MOCK_CUSTOMERS.length;
+  const totalCount = apiData?.total !== undefined ? apiData.total : (isDemo ? MOCK_CUSTOMERS.length : 0);
 
   return (
     <>

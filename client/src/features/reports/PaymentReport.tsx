@@ -108,7 +108,7 @@ export const PaymentReport: React.FC<PaymentReportProps> = ({
     });
 
     return { payments: ps, byMethod: byM };
-  }, [apiData, from, to, cust]);
+  }, [apiData, from, to, cust, isDemo]);
 
   // Construct CSV matrix matching prototype line 915
   const csv = useMemo(() => {

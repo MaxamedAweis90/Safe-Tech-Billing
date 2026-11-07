@@ -58,13 +58,14 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
   customerId,
   onBack,
 }) => {
-  const { can, role } = useAuthStore();
+  const { can, role, user } = useAuthStore();
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const deleteCustomerMutation = useDeleteCustomer();
   const { setSelectedRecord, setPrefillCustomerId } = useNavStore();
 
   const { data: detailData, isLoading } = useCustomerDetail(customerId);
 
-  const mockCust = getCustomerById(customerId);
+  const mockCust = isDemo ? getCustomerById(customerId) : undefined;
   const liveCust = detailData?.data?.customer || (detailData as any)?.customer;
   const liveStmt = detailData?.data;
 
@@ -96,7 +97,7 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
         address: liveCust.address || '',
         since: liveCust.since || '',
       }
-    : mockCust;
+    : (isDemo ? mockCust : undefined);
 
   if (!c) {
     return (
@@ -135,8 +136,8 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
     .slice(0, 2)
     .toUpperCase();
 
-  // Financial metrics: live statement preferred, fallback to mockFin
-  const mockF = custFin(c.id);
+  // Financial metrics: live statement preferred, fallback to mockFin strictly in demo
+  const mockF = isDemo ? custFin(c.id) : { invoiced: 0, paid: 0, credit: 0, bal: 0, overdue: false, count: 0 };
   const invoicedMilli = liveStmt?.total_invoiced_milli ?? liveStmt?.invoiced_milli ?? mockF.invoiced;
   const paidMilli = liveStmt?.total_paid_milli ?? liveStmt?.paid_milli ?? mockF.paid;
   const balanceMilli = liveStmt?.outstanding_balance_milli ?? liveStmt?.balance_milli ?? mockF.bal;
@@ -183,8 +184,8 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
         onClick,
       };
     });
-  } else {
-    // Mock transactions fallback
+  } else if (isDemo) {
+    // Mock transactions fallback strictly for Demo Mode
     const customerReceipts = MOCK_RECEIPTS.filter((r) => r.customerId === c.id);
     hist = [
       ...MOCK_QUOTES.filter((q) => q.customerId === c.id).map((q) => {
@@ -242,6 +243,8 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
         };
       }),
     ].sort((a, b) => b.d.localeCompare(a.d));
+  } else {
+    hist = [];
   }
 
   const handleNewQuote = () => {

@@ -104,8 +104,12 @@ export const SettingsView: React.FC = () => {
   const [taxes, setTaxes] = useState([
     ...SYSTEM_SETTINGS.taxes.map((t) => ({ ...t })),
   ]);
-  const [quoteTerms, setQuoteTerms] = useState(SYSTEM_SETTINGS.quoteTerms);
-  const [invoiceTerms, setInvoiceTerms] = useState(SYSTEM_SETTINGS.invoiceTerms);
+  const [quoteTerms, setQuoteTerms] = useState(
+    isDemo ? SYSTEM_SETTINGS.quoteTerms : 'Prices are valid for 30 days from the quotation date.'
+  );
+  const [invoiceTerms, setInvoiceTerms] = useState(
+    isDemo ? SYSTEM_SETTINGS.invoiceTerms : 'Payment due within 30 days. Please quote the invoice number as your payment reference.'
+  );
 
   const { data: companyData } = useCompanySettings();
   const updateCompanyMutation = useUpdateCompanySettings();
@@ -200,15 +204,17 @@ export const SettingsView: React.FC = () => {
       }
     }
 
-    // Apply into persistent state objects
-    Object.assign(COMPANY_SETTINGS, company);
-    SYSTEM_SETTINGS.company = COMPANY_SETTINGS;
-    SYSTEM_SETTINGS.currencies = currencies;
-    SYSTEM_SETTINGS.defaultCurrency = defaultCurrency;
-    SYSTEM_SETTINGS.numbering = numbering;
-    SYSTEM_SETTINGS.taxes = taxes;
-    SYSTEM_SETTINGS.quoteTerms = quoteTerms;
-    SYSTEM_SETTINGS.invoiceTerms = invoiceTerms;
+    // Apply into persistent state objects strictly in Demo Mode
+    if (isDemo) {
+      Object.assign(COMPANY_SETTINGS, company);
+      SYSTEM_SETTINGS.company = COMPANY_SETTINGS;
+      SYSTEM_SETTINGS.currencies = currencies;
+      SYSTEM_SETTINGS.defaultCurrency = defaultCurrency;
+      SYSTEM_SETTINGS.numbering = numbering;
+      SYSTEM_SETTINGS.taxes = taxes;
+      SYSTEM_SETTINGS.quoteTerms = quoteTerms;
+      SYSTEM_SETTINGS.invoiceTerms = invoiceTerms;
+    }
 
     updateCompanyMutation.mutate({
       name: company.name,
@@ -752,8 +758,8 @@ export const SettingsView: React.FC = () => {
               ] as const
             ).map(([k, label]) => {
               const pattern = numbering[k];
-              const nextSeq = SYSTEM_SETTINGS.seq[k] + 1;
-              const preview = fmtNumber(pattern, nextSeq, TODAY);
+              const nextSeq = isDemo ? SYSTEM_SETTINGS.seq[k] + 1 : 1;
+              const preview = fmtNumber(pattern, nextSeq, isDemo ? TODAY : new Date().toISOString().slice(0, 10));
 
               return (
                 <div key={k} className="field">

@@ -25,11 +25,24 @@ export const getTrash = async (
   try {
     const { type, q, limit, skip } = req.query;
     const tenantCompanyId = getCompanyTenantId(req);
+    const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
 
     const parsedLimit = limit
       ? Math.min(100, Math.max(1, parseInt(limit as string, 10)))
       : 50;
     const parsedSkip = skip ? Math.max(0, parseInt(skip as string, 10)) : 0;
+
+    if (!req.user?.companyId && !isDemo) {
+      res.status(200).json({
+        success: true,
+        items: [],
+        counts: { all: 0, quotation: 0, invoice: 0, receipt: 0, customer: 0 },
+        total: 0,
+        limit: parsedLimit,
+        skip: parsedSkip,
+      });
+      return;
+    }
 
     const result = await listTrash(tenantCompanyId, {
       type: typeof type === 'string' ? type : undefined,

@@ -3,8 +3,12 @@ import api from '../lib/api';
 import { searchAllRecords, SearchResultItem } from '../lib/mockData';
 import { formatMoney } from '../lib/math';
 import { useNavStore } from '../store/useNavStore';
+import { useAuthStore } from '../store/useAuthStore';
 
 export const SearchBar: React.FC = () => {
+  const { user } = useAuthStore();
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
+
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -91,10 +95,14 @@ export const SearchBar: React.FC = () => {
           });
         }
 
-        // If API returned zero matches or network was offline, use mockData fallback
+        // If API returned zero matches or network was offline, use mockData fallback strictly for demo mode
         if (combined.length === 0) {
-          const fallbackMatches = searchAllRecords(q);
-          setResults(fallbackMatches.slice(0, 10));
+          if (isDemo) {
+            const fallbackMatches = searchAllRecords(q);
+            setResults(fallbackMatches.slice(0, 10));
+          } else {
+            setResults([]);
+          }
         } else {
           setResults(combined.slice(0, 10));
         }
@@ -102,8 +110,12 @@ export const SearchBar: React.FC = () => {
         setIsOpen(true);
         setSelectedIndex(-1);
       } catch {
-        const fallbackMatches = searchAllRecords(q);
-        setResults(fallbackMatches.slice(0, 10));
+        if (isDemo) {
+          const fallbackMatches = searchAllRecords(q);
+          setResults(fallbackMatches.slice(0, 10));
+        } else {
+          setResults([]);
+        }
         setIsOpen(true);
         setSelectedIndex(-1);
       } finally {

@@ -98,7 +98,7 @@ export const PaidUnpaidReport: React.FC<PaidUnpaidReportProps> = ({
         balance: g.list.reduce((a, i) => a + toBase(invFin(i).balance, i.currency), 0),
       })),
     };
-  }, [apiData, from, to, cust]);
+  }, [apiData, from, to, cust, isDemo]);
 
   // Construct CSV matrix matching prototype line 924
   const csv = useMemo(() => {

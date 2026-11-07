@@ -159,7 +159,7 @@ export const ConversionReport: React.FC<ConversionReportProps> = ({
         openVal: valueCalc(openQuotes),
       },
     };
-  }, [apiData, from, to, cust]);
+  }, [apiData, from, to, cust, isDemo]);
 
   // Construct CSV matrix matching prototype line 920
   const csv = useMemo(() => {

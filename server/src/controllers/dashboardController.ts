@@ -12,7 +12,9 @@ export const getDashboardSummary = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const todayStr = '2026-10-31'; // Baseline date from prototype
+    const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+    const realToday = new Date().toISOString().slice(0, 10);
+    const todayStr = isDemo ? '2026-10-31' : realToday;
     const currentMonthKey = todayStr.slice(0, 7);
 
     // Generate last 12 rolling months
@@ -32,7 +34,6 @@ export const getDashboardSummary = async (
     if (tenantCompanyId) {
       companyFilter.companyId = tenantCompanyId;
     } else {
-      const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
       if (isDemo) {
         companyFilter.companyId = null;
       } else {

@@ -92,7 +92,9 @@ export const peekNextNumber = async (
   }
 
   const sequenceDoc = await NumberSequence.findOne({ companyId: resolvedCompanyId, kind });
-  const currentSeq = sequenceDoc ? sequenceDoc.current_seq : (kind === 'invoice' ? 10471 : 0);
+  const currentSeq = sequenceDoc
+    ? sequenceDoc.current_seq
+    : (resolvedCompanyId === null && kind === 'invoice' ? 10471 : 0);
   const pattern = sequenceDoc?.format || defaultPattern;
   return formatNumber(pattern, currentSeq + 1, dateISO);
 };

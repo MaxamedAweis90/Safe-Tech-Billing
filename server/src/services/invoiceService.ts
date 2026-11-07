@@ -151,11 +151,14 @@ export const updateDraft = async (
     if (Types.ObjectId.isValid(data.customer_id)) {
       invoice.customer_id = new Types.ObjectId(data.customer_id);
     } else {
+      const companyScope: Record<string, unknown> = invoice.companyId
+        ? { companyId: invoice.companyId }
+        : { companyId: null };
       const codeNum = parseInt(String(data.customer_id).replace(/\D/g, ''), 10);
-      const existing = await Customer.findOne(
-        codeNum ? { $or: [{ code: codeNum }, { name: 'Dr. SUMAIT Hospital - SIMAD University' }] } : { name: 'Dr. SUMAIT Hospital - SIMAD University' }
-      );
-      if (existing) invoice.customer_id = existing._id;
+      if (codeNum) {
+        const existing = await Customer.findOne({ ...companyScope, code: codeNum });
+        if (existing) invoice.customer_id = existing._id;
+      }
     }
   }
   if (data.date) invoice.date = data.date;
