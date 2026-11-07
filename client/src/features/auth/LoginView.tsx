@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
@@ -38,25 +38,37 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const navigate = useNavigate();
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const tokenClientRef = useRef<any>(null);
 
-  // Initialize Google Identity Services if client ID is configured
+  // Initialize Google OAuth Token Client (Account Chooser Popup Window)
   useEffect(() => {
     if (!googleClientId || typeof window === 'undefined') return;
 
-    const initGsi = () => {
+    const initTokenClient = () => {
       const google = (window as any).google;
-      if (!google?.accounts?.id) return;
+      if (!google?.accounts?.oauth2) return;
 
       try {
-        google.accounts.id.initialize({
+        tokenClientRef.current = google.accounts.oauth2.initTokenClient({
           client_id: googleClientId,
-          callback: async (response: { credential?: string }) => {
-            if (!response.credential) return;
+          scope: 'openid email profile',
+          prompt: 'select_account',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse.error) {
+              console.warn('Google OAuth error:', tokenResponse.error);
+              setIsGoogleLoading(false);
+              return;
+            }
+            if (!tokenResponse.access_token) {
+              setIsGoogleLoading(false);
+              return;
+            }
+
             setIsGoogleLoading(true);
             setErrorMsg('');
             try {
               const res = await api.post('/auth/google', {
-                credential: response.credential,
+                accessToken: tokenResponse.access_token,
               });
 
               if (res.data?.success && res.data.user) {
@@ -87,18 +99,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
               setIsGoogleLoading(false);
             }
           },
+          error_callback: (err: any) => {
+            console.warn('Google popup dismissed or blocked:', err);
+            setIsGoogleLoading(false);
+          },
         });
       } catch (e) {
         console.warn('Google Identity Services notice:', e);
       }
     };
 
-    if ((window as any).google?.accounts?.id) {
-      initGsi();
+    if ((window as any).google?.accounts?.oauth2) {
+      initTokenClient();
     } else {
       const timer = setInterval(() => {
-        if ((window as any).google?.accounts?.id) {
-          initGsi();
+        if ((window as any).google?.accounts?.oauth2) {
+          initTokenClient();
           clearInterval(timer);
         }
       }, 300);
@@ -234,13 +250,76 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
-    // Live Google Identity Services prompt if configured
-    const google = typeof window !== 'undefined' ? (window as any).google : null;
-    if (googleClientId && google?.accounts?.id) {
-      try {
-        google.accounts.id.prompt();
-      } catch (err) {
-        console.warn('Google prompt invocation:', err);
+    // Live Google OAuth 2.0 Account Chooser Popup Window
+    if (googleClientId) {
+      if (tokenClientRef.current) {
+        try {
+          setIsGoogleLoading(true);
+          tokenClientRef.current.requestAccessToken({ prompt: 'select_account' });
+        } catch (err) {
+          setIsGoogleLoading(false);
+          console.warn('Google popup invocation:', err);
+        }
+      } else {
+        const google = typeof window !== 'undefined' ? (window as any).google : null;
+        if (google?.accounts?.oauth2) {
+          try {
+            tokenClientRef.current = google.accounts.oauth2.initTokenClient({
+              client_id: googleClientId,
+              scope: 'openid email profile',
+              prompt: 'select_account',
+              callback: async (tokenResponse: any) => {
+                if (tokenResponse.error || !tokenResponse.access_token) {
+                  setIsGoogleLoading(false);
+                  return;
+                }
+                setIsGoogleLoading(true);
+                setErrorMsg('');
+                try {
+                  const res = await api.post('/auth/google', {
+                    accessToken: tokenResponse.access_token,
+                  });
+                  if (res.data?.success && res.data.user) {
+                    setUser(res.data.user, res.data.token);
+                    toast(`Signed in with Google as ${res.data.user.email}`);
+                    navigate('/dashboard', { replace: true });
+                    if (res.data.user.role === 'admin' && res.data.user.onboardingCompleted === false) {
+                      setActiveTab('onboarding');
+                    } else {
+                      setActiveTab('dashboard');
+                    }
+                  } else if (res.data?.isUnregistered || res.data?.registered === false) {
+                    toast('Google account verified. Redirecting to administrator setup...', false);
+                    if (onGoogleUnregistered) {
+                      onGoogleUnregistered({
+                        email: res.data.email,
+                        name: res.data.name || '',
+                      });
+                    } else if (onSwitchMode) {
+                      onSwitchMode('register');
+                    } else {
+                      setActiveTab('signup');
+                    }
+                  }
+                } catch (err: any) {
+                  setErrorMsg(err.message || 'Google authentication failed');
+                } finally {
+                  setIsGoogleLoading(false);
+                }
+              },
+              error_callback: () => {
+                setIsGoogleLoading(false);
+              },
+            });
+            setIsGoogleLoading(true);
+            tokenClientRef.current.requestAccessToken({ prompt: 'select_account' });
+          } catch (e) {
+            setIsGoogleLoading(false);
+            setShowGoogleModal(true);
+          }
+        } else {
+          setShowGoogleModal(true);
+        }
       }
     } else {
       setShowGoogleModal(true);

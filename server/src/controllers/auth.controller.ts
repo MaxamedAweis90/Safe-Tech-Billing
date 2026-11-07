@@ -1189,13 +1189,35 @@ export const demoLogin = async (_req: Request, res: Response, next: NextFunction
  */
 export const googleAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email: rawEmail, name: rawName, credential, idToken } = req.body;
+    const { email: rawEmail, name: rawName, credential, idToken, accessToken } = req.body;
     let verifiedEmail = '';
     let verifiedName = '';
 
     const tokenToVerify = credential || idToken;
 
-    if (tokenToVerify && typeof tokenToVerify === 'string') {
+    if (accessToken && typeof accessToken === 'string') {
+      try {
+        const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken.trim()}` },
+        });
+        if (!userinfoRes.ok) {
+          res.status(401).json({ success: false, error: 'Invalid or expired Google access token' });
+          return;
+        }
+        const userinfo: any = await userinfoRes.json();
+
+        if (userinfo.email_verified !== true && userinfo.email_verified !== 'true') {
+          res.status(403).json({ success: false, error: 'Google email address is not verified' });
+          return;
+        }
+
+        verifiedEmail = userinfo.email || '';
+        verifiedName = userinfo.name || (userinfo.email ? userinfo.email.split('@')[0] : '');
+      } catch (tokenErr) {
+        res.status(401).json({ success: false, error: 'Failed to verify Google access token' });
+        return;
+      }
+    } else if (tokenToVerify && typeof tokenToVerify === 'string') {
       try {
         const googleRes = await fetch(
           `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenToVerify)}`
