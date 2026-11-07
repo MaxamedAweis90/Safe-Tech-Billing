@@ -426,25 +426,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <button
               type="submit"
               disabled={loading || isGoogleLoading}
-              style={{
-                backgroundColor: '#3B82F6',
-                color: '#FFFFFF',
-                border: 0,
-                borderRadius: '8px',
-                padding: '12px 20px',
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: loading || isGoogleLoading ? 'not-allowed' : 'pointer',
-                opacity: loading || isGoogleLoading ? 0.7 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                marginTop: '4px',
-                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-              }}
+              className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-lg bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-semibold transition-all duration-150 shadow-[0_4px_14px_rgba(59,130,246,0.4)] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer mt-1"
             >
-              {loading ? 'Sending Code...' : 'Send Login Code'}
+              <span>{loading ? 'Sending Code...' : 'Send Login Code'}</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="5" y1="12" x2="19" y2="12" />
                 <polyline points="12 5 19 12 12 19" />
@@ -467,6 +451,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
               disabled={loading || isGoogleLoading}
               style={{
                 width: '100%',
+                minHeight: '44px',
                 backgroundColor: '#151C27',
                 border: '1px solid #243042',
                 borderRadius: '8px',
@@ -582,16 +567,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
               )}
             </div>
 
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginTop: '8px',
-                paddingTop: '16px',
-                borderTop: '1px solid #243042',
-              }}
-            >
+            <div className="flex flex-col gap-3 mt-2 pt-4 border-t border-[#243042]">
+              <button
+                type="submit"
+                disabled={loading || otp.length !== 6}
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-lg bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-semibold transition-all shadow-[0_4px_14px_rgba(59,130,246,0.4)] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <span>{loading ? 'Verifying...' : 'Sign In'}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -600,40 +587,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   setErrorMsg('');
                 }}
                 disabled={loading}
-                style={{
-                  backgroundColor: 'transparent',
-                  border: 0,
-                  color: '#8C9BAE',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
+                className="w-full text-center text-xs sm:text-sm text-[#8C9BAE] hover:text-[#E5EAF2] py-1 cursor-pointer transition-colors"
               >
                 ← Change credential
-              </button>
-
-              <button
-                type="submit"
-                disabled={loading || otp.length !== 6}
-                style={{
-                  backgroundColor: '#3B82F6',
-                  color: '#FFFFFF',
-                  border: 0,
-                  borderRadius: '8px',
-                  padding: '11px 24px',
-                  fontSize: '13.5px',
-                  fontWeight: 600,
-                  cursor: loading || otp.length !== 6 ? 'not-allowed' : 'pointer',
-                  opacity: loading || otp.length !== 6 ? 0.6 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                {loading ? 'Verifying...' : 'Sign In'}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
               </button>
             </div>
           </form>

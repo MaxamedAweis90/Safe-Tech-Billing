@@ -657,50 +657,21 @@ export const StaffAcceptInviteView: React.FC = () => {
               </div>
 
               {/* Form Action Controls */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginTop: '12px',
-                  paddingTop: '16px',
-                  borderTop: '1px solid #243042',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('login')}
-                  style={{
-                    backgroundColor: 'transparent',
-                    border: 0,
-                    color: '#8C9BAE',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  Already registered? <span style={{ color: '#6E9CF0', textDecoration: 'underline' }}>Sign In</span>
-                </button>
-
+              <div className="flex flex-col gap-3 mt-3 pt-4 border-t border-[#243042]">
                 <button
                   type="submit"
                   disabled={submitting}
-                  style={{
-                    backgroundColor: '#3B82F6',
-                    color: '#FFFFFF',
-                    border: 0,
-                    borderRadius: '8px',
-                    padding: '11px 22px',
-                    fontSize: '13.5px',
-                    fontWeight: 600,
-                    cursor: submitting ? 'not-allowed' : 'pointer',
-                    opacity: submitting ? 0.7 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
+                  className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-lg bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-semibold transition-all shadow-[0_4px_14px_rgba(59,130,246,0.4)] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {submitting ? 'Activating Profile...' : 'Join Workspace & Open Dashboard →'}
+                  <span>{submitting ? 'Activating Profile...' : 'Join Workspace & Open Dashboard →'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('login')}
+                  className="w-full text-center text-xs sm:text-sm text-[#8C9BAE] hover:text-[#E5EAF2] py-1 cursor-pointer transition-colors"
+                >
+                  Already registered? <span className="text-[#6E9CF0] underline ml-1">Sign In</span>
                 </button>
               </div>
             </form>

@@ -224,53 +224,24 @@ export const VerifyView: React.FC = () => {
             )}
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: '12px',
-              paddingTop: '16px',
-              borderTop: '1px solid #243042',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setActiveTab('login')}
-              style={{
-                background: 'transparent',
-                border: 0,
-                color: '#8C9BAE',
-                fontSize: '13px',
-                cursor: 'pointer',
-                padding: 0,
-              }}
-            >
-              ← Back to Login
-            </button>
-
+          <div className="flex flex-col gap-3 mt-3 pt-4 border-t border-[#243042]">
             <button
               type="submit"
               disabled={loading || otp.length !== 6}
-              style={{
-                backgroundColor: '#3B82F6',
-                color: '#FFFFFF',
-                fontWeight: 600,
-                fontSize: '13.5px',
-                border: 0,
-                borderRadius: '8px',
-                padding: '11px 24px',
-                cursor: loading || otp.length !== 6 ? 'not-allowed' : 'pointer',
-                opacity: loading || otp.length !== 6 ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
+              className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-lg bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-semibold transition-all shadow-[0_4px_14px_rgba(59,130,246,0.4)] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
-              {loading ? 'Verifying...' : 'Activate & Enter'}
+              <span>{loading ? 'Verifying...' : 'Activate & Enter'}</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('login')}
+              className="w-full text-center text-xs sm:text-sm text-[#8C9BAE] hover:text-[#E5EAF2] py-1 cursor-pointer transition-colors"
+            >
+              ← Back to Login
             </button>
           </div>
         </form>

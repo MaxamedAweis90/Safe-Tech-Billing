@@ -510,16 +510,18 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
               </span>
             </div>
 
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginTop: '12px',
-                paddingTop: '16px',
-                borderTop: '1px solid #243042',
-              }}
-            >
+            <div className="flex flex-col gap-3 mt-3 pt-4 border-t border-[#243042]">
+              <button
+                type="submit"
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-lg bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-semibold transition-all duration-150 shadow-[0_4px_14px_rgba(59,130,246,0.4)] cursor-pointer"
+              >
+                <span>Continue to Company Setup</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -529,40 +531,9 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
                     setActiveTab('login');
                   }
                 }}
-                style={{
-                  backgroundColor: 'transparent',
-                  border: 0,
-                  color: '#8C9BAE',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
+                className="w-full text-center text-xs sm:text-sm text-[#8C9BAE] hover:text-[#E5EAF2] py-1 cursor-pointer transition-colors"
               >
-                Already have an account? <span style={{ color: '#6E9CF0', textDecoration: 'underline' }}>Sign in</span>
-              </button>
-
-              <button
-                type="submit"
-                style={{
-                  backgroundColor: '#3B82F6',
-                  color: '#FFFFFF',
-                  border: 0,
-                  borderRadius: '8px',
-                  padding: '11px 24px',
-                  fontSize: '13.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-                }}
-              >
-                Continue to Company Setup
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg>
+                Already have an account? <span className="text-[#6E9CF0] underline ml-1">Sign in</span>
               </button>
             </div>
           </form>
@@ -764,56 +735,26 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
               </div>
             </div>
 
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginTop: '12px',
-                paddingTop: '16px',
-                borderTop: '1px solid #243042',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setStep('CREDENTIALS')}
-                disabled={loading}
-                style={{
-                  backgroundColor: 'transparent',
-                  border: 0,
-                  color: '#8C9BAE',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                ← Back to Credentials
-              </button>
-
+            <div className="flex flex-col gap-3 mt-3 pt-4 border-t border-[#243042]">
               <button
                 type="submit"
                 disabled={loading}
-                style={{
-                  backgroundColor: '#3B82F6',
-                  color: '#FFFFFF',
-                  border: 0,
-                  borderRadius: '8px',
-                  padding: '12px 26px',
-                  fontSize: '13.5px',
-                  fontWeight: 600,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.7 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-                }}
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-lg bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-semibold transition-all shadow-[0_4px_14px_rgba(59,130,246,0.4)] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
               >
-                {loading ? 'Dispatching Code...' : 'Proceed to Verification'}
+                <span>{loading ? 'Dispatching Code...' : 'Proceed to Verification'}</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="5" y1="12" x2="19" y2="12" />
                   <polyline points="12 5 19 12 12 19" />
                 </svg>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStep('CREDENTIALS')}
+                disabled={loading}
+                className="w-full text-center text-xs sm:text-sm text-[#8C9BAE] hover:text-[#E5EAF2] py-1 cursor-pointer transition-colors"
+              >
+                ← Back to Credentials
               </button>
             </div>
           </form>
@@ -897,55 +838,25 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
               )}
             </div>
 
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginTop: '12px',
-                paddingTop: '16px',
-                borderTop: '1px solid #243042',
-              }}
-            >
+            <div className="flex flex-col gap-3 mt-3 pt-4 border-t border-[#243042]">
+              <button
+                type="submit"
+                disabled={loading || otp.length !== 6}
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-lg bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-semibold transition-all shadow-[0_4px_14px_rgba(59,130,246,0.4)] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <span>{loading ? 'Verifying & Initializing...' : 'Verify & Launch Enterprise Ledger'}</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setStep('COMPANY')}
                 disabled={loading}
-                style={{
-                  backgroundColor: 'transparent',
-                  border: 0,
-                  color: '#8C9BAE',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
+                className="w-full text-center text-xs sm:text-sm text-[#8C9BAE] hover:text-[#E5EAF2] py-1 cursor-pointer transition-colors"
               >
                 ← Back to Company
-              </button>
-
-              <button
-                type="submit"
-                disabled={loading || otp.length !== 6}
-                style={{
-                  backgroundColor: '#3B82F6',
-                  color: '#FFFFFF',
-                  border: 0,
-                  borderRadius: '8px',
-                  padding: '12px 28px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: loading || otp.length !== 6 ? 'not-allowed' : 'pointer',
-                  opacity: loading || otp.length !== 6 ? 0.6 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-                }}
-              >
-                {loading ? 'Verifying & Initializing...' : 'Verify & Launch Enterprise Ledger'}
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
               </button>
             </div>
           </form>
@@ -1052,6 +963,7 @@ export const AdminOnboardingView: React.FC<AdminOnboardingViewProps> = ({
             onClick={handleOpenDashboard}
             style={{
               width: '100%',
+              minHeight: '44px',
               backgroundColor: '#3B82F6',
               color: '#FFFFFF',
               border: 0,
