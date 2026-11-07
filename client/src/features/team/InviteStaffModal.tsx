@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal } from '../../components/ui/Modal';
 import { useInviteMember } from '../../hooks/useTeam';
 import { useCompanySettings } from '../../hooks/useSettings';
+import { useAuthStore } from '../../store/useAuthStore';
 
 export interface InviteStaffModalProps {
   isOpen: boolean;
@@ -14,9 +15,10 @@ export const InviteStaffModal: React.FC<InviteStaffModalProps> = ({ isOpen, onCl
   const [role, setRole] = useState<'accountant' | 'sales'>('accountant');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const { user } = useAuthStore();
   const inviteMutation = useInviteMember();
   const { data: companyData } = useCompanySettings();
-  const companyName = companyData?.company?.name || 'Safe Tech Solutions';
+  const companyName = companyData?.company?.name || user?.companyName || 'your company';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

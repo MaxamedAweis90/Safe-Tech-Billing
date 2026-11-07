@@ -34,8 +34,10 @@ export const MobileDrawer: React.FC = () => {
       }).length
     : (isDemo ? mockCounts.overdue : 0);
 
+  const displayName = company?.name || user?.companyName || (isDemo ? 'Safe Tech Solutions' : '');
+  const displaySubtitle = company?.tagline || company?.email || user?.email || (isDemo ? 'billing@safetech.so' : '');
   const isCompanyConfigured = Boolean(
-    company?.name && company.name.trim().length > 0 && company.name !== 'Set your business info'
+    displayName && displayName.trim().length > 0 && displayName !== 'Set your business info'
   );
 
   if (!mobileDrawerOpen) return null;
@@ -118,7 +120,7 @@ export const MobileDrawer: React.FC = () => {
 
         {/* Dynamic Company Bottom Area */}
         <div className="pt-3 border-t border-line mt-auto">
-          {isCompanyConfigured && company ? (
+          {isCompanyConfigured && displayName ? (
             <div
               role={can('settings') ? 'button' : undefined}
               tabIndex={can('settings') ? 0 : undefined}
@@ -134,25 +136,25 @@ export const MobileDrawer: React.FC = () => {
                   }
                 }
               }}
-              title={can('settings') ? `Manage ${company.name} in Settings` : company.name}
+              title={can('settings') ? `Manage ${displayName} in Settings` : displayName}
             >
-              {company.logo ? (
+              {company?.logo ? (
                 <img
                   src={company.logo}
-                  alt={company.name}
+                  alt={displayName}
                   className="w-8 h-8 rounded object-contain bg-[#151C27] border border-line p-0.5 shrink-0"
                 />
               ) : (
                 <div className="w-8 h-8 rounded bg-[#18263D] text-[#6E9CF0] text-xs font-bold flex items-center justify-center border border-line shrink-0">
-                  {getAvatarInitials(company.name)}
+                  {getAvatarInitials(displayName)}
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold text-white truncate" title={company.name}>
-                  {company.name}
+                <div className="text-xs font-semibold text-white truncate" title={displayName}>
+                  {displayName}
                 </div>
                 <div className="text-[11px] text-side-muted truncate">
-                  {company.tagline || company.email || 'Active Workspace'}
+                  {displaySubtitle || 'Active Workspace'}
                 </div>
               </div>
             </div>

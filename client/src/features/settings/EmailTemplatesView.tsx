@@ -94,7 +94,7 @@ export const EmailTemplatesView: React.FC = () => {
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [testEmailModalOpen, setTestEmailModalOpen] = useState(false);
-  const [destinationEmail, setDestinationEmail] = useState(user?.email || 'safetechbilling@gmail.com');
+  const [destinationEmail, setDestinationEmail] = useState(user?.email || '');
 
   const subjectInputRef = useRef<HTMLInputElement>(null);
   const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -158,7 +158,7 @@ export const EmailTemplatesView: React.FC = () => {
   // Compile preview HTML with dummy values
   const getCompiledPreview = (): string => {
     let compiled = htmlBody;
-    const companyName = companyData?.company?.name || 'Safe Tech Solutions';
+    const companyName = companyData?.company?.name || user?.companyName || 'My Business';
     const mergedVars = { ...DUMMY_INTERPOLATION, company_name: companyName };
 
     for (const [k, v] of Object.entries(mergedVars)) {

@@ -928,8 +928,9 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
     }
 
     const permissions = getRolePermissions(user.role);
+    const isDemo = Boolean(user.email === 'demo@account.com' || req.user.id.startsWith('usr_'));
 
-    let companyName = 'Safe Tech Solutions';
+    let companyName = isDemo ? 'Safe Tech Solutions' : '';
     let companyId: string | null = user.companyId ? user.companyId.toString() : null;
     let isOwner = Boolean(user.isOwner ?? (user.role === 'admin'));
 
@@ -943,12 +944,21 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
           }
         }
       } else {
-        const comp = (await Company.findOne({ ownerId: user._id })) || (await Company.findOne());
+        const comp = await Company.findOne({ ownerId: user._id });
         if (comp) {
           companyName = comp.name;
           companyId = comp._id.toString();
-          if (comp.ownerId && comp.ownerId.toString() === user._id.toString()) {
-            isOwner = true;
+          user.companyId = comp._id;
+          isOwner = true;
+          await user.save();
+        } else if (isDemo) {
+          const demoComp =
+            (await Company.findOne({ ownerId: null })) ||
+            (await Company.findOne({ email: 'billing@safetech.so' })) ||
+            (await Company.findOne());
+          if (demoComp) {
+            companyName = demoComp.name;
+            companyId = demoComp._id.toString();
           }
         }
       }

@@ -245,8 +245,11 @@ export const getInvitationByToken = async (token: string) => {
         const inviter = await User.findById(invitation.invitedBy);
         if (inviter) {
           inviterName = inviter.fullName || inviter.name || 'Administrator';
-          if (inviter.companyName) {
-            companyName = inviter.companyName;
+          if (inviter.companyId) {
+            const comp = await Company.findById(inviter.companyId);
+            if (comp?.name) {
+              companyName = comp.name;
+            }
           }
         }
       } catch {
@@ -254,13 +257,15 @@ export const getInvitationByToken = async (token: string) => {
       }
     }
 
-    try {
-      const company = await Company.findOne();
-      if (company?.name) {
-        companyName = company.name;
+    if (!companyName && invitation.companyId) {
+      try {
+        const company = await Company.findById(invitation.companyId);
+        if (company?.name) {
+          companyName = company.name;
+        }
+      } catch {
+        // Graceful fallback to companyName
       }
-    } catch {
-      // Graceful fallback to companyName
     }
   }
 

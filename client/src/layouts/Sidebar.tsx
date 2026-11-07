@@ -28,8 +28,10 @@ export const Sidebar: React.FC = () => {
   const { data: companyData } = useCompanySettings();
   const company = companyData?.company;
 
+  const displayName = company?.name || user?.companyName || (isDemo ? 'Safe Tech Solutions' : '');
+  const displaySubtitle = company?.tagline || company?.email || user?.email || (isDemo ? 'billing@safetech.so' : '');
   const isCompanyConfigured = Boolean(
-    company?.name && company.name.trim().length > 0 && company.name !== 'Set your business info'
+    displayName && displayName.trim().length > 0 && displayName !== 'Set your business info'
   );
 
   // Fetch live counts from API with graceful fallback to mock data
@@ -166,7 +168,7 @@ export const Sidebar: React.FC = () => {
           backgroundColor: 'var(--side-bg, #0A0F17)',
         }}
       >
-        {isCompanyConfigured && company ? (
+        {isCompanyConfigured && displayName ? (
           <div
             role={can('settings') ? 'button' : undefined}
             tabIndex={can('settings') ? 0 : undefined}
@@ -200,12 +202,12 @@ export const Sidebar: React.FC = () => {
               transition: 'background-color 0.15s ease',
             }}
             className={can('settings') ? 'hover:bg-[#151C27]' : ''}
-            title={can('settings') ? `Manage ${company.name} in Settings` : company.name}
+            title={can('settings') ? `Manage ${displayName} in Settings` : displayName}
           >
-            {company.logo ? (
+            {company?.logo ? (
               <img
                 src={company.logo}
-                alt={company.name}
+                alt={displayName}
                 style={{
                   width: '32px',
                   height: '32px',
@@ -234,7 +236,7 @@ export const Sidebar: React.FC = () => {
                   border: '1px solid #243042',
                 }}
               >
-                {getAvatarInitials(company.name)}
+                {getAvatarInitials(displayName)}
               </div>
             )}
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -247,9 +249,9 @@ export const Sidebar: React.FC = () => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}
-                title={company.name}
+                title={displayName}
               >
-                {company.name}
+                {displayName}
               </div>
               <div
                 style={{
@@ -260,9 +262,9 @@ export const Sidebar: React.FC = () => {
                   whiteSpace: 'nowrap',
                   marginTop: '1px',
                 }}
-                title={company.tagline || company.email || 'Active Workspace'}
+                title={displaySubtitle || 'Active Workspace'}
               >
-                {company.tagline || company.email || 'Active Workspace'}
+                {displaySubtitle || 'Active Workspace'}
               </div>
             </div>
           </div>

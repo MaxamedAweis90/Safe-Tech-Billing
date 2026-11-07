@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { LineItem, CustomerSnapshot } from '../../types';
 import { formatMoney } from '../../lib/formatters';
+import { useCompanySettings } from '../../hooks/useSettings';
+import { useAuthStore } from '../../store/useAuthStore';
 
 export interface A4DocumentProps {
   type: 'INVOICE' | 'QUOTATION' | 'RECEIPT';
@@ -40,6 +42,23 @@ export const A4Canvas: React.FC<A4DocumentProps> = ({
   const wrapRef = useRef<HTMLDivElement>(null);
   const scaleRef = useRef<HTMLDivElement>(null);
 
+  const { user } = useAuthStore();
+  const { data: companyData } = useCompanySettings();
+  const company = companyData?.company;
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
+
+  const compName = company?.name || user?.companyName || (isDemo ? 'Safe Tech Solutions' : 'My Business');
+  const compTagline = company?.tagline || (isDemo ? 'Enterprise IT, Billing & Infrastructure' : '');
+  const compAddress = company?.address || (isDemo ? 'KM4 Airport Road, Wadajir District, Mogadishu, Somalia' : '');
+  const compEmail = company?.email || user?.email || (isDemo ? 'billing@safetech.so' : '');
+  const compPhone = company?.phone || (isDemo ? '+252 61 000 0000' : '');
+  const compTax = company?.tax_id || (isDemo ? 'SO-TIN-889021' : '');
+  const compBank = company?.bank_name || (isDemo ? 'Premier Bank' : '');
+  const compAccount = company?.account_no
+    ? `${company.account_no}${company.account_name ? ` (${company.account_name})` : ''}`
+    : (isDemo ? '010204982001 (Safe Tech Solutions LLC)' : '');
+  const compMobile = company?.mobile_money || (isDemo ? 'EVC Plus: +252 61 000 0000' : '');
+
   useEffect(() => {
     const fitSheets = () => {
       if (!wrapRef.current || !scaleRef.current) return;
@@ -67,7 +86,15 @@ export const A4Canvas: React.FC<A4DocumentProps> = ({
           {/* Header */}
           <div className="dh">
             <div className="dlogo">
-              <b>SAFE TECH</b>
+              {company?.logo ? (
+                <img
+                  src={company.logo}
+                  alt={compName}
+                  style={{ maxHeight: 36, maxWidth: 160, objectFit: 'contain' }}
+                />
+              ) : (
+                <b>{compName.toUpperCase()}</b>
+              )}
             </div>
             <div className="dtitle">{type}</div>
           </div>
@@ -75,12 +102,22 @@ export const A4Canvas: React.FC<A4DocumentProps> = ({
           {/* Company & Meta */}
           <div className="dco">
             <div>
-              <h3>SAFE TECH SOLUTIONS LIMITED</h3>
-              <div className="tag">Commercial Billing &amp; Engineering</div>
+              <h3>{compName.toUpperCase()}</h3>
+              {compTagline && <div className="tag">{compTagline}</div>}
               <div style={{ marginTop: 4, color: '#555', fontSize: 11.5 }}>
-                Commercial Plaza, Westlands · P.O. Box 48201-00100 Nairobi
-                <br />
-                PIN: P051234567Z · Email: billing@safetech.co.ke
+                {compAddress && (
+                  <>
+                    {compAddress}
+                    <br />
+                  </>
+                )}
+                {[
+                  compTax ? `PIN/TIN: ${compTax}` : null,
+                  compPhone ? `Phone: ${compPhone}` : null,
+                  compEmail ? `Email: ${compEmail}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </div>
             </div>
             <dl className="meta">
@@ -138,17 +175,29 @@ export const A4Canvas: React.FC<A4DocumentProps> = ({
 
           {/* Foot: Remittance & Totals */}
           <div className="dfoot">
-            <dl className="pay">
-              <div className="ph">Payment Remittance</div>
-              <dt>Bank:</dt>
-              <dd>Standard Chartered Bank</dd>
-              <dt>Account:</dt>
-              <dd className="font-mono">0102030405060 (Safe Tech Solutions)</dd>
-              <dt>SWIFT:</dt>
-              <dd className="font-mono">SCBLKENX</dd>
-              <dt>M-Pesa:</dt>
-              <dd className="font-mono">Buy Goods Till 567890</dd>
-            </dl>
+            {(compBank || compAccount || compMobile) && (
+              <dl className="pay">
+                <div className="ph">Payment Remittance</div>
+                {compBank && (
+                  <>
+                    <dt>Bank:</dt>
+                    <dd>{compBank}</dd>
+                  </>
+                )}
+                {compAccount && (
+                  <>
+                    <dt>Account:</dt>
+                    <dd className="font-mono">{compAccount}</dd>
+                  </>
+                )}
+                {compMobile && (
+                  <>
+                    <dt>Mobile:</dt>
+                    <dd className="font-mono">{compMobile}</dd>
+                  </>
+                )}
+              </dl>
+            )}
 
             <div className="tot">
               <div className="lbl">Subtotal:</div>
@@ -194,7 +243,7 @@ export const A4Canvas: React.FC<A4DocumentProps> = ({
           {/* Thank You Note */}
           <div className="dfine">
             <div className="thanks">Thank you for your business.</div>
-            <div>Safe Tech Solutions Ltd · Commercial Department</div>
+            <div>{compName} · Accounts Department</div>
           </div>
         </div>
       </div>

@@ -15,8 +15,9 @@ export const TopBar: React.FC = () => {
   const { user, role, logout } = useAuthStore();
   const { data: companyData } = useCompanySettings();
 
+  const isDemoSession = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const company = companyData?.company;
-  const companyName = company?.name || 'Safe Tech Solutions';
+  const companyName = company?.name || user?.companyName || (isDemoSession ? 'Safe Tech Solutions' : 'My Business');
   const userName = user?.fullName || user?.name || 'Staff User';
   const userContact = user?.email || user?.phone || 'authenticated';
   const initials = getAvatarInitials(userName);
@@ -28,7 +29,6 @@ export const TopBar: React.FC = () => {
     viewer: { label: 'Viewer', className: 'chip c-muted' },
   };
   const badge = roleBadgeConfig[role] || roleBadgeConfig.viewer;
-  const isDemoSession = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
 
   // Handle outside click to close dropdown
   useEffect(() => {
