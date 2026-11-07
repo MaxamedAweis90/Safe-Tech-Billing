@@ -18,31 +18,53 @@ import { EmailTemplate } from '../models/email-template.model';
 import { STATIC_EMAIL_TEMPLATES, seedEmailTemplates } from '../seeds/email-templates.seed';
 import { sendEmail } from '../services/communication.service';
 
-export const getCompany = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getCompany = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    let company = await Company.findOne();
-    if (!company) {
-      // Seed initial default company profile
-      company = await Company.create({
-        name: 'Safe Tech Solutions',
-        tagline: 'Enterprise IT, Billing & Infrastructure',
-        address: 'KM4 Airport Road, Wadajir District, Mogadishu, Somalia',
-        phone: '+252 61 000 0000',
-        email: 'billing@safetech.so',
-        website: 'https://safetech.so',
-        tax_id: 'SO-TIN-889021',
-        bank_name: 'Premier Bank',
-        account_name: 'Safe Tech Solutions LLC',
-        account_no: '010204982001',
-        mobile_money: 'EVC Plus: +252 61 000 0000',
-        signatory: 'Authorized Signatory',
-        default_currency: 'USD',
-      });
+    const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+
+    let company = null;
+
+    if (req.user?.companyId) {
+      company = await Company.findById(req.user.companyId);
+    }
+
+    if (!company && req.user?.id && !req.user.id.startsWith('usr_')) {
+      company = await Company.findOne({ ownerId: req.user.id });
+      if (company && req.user) {
+        // Link user to their company if previously unlinked
+        await User.findByIdAndUpdate(req.user.id, {
+          companyId: company._id,
+          isOwner: true,
+        });
+      }
+    }
+
+    if (!company && isDemo) {
+      // Find or seed initial demo company profile for demo accounts only
+      company = (await Company.findOne({ ownerId: null })) || (await Company.findOne({ email: 'billing@safetech.so' }));
+      if (!company) {
+        company = await Company.create({
+          name: 'Safe Tech Solutions',
+          tagline: 'Enterprise IT, Billing & Infrastructure',
+          address: 'KM4 Airport Road, Wadajir District, Mogadishu, Somalia',
+          phone: '+252 61 000 0000',
+          email: 'billing@safetech.so',
+          website: 'https://safetech.so',
+          tax_id: 'SO-TIN-889021',
+          bank_name: 'Premier Bank',
+          account_name: 'Safe Tech Solutions LLC',
+          account_no: '010204982001',
+          mobile_money: 'EVC Plus: +252 61 000 0000',
+          signatory: 'Authorized Signatory',
+          default_currency: 'USD',
+          isConfigured: true,
+        });
+      }
     }
 
     res.status(200).json({
       success: true,
-      company,
+      company: company || null,
     });
   } catch (err) {
     next(err);
@@ -85,9 +107,19 @@ export const onboardCompany = async (req: Request, res: Response, next: NextFunc
       return;
     }
 
-    let company = await Company.findOne();
+    const isRealUser = Boolean(req.user?.id && !req.user.id.startsWith('usr_'));
+    const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+
+    let company = null;
+    if (req.user?.companyId) {
+      company = await Company.findById(req.user.companyId);
+    }
+    if (!company && isRealUser) {
+      company = await Company.findOne({ ownerId: req.user!.id });
+    }
+
     const signatory = req.user?.name || 'General Manager';
-    const email = req.user?.email || 'billing@safetech.so';
+    const email = req.user?.email || (isDemo ? 'billing@safetech.so' : '');
 
     if (company) {
       company.name = name.trim();
@@ -97,6 +129,7 @@ export const onboardCompany = async (req: Request, res: Response, next: NextFunc
       if (tax_id !== undefined) company.tax_id = tax_id.trim();
       if (!company.signatory) company.signatory = signatory;
       if (!company.email) company.email = email;
+      company.isConfigured = true;
       company = await company.save();
     } else {
       company = await Company.create({
@@ -107,12 +140,18 @@ export const onboardCompany = async (req: Request, res: Response, next: NextFunc
         default_currency: default_currency || 'USD',
         tax_id: tax_id ? tax_id.trim() : '',
         signatory,
+        ownerId: isRealUser ? req.user!.id : null,
+        isConfigured: true,
       });
     }
 
-    // Mark admin user onboarding completed
-    if (req.user?.id && !req.user.id.startsWith('usr_')) {
-      await User.findByIdAndUpdate(req.user.id, { onboardingCompleted: true });
+    // Mark admin user onboarding completed and link company
+    if (isRealUser && req.user?.id) {
+      await User.findByIdAndUpdate(req.user.id, {
+        companyId: company._id,
+        isOwner: true,
+        onboardingCompleted: true,
+      });
     }
 
     if (req.user) {
@@ -136,12 +175,40 @@ export const onboardCompany = async (req: Request, res: Response, next: NextFunc
 
 export const updateCompany = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    let company = await Company.findOne();
+    const isRealUser = Boolean(req.user?.id && !req.user.id.startsWith('usr_'));
+    const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+
+    let company = null;
+    if (req.user?.companyId) {
+      company = await Company.findById(req.user.companyId);
+    }
+    if (!company && isRealUser) {
+      company = await Company.findOne({ ownerId: req.user!.id });
+    }
+    if (!company && isDemo) {
+      company = (await Company.findOne({ ownerId: null })) || (await Company.findOne({ email: 'billing@safetech.so' }));
+    }
+
+    // Exclude restricted internal properties from update payload
+    const { ownerId: _ignoredOwnerId, _id: _ignoredId, id: _ignoredAltId, ...updatePayload } = req.body;
+
     if (company) {
-      Object.assign(company, req.body);
+      Object.assign(company, updatePayload);
+      company.isConfigured = true;
       company = await company.save();
     } else {
-      company = await Company.create(req.body);
+      company = await Company.create({
+        ...updatePayload,
+        ownerId: isRealUser ? req.user!.id : null,
+        isConfigured: true,
+      });
+
+      if (isRealUser && req.user?.id) {
+        await User.findByIdAndUpdate(req.user.id, {
+          companyId: company._id,
+          isOwner: true,
+        });
+      }
     }
 
     if (req.user) {
@@ -239,6 +306,15 @@ export const upsertTaxRate = async (req: Request, res: Response, next: NextFunct
 
 export const resetSampleData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+    if (!isDemo) {
+      res.status(403).json({
+        success: false,
+        error: 'Forbidden: Resetting sample data is restricted to the demo environment.',
+      });
+      return;
+    }
+
     // Re-seed full default baseline (sequences, currencies, taxes, and all 8 prototype customers)
     await seedDefaultData(true);
 
