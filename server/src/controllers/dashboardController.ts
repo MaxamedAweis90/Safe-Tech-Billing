@@ -7,7 +7,7 @@ import { getInvoiceFinancials } from '../services/invoiceService';
 import { calculateDocumentTotals } from '../services/mathService';
 
 export const getDashboardSummary = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -25,14 +25,16 @@ export const getDashboardSummary = async (
       months.push(d.toISOString().slice(0, 7));
     }
 
+    const companyFilter = req.user?.companyId ? { companyId: req.user.companyId } : {};
+
     const [invoices, quotations, payments, customers] = await Promise.all([
-      Invoice.find().populate('customer_id', 'name code'),
-      Quotation.find().populate('customer_id', 'name code'),
-      Payment.find().populate({
+      Invoice.find(companyFilter).populate('customer_id', 'name code'),
+      Quotation.find(companyFilter).populate('customer_id', 'name code'),
+      Payment.find(companyFilter).populate({
         path: 'invoice_id',
         populate: { path: 'customer_id', select: 'name code' },
       }),
-      Customer.find(),
+      Customer.find(companyFilter),
     ]);
 
     // Customer lookup map

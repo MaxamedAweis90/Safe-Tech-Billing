@@ -16,6 +16,8 @@ export interface User {
   isVerified?: boolean;
   status?: string;
   companyName?: string;
+  companyId?: string;
+  isOwner?: boolean;
   onboardingCompleted?: boolean;
   isDemo?: boolean;
 }

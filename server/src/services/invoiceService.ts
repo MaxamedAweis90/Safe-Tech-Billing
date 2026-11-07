@@ -104,6 +104,7 @@ export const createDraft = async (data: CreateInvoiceInput): Promise<IInvoice> =
   }
 
   const invoice = new Invoice({
+    companyId: data.companyId || null,
     number: null,
     customer_id: custId,
     quote_id: data.quote_id && Types.ObjectId.isValid(data.quote_id) ? data.quote_id : null,

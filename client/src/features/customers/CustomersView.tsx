@@ -18,7 +18,7 @@ export const CustomersView: React.FC = () => {
   const { can, user } = useAuthStore();
   const { selectedRecordId, setSelectedRecord } = useNavStore();
 
-  const isDemo = user?.isDemo === true;
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
 
   const { data: apiData, isLoading } = useCustomers({
     q: searchQuery.trim() || undefined,

@@ -8,6 +8,7 @@ import {
   revokeInvitation,
   getInvitationByToken,
   acceptInvitation,
+  updateMemberRole,
 } from '../controllers/team.controller';
 import {
   listTeamMembers,
@@ -489,6 +490,73 @@ describe('Team Invitation & Role-Based Onboarding — Step 3 Specifications', ()
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
           error: expect.stringContaining('E.164'),
+        })
+      );
+    });
+  });
+
+  describe('PATCH /api/v1/team/members/:id/role — Owner-Only Role Modification', () => {
+    it('allows workspace owner to update a member role', async () => {
+      const targetUserId = new mongoose.Types.ObjectId().toString();
+      const mockMember = {
+        _id: targetUserId,
+        fullName: 'Hassan Ali',
+        email: 'hassan@safetech.so',
+        role: 'accountant',
+        isOwner: false,
+        save: vi.fn().mockResolvedValue(true),
+      };
+
+      vi.spyOn(User, 'findById').mockResolvedValue(mockMember as any);
+
+      const ownerId = new mongoose.Types.ObjectId().toString();
+      const { req, res, statusMock, jsonMock } = createMockReqRes({
+        params: { id: targetUserId },
+        body: { role: 'sales' },
+        user: {
+          id: ownerId,
+          role: 'admin',
+          isOwner: true,
+          name: 'Owner Admin',
+        },
+      });
+
+      await updateMemberRole(req, res, vi.fn());
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(mockMember.role).toBe('sales');
+      expect(mockMember.save).toHaveBeenCalled();
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          member: expect.objectContaining({
+            role: 'sales',
+          }),
+        })
+      );
+    });
+
+    it('rejects non-owner attempts to modify roles', async () => {
+      const targetUserId = new mongoose.Types.ObjectId().toString();
+      const staffId = new mongoose.Types.ObjectId().toString();
+
+      const { req, res, statusMock, jsonMock } = createMockReqRes({
+        params: { id: targetUserId },
+        body: { role: 'accountant' },
+        user: {
+          id: staffId,
+          role: 'sales',
+          isOwner: false,
+          name: 'Sales Staff',
+        },
+      });
+
+      await updateMemberRole(req, res, vi.fn());
+
+      expect(statusMock).toHaveBeenCalledWith(403);
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining('Only the company owner'),
         })
       );
     });

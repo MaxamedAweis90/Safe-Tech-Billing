@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction, CookieOptions } from 'express';
+import mongoose from 'mongoose';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -101,6 +102,8 @@ export const issueAuthTokens = (user: IUser) => {
       email: user.email,
       role: user.role,
       isVerified: user.isVerified,
+      companyId: user.companyId ? user.companyId.toString() : null,
+      isOwner: Boolean(user.isOwner ?? (user.role === 'admin')),
     },
     env.JWT_SECRET,
     { expiresIn: '15m' }
@@ -112,7 +115,7 @@ export const issueAuthTokens = (user: IUser) => {
       email: user.email,
     },
     refreshSecret,
-    { expiresIn: '7d' }
+    { expiresIn: '30d' }
   );
 
   return { accessToken, refreshToken };
@@ -141,7 +144,7 @@ export const setAuthCookies = (
 
   res.cookie('refreshToken', refreshToken, {
     ...baseCookieOptions,
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   });
 };
 
@@ -398,7 +401,7 @@ export const completeRegistration = async (req: Request, res: Response, next: Ne
       onboardingCompleted: true,
     });
 
-    // 2. Create or Upsert Company
+    // 2. Create or find Company owned by this user
     const cleanCompanyPhone = company.phone?.trim()
       ? company.phone.trim().replace(/\s+/g, '')
       : (cleanAdminPhone || '+252 61 000 000');
@@ -407,21 +410,8 @@ export const completeRegistration = async (req: Request, res: Response, next: Ne
     const tagline = company.tagline?.trim() || '';
     const website = company.website?.trim() || '';
 
-    let companyDoc = await Company.findOne();
-    if (companyDoc) {
-      companyDoc.name = company.name.trim();
-      companyDoc.tagline = tagline;
-      companyDoc.address = company.address.trim();
-      companyDoc.phone = cleanCompanyPhone;
-      companyDoc.email = normalizedEmail;
-      companyDoc.website = website;
-      companyDoc.default_currency = currency;
-      companyDoc.tax_id = taxId;
-      companyDoc.signatory = admin.fullName.trim();
-      companyDoc.ownerId = user._id;
-      companyDoc.isConfigured = true;
-      await companyDoc.save();
-    } else {
+    let companyDoc = await Company.findOne({ ownerId: user._id });
+    if (!companyDoc) {
       companyDoc = await Company.create({
         name: company.name.trim(),
         tagline,
@@ -435,7 +425,25 @@ export const completeRegistration = async (req: Request, res: Response, next: Ne
         ownerId: user._id,
         isConfigured: true,
       });
+    } else {
+      companyDoc.name = company.name.trim();
+      companyDoc.tagline = tagline;
+      companyDoc.address = company.address.trim();
+      companyDoc.phone = cleanCompanyPhone;
+      companyDoc.email = normalizedEmail;
+      companyDoc.website = website;
+      companyDoc.default_currency = currency;
+      companyDoc.tax_id = taxId;
+      companyDoc.signatory = admin.fullName.trim();
+      companyDoc.isConfigured = true;
+      await companyDoc.save();
     }
+
+    // Link user to this company
+    user.companyId = companyDoc._id;
+    user.isOwner = true;
+    user.role = 'admin';
+    await user.save();
 
     // 3. Delete used OTP
     await OtpToken.deleteOne({ _id: otpDoc._id });
@@ -464,6 +472,8 @@ export const completeRegistration = async (req: Request, res: Response, next: Ne
         role: user.role,
         isVerified: true,
         companyName: companyDoc.name,
+        companyId: companyDoc._id.toString(),
+        isOwner: true,
         onboardingCompleted: true,
       },
       company: {
@@ -919,6 +929,31 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
 
     const permissions = getRolePermissions(user.role);
 
+    let companyName = 'Safe Tech Solutions';
+    let companyId: string | null = user.companyId ? user.companyId.toString() : null;
+    let isOwner = Boolean(user.isOwner ?? (user.role === 'admin'));
+
+    if (mongoose.connection.readyState === 1) {
+      if (user.companyId) {
+        const comp = await Company.findById(user.companyId);
+        if (comp) {
+          companyName = comp.name;
+          if (comp.ownerId && comp.ownerId.toString() === user._id.toString()) {
+            isOwner = true;
+          }
+        }
+      } else {
+        const comp = (await Company.findOne({ ownerId: user._id })) || (await Company.findOne());
+        if (comp) {
+          companyName = comp.name;
+          companyId = comp._id.toString();
+          if (comp.ownerId && comp.ownerId.toString() === user._id.toString()) {
+            isOwner = true;
+          }
+        }
+      }
+    }
+
     res.status(200).json({
       success: true,
       user: {
@@ -928,6 +963,9 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
         email: user.email,
         phone: user.phone,
         role: user.role,
+        companyName,
+        companyId,
+        isOwner,
         isVerified: user.isVerified,
         status: user.status,
         onboardingCompleted: user.onboardingCompleted ?? (user.role !== 'admin'),

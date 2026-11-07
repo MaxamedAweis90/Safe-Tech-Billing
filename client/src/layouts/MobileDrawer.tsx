@@ -12,7 +12,7 @@ export const MobileDrawer: React.FC = () => {
   const { mobileDrawerOpen, setMobileDrawerOpen, activeTab, setActiveTab } =
     useNavStore();
   const { can, user } = useAuthStore();
-  const isDemo = user?.isDemo === true;
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const { data: companyData } = useCompanySettings();
   const company = companyData?.company;
 

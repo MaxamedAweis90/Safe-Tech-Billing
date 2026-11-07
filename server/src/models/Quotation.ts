@@ -4,6 +4,7 @@ import { DocumentItemSchema, IDocumentItem } from './DocumentItem';
 export type QuotationState = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
 
 export interface IQuotation extends Document {
+  companyId?: Types.ObjectId | null;
   number: string;
   customer_id: Types.ObjectId;
   date: string;
@@ -21,6 +22,12 @@ export interface IQuotation extends Document {
 
 const QuotationSchema = new Schema<IQuotation>(
   {
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true,
+    },
     number: {
       type: String,
       required: true,

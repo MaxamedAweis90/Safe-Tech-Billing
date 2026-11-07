@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { useTeamMembers, useTeamInvitations, useRevokeInvitation } from '../../hooks/useTeam';
+import { useTeamMembers, useTeamInvitations, useRevokeInvitation, useUpdateMemberRole } from '../../hooks/useTeam';
+import { useAuthStore } from '../../store/useAuthStore';
 import { InviteStaffModal } from './InviteStaffModal';
 import { formatDate } from '../../lib/formatters';
 
 export const TeamSettingsView: React.FC = () => {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const { user } = useAuthStore();
+  const isOwner = Boolean(user?.isOwner || user?.role === 'admin');
 
   const { data: members = [], isLoading: membersLoading } = useTeamMembers();
   const { data: invitations = [], isLoading: invLoading } = useTeamInvitations();
   const revokeMutation = useRevokeInvitation();
+  const updateRoleMutation = useUpdateMemberRole();
 
   const getRoleBadge = (role: string) => {
     switch (role) {
@@ -128,7 +132,35 @@ export const TeamSettingsView: React.FC = () => {
                         {member.phone || '—'}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        {getRoleBadge(member.role)}
+                        {isOwner && member.role !== 'admin' && (member.id !== user?.id && member._id !== user?.id) ? (
+                          <select
+                            value={member.role}
+                            disabled={updateRoleMutation.isPending}
+                            onChange={(e) => {
+                              const newRole = e.target.value as 'accountant' | 'sales' | 'viewer';
+                              updateRoleMutation.mutate({
+                                memberId: member.id || member._id || '',
+                                role: newRole,
+                              });
+                            }}
+                            title="Only workspace owner can modify staff roles"
+                            style={{
+                              backgroundColor: '#1C2636',
+                              color: '#E5EAF2',
+                              border: '1px solid #2E3E56',
+                              borderRadius: '4px',
+                              padding: '3px 8px',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <option value="accountant">Accountant</option>
+                            <option value="sales">Sales Officer</option>
+                            <option value="viewer">Viewer</option>
+                          </select>
+                        ) : (
+                          getRoleBadge(member.role)
+                        )}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         {getStatusBadge(member.status)}

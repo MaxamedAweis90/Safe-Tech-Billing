@@ -16,6 +16,9 @@ export const listInvoices = async (
     const { status, customer_id, q, limit, skip } = req.query;
 
     const filter: Record<string, unknown> = {};
+    if (req.user?.companyId) {
+      filter.companyId = req.user.companyId;
+    }
     if (customer_id && typeof customer_id === "string") {
       filter.customer_id = customer_id;
     }
@@ -118,7 +121,11 @@ export const createInvoice = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const invoice = await invoiceService.createDraft(req.body);
+    const payload = {
+      ...req.body,
+      companyId: req.user?.companyId || undefined,
+    };
+    const invoice = await invoiceService.createDraft(payload);
 
     if (req.user) {
       await logAction({

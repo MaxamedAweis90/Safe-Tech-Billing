@@ -1,6 +1,7 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface ICreditNote extends Document {
+  companyId?: Types.ObjectId | null;
   number: string;
   invoice_id: Types.ObjectId;
   amount_milli: number;
@@ -12,6 +13,12 @@ export interface ICreditNote extends Document {
 
 const CreditNoteSchema = new Schema<ICreditNote>(
   {
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true,
+    },
     number: {
       type: String,
       required: true,

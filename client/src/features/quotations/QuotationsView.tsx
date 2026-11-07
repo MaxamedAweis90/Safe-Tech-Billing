@@ -30,7 +30,7 @@ export const QuotationsView: React.FC = () => {
   const { can, user } = useAuthStore();
   const { selectedRecordId, setSelectedRecord } = useNavStore();
 
-  const isDemo = user?.isDemo === true;
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
 
   // Query live quotations from Express API
   const {

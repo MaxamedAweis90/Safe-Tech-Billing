@@ -8,20 +8,21 @@ import { getInvoiceFinancials } from "../services/invoiceService";
 import { calculateDocumentTotals } from "../services/mathService";
 
 export const getSummary = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
     const todayStr = new Date().toISOString().split("T")[0];
+    const companyFilter = req.user?.companyId ? { companyId: req.user.companyId } : {};
 
     const [invoices, payments, creditNotes, quotationsCount, customersCount] =
       await Promise.all([
-        Invoice.find({ state: { $ne: "cancelled" } }),
-        Payment.find(),
-        CreditNote.find(),
-        Quotation.countDocuments(),
-        Customer.countDocuments(),
+        Invoice.find({ ...companyFilter, state: { $ne: "cancelled" } }),
+        Payment.find(companyFilter),
+        CreditNote.find(companyFilter),
+        Quotation.countDocuments(companyFilter),
+        Customer.countDocuments(companyFilter),
       ]);
 
     let total_invoiced_milli = 0;

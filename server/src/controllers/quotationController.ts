@@ -10,6 +10,9 @@ export const listQuotations = async (req: Request, res: Response, next: NextFunc
     const { state, customer_id, q, limit, skip } = req.query;
 
     const filter: Record<string, unknown> = {};
+    if (req.user?.companyId) {
+      filter.companyId = req.user.companyId;
+    }
     if (state && typeof state === 'string') {
       filter.state = state as QuotationState;
     }
@@ -82,7 +85,11 @@ export const getQuotation = async (req: Request, res: Response, next: NextFuncti
 
 export const createQuotation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const quote = await quotationService.createDraft(req.body);
+    const payload = {
+      ...req.body,
+      companyId: req.user?.companyId || undefined,
+    };
+    const quote = await quotationService.createDraft(payload);
 
     if (req.user) {
       await logAction({

@@ -71,6 +71,7 @@ export const recordPayment = async (
   const balanceAfter = balance_milli - input.amount_milli;
 
   const paymentDoc = new Payment({
+    companyId: input.companyId || (invoice as any).companyId || null,
     _id: paymentId,
     invoice_id: invoice._id,
     receipt_id: receiptId,

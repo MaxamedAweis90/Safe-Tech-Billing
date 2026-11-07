@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import { Types } from 'mongoose';
+import { Request, Response, NextFunction } from "express";
+import { Types } from "mongoose";
 import {
   createCustomer,
   getCustomerById,
@@ -7,16 +7,23 @@ import {
   deleteCustomer,
   listCustomers,
   getCustomerStatement,
-} from '../services/customerService';
-import { logAction } from '../services/auditService';
+} from "../services/customerService";
+import { logAction } from "../services/auditService";
 
-export const getCustomers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getCustomers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { q, limit, skip, sort } = req.query;
 
     const filter: Record<string, unknown> = {};
-    if (q && typeof q === 'string' && q.trim()) {
-      const regex = new RegExp(q.trim(), 'i');
+    if (req.user?.companyId) {
+      filter.companyId = req.user.companyId;
+    }
+    if (q && typeof q === "string" && q.trim()) {
+      const regex = new RegExp(q.trim(), "i");
       const numCode = parseInt(q.trim(), 10);
       if (!isNaN(numCode)) {
         filter.$or = [{ code: numCode }, { name: regex }, { phone: regex }];
@@ -25,8 +32,11 @@ export const getCustomers = async (req: Request, res: Response, next: NextFuncti
       }
     }
 
-    const sortOption: Record<string, 1 | -1> = sort === 'code' ? { code: 1 } : { name: 1 };
-    const parsedLimit = limit ? Math.min(100, Math.max(1, parseInt(limit as string, 10))) : 50;
+    const sortOption: Record<string, 1 | -1> =
+      sort === "code" ? { code: 1 } : { name: 1 };
+    const parsedLimit = limit
+      ? Math.min(100, Math.max(1, parseInt(limit as string, 10)))
+      : 50;
     const parsedSkip = skip ? Math.max(0, parseInt(skip as string, 10)) : 0;
 
     const result = await listCustomers(filter, {
@@ -59,7 +69,7 @@ export const getCustomers = async (req: Request, res: Response, next: NextFuncti
             is_overdue: false,
           };
         }
-      })
+      }),
     );
 
     res.status(200).json({
@@ -74,11 +84,15 @@ export const getCustomers = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-export const getCustomer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getCustomer = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Customer not found' });
+      res.status(404).json({ success: false, error: "Customer not found" });
       return;
     }
     const statement = await getCustomerStatement(id);
@@ -93,15 +107,23 @@ export const getCustomer = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const postCustomer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const postCustomer = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
-    const customer = await createCustomer(req.body);
+    const payload = {
+      ...req.body,
+      companyId: req.user?.companyId || undefined,
+    };
+    const customer = await createCustomer(payload);
 
     if (req.user) {
       await logAction({
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Created customer',
+        action: "Created customer",
         ref: String(customer.code),
         detail: `Customer ${customer.name} created`,
       });
@@ -112,7 +134,10 @@ export const postCustomer = async (req: Request, res: Response, next: NextFuncti
       customer,
     });
   } catch (err: any) {
-    if (err.code === 11000 || (err.message && err.message.includes('already exists'))) {
+    if (
+      err.code === 11000 ||
+      (err.message && err.message.includes("already exists"))
+    ) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -120,11 +145,15 @@ export const postCustomer = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-export const putCustomer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const putCustomer = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     if (!Types.ObjectId.isValid(id)) {
-      res.status(404).json({ success: false, error: 'Customer not found' });
+      res.status(404).json({ success: false, error: "Customer not found" });
       return;
     }
     const customer = await updateCustomer(id, req.body);
@@ -133,7 +162,7 @@ export const putCustomer = async (req: Request, res: Response, next: NextFunctio
       await logAction({
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Updated customer',
+        action: "Updated customer",
         ref: String(customer.code),
         detail: `Customer ${customer.name} updated`,
       });
@@ -144,7 +173,10 @@ export const putCustomer = async (req: Request, res: Response, next: NextFunctio
       customer,
     });
   } catch (err: any) {
-    if (err.code === 11000 || (err.message && err.message.includes('already exists'))) {
+    if (
+      err.code === 11000 ||
+      (err.message && err.message.includes("already exists"))
+    ) {
       res.status(409).json({ success: false, error: err.message });
       return;
     }
@@ -152,7 +184,11 @@ export const putCustomer = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const removeCustomer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const removeCustomer = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const id = req.params.id as string;
     const existing = await getCustomerById(id);
@@ -162,7 +198,7 @@ export const removeCustomer = async (req: Request, res: Response, next: NextFunc
       await logAction({
         user_name: req.user.name,
         role: req.user.role,
-        action: 'Deleted customer',
+        action: "Deleted customer",
         ref: String(existing.code),
         detail: `Customer ${existing.name} deleted`,
       });
@@ -170,10 +206,9 @@ export const removeCustomer = async (req: Request, res: Response, next: NextFunc
 
     res.status(200).json({
       success: true,
-      message: 'Customer deleted successfully',
+      message: "Customer deleted successfully",
     });
   } catch (err) {
     next(err);
   }
 };
-

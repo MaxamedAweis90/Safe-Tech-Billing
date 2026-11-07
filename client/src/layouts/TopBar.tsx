@@ -28,6 +28,7 @@ export const TopBar: React.FC = () => {
     viewer: { label: 'Viewer', className: 'chip c-muted' },
   };
   const badge = roleBadgeConfig[role] || roleBadgeConfig.viewer;
+  const isDemoSession = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -95,14 +96,25 @@ export const TopBar: React.FC = () => {
 
       {/* Top Right: Sample Tag, Role Switcher & User Avatar */}
       <div className="top-right" style={{ position: 'relative' }}>
-        <span
-          className="sample-tag"
-          title="Records other than invoice 10456 are example data"
-        >
-          Sample data
-        </span>
-
-        <RoleSelect />
+        {isDemoSession ? (
+          <>
+            <span
+              className="sample-tag"
+              title="Demo mode active with isolated simulation data"
+            >
+              Sample data
+            </span>
+            <RoleSelect />
+          </>
+        ) : (
+          <span
+            className={badge.className}
+            style={{ fontSize: '12px', padding: '3px 9px', display: 'inline-flex', alignItems: 'center' }}
+            title={`Assigned Workspace Role: ${badge.label}`}
+          >
+            {badge.label}
+          </span>
+        )}
 
         {/* User Avatar with Toggle Dropdown */}
         <div

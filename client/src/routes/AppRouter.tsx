@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 import { RouteSanitizer } from './RouteSanitizer';
 import { AuthBarrier } from '../components/auth/AuthBarrier';
+import { RoleGuard } from '../components/auth/RoleGuard';
 import { AppShell } from '../layouts/AppShell';
 import { ToastContainer } from '../components/common/ToastContainer';
 import { useAuthStore } from '../store/useAuthStore';
@@ -246,14 +247,16 @@ export const AppRouter: React.FC = () => {
             }
           />
 
-          {/* Settings & Subtabs */}
+          {/* Settings & Subtabs (Restricted to roles with 'settings' capability) */}
           <Route
             path="/settings"
             element={
               <AuthBarrier mode="protected">
-                <AppShell>
-                  <SettingsView />
-                </AppShell>
+                <RoleGuard permission="settings">
+                  <AppShell>
+                    <SettingsView />
+                  </AppShell>
+                </RoleGuard>
               </AuthBarrier>
             }
           />
@@ -261,21 +264,25 @@ export const AppRouter: React.FC = () => {
             path="/settings/:subtab"
             element={
               <AuthBarrier mode="protected">
-                <AppShell>
-                  <SettingsView />
-                </AppShell>
+                <RoleGuard permission="settings">
+                  <AppShell>
+                    <SettingsView />
+                  </AppShell>
+                </RoleGuard>
               </AuthBarrier>
             }
           />
 
-          {/* Audit Logs */}
+          {/* Audit Logs (Restricted to roles with 'audit' capability) */}
           <Route
             path="/audit"
             element={
               <AuthBarrier mode="protected">
-                <AppShell>
-                  <AuditView />
-                </AppShell>
+                <RoleGuard permission="audit">
+                  <AppShell>
+                    <AuditView />
+                  </AppShell>
+                </RoleGuard>
               </AuthBarrier>
             }
           />

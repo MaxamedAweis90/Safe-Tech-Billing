@@ -18,6 +18,7 @@ export interface InviteMemberParams {
   invitedBy: string;
   inviterName?: string;
   inviterEmail?: string;
+  companyId?: string;
 }
 
 export interface AcceptInviteParams {
@@ -39,8 +40,12 @@ export class TeamServiceError extends Error {
 /**
  * Returns list of team members (excluding sensitive fields like password_hash).
  */
-export const listTeamMembers = async () => {
-  const users = await User.find()
+export const listTeamMembers = async (companyId?: string) => {
+  const filter: Record<string, any> = {};
+  if (companyId) {
+    filter.companyId = companyId;
+  }
+  const users = await User.find(filter)
     .select('-password_hash')
     .sort({ createdAt: -1 });
 
@@ -52,6 +57,7 @@ export const listTeamMembers = async () => {
     role: u.role,
     status: u.status,
     isVerified: u.isVerified,
+    isOwner: Boolean(u.isOwner),
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt || u.updatedAt || u.createdAt,
   }));
@@ -61,7 +67,7 @@ export const listTeamMembers = async () => {
  * Creates and dispatches a team invitation.
  */
 export const createInvitation = async (params: InviteMemberParams) => {
-  const { email, role, fullName, invitedBy, inviterName, inviterEmail } = params;
+  const { email, role, fullName, invitedBy, inviterName, inviterEmail, companyId } = params;
 
   if (!email || !EMAIL_REGEX.test(email.trim())) {
     throw new TeamServiceError('A valid email address is required', 400);
@@ -98,6 +104,7 @@ export const createInvitation = async (params: InviteMemberParams) => {
     role,
     token,
     invitedBy: new mongoose.Types.ObjectId(invitedBy),
+    companyId: companyId ? new mongoose.Types.ObjectId(companyId) : undefined,
     expiresAt,
     acceptedAt: null,
   });
@@ -138,8 +145,12 @@ export const createInvitation = async (params: InviteMemberParams) => {
 /**
  * Returns list of team invitations with calculated expiration status.
  */
-export const listInvitations = async () => {
-  const invitations = await TeamInvitation.find()
+export const listInvitations = async (companyId?: string) => {
+  const filter: Record<string, any> = {};
+  if (companyId) {
+    filter.companyId = companyId;
+  }
+  const invitations = await TeamInvitation.find(filter)
     .populate('invitedBy', 'fullName email')
     .sort({ createdAt: -1 });
 
@@ -319,6 +330,7 @@ export const acceptInvitation = async (params: AcceptInviteParams) => {
     fullName: fullName.trim(),
     phone: normalizedPhone,
     role: invitation.role, // Strictly enforces the role designated in the invitation token
+    companyId: invitation.companyId || undefined,
     isVerified: true, // Verified by virtue of token receipt via email
     status: 'active',
     invitedBy: invitation.invitedBy,
@@ -351,9 +363,65 @@ export const acceptInvitation = async (params: AcceptInviteParams) => {
       role: user.role,
       status: user.status,
       isVerified: user.isVerified,
+      companyId: user.companyId ? user.companyId.toString() : undefined,
       onboardingCompleted: true,
     },
     tokens,
+  };
+};
+
+/**
+ * Updates a team member's role (Strictly permitted to Company Owner only).
+ */
+export const updateMemberRole = async (
+  targetUserId: string,
+  newRole: 'accountant' | 'sales' | 'viewer',
+  updaterId: string,
+  updaterRole: string,
+  updaterIsOwner?: boolean
+) => {
+  if (!updaterIsOwner && updaterRole !== 'admin') {
+    throw new TeamServiceError('Only the company owner can modify member roles', 403);
+  }
+
+  if (!['accountant', 'sales', 'viewer'].includes(newRole)) {
+    throw new TeamServiceError("Role must be 'accountant', 'sales', or 'viewer'", 400);
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
+    throw new TeamServiceError('Invalid user ID identifier', 400);
+  }
+
+  if (targetUserId === updaterId) {
+    throw new TeamServiceError('You cannot change your own role', 400);
+  }
+
+  const targetUser = await User.findById(targetUserId);
+  if (!targetUser) {
+    throw new TeamServiceError('Member not found', 404);
+  }
+
+  if (targetUser.isOwner) {
+    throw new TeamServiceError('Cannot change the role of the company owner', 400);
+  }
+
+  const previousRole = targetUser.role;
+  targetUser.role = newRole as UserRole;
+  await targetUser.save();
+
+  await logAction({
+    user_name: 'Administrator',
+    role: updaterRole,
+    action: 'Changed staff role',
+    ref: `${targetUser.email} (${previousRole} -> ${newRole})`,
+    detail: `Assigned new role ${newRole} by company owner`,
+  });
+
+  return {
+    id: targetUser._id.toString(),
+    fullName: targetUser.fullName,
+    email: targetUser.email,
+    role: targetUser.role,
   };
 };
 

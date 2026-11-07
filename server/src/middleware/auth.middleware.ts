@@ -9,6 +9,8 @@ export interface AuthUserPayload {
   email: string;
   role: UserRole;
   isVerified?: boolean;
+  companyId?: string | null;
+  isOwner?: boolean;
 }
 
 declare global {
@@ -163,6 +165,30 @@ export const requireVerified = (req: Request, res: Response, next: NextFunction)
       success: false,
       code: 'UNVERIFIED_EMAIL',
       error: 'Forbidden: Email verification required before company ledger setup',
+    });
+    return;
+  }
+
+  next();
+};
+
+/**
+ * Middleware: requireOwner
+ * Returns 403 Forbidden if user is not the company creator / owner.
+ */
+export const requireOwner = (req: Request, res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      error: 'Unauthorized: Authentication required',
+    });
+    return;
+  }
+
+  if (!req.user.isOwner && req.user.role !== 'admin') {
+    res.status(403).json({
+      success: false,
+      error: 'Forbidden: Only the workspace owner can perform this administrative action',
     });
     return;
   }

@@ -14,6 +14,8 @@ export interface IUser extends Document {
   isVerified: boolean;
   status: UserStatus;
   invitedBy?: Types.ObjectId | null;
+  companyId?: Types.ObjectId | null;
+  isOwner?: boolean;
   lastLoginAt?: Date | null;
   onboardingCompleted?: boolean;
   createdAt?: Date;
@@ -74,6 +76,16 @@ export const UserSchema = new Schema<IUser>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       default: null,
+    },
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true,
+    },
+    isOwner: {
+      type: Boolean,
+      default: false,
     },
     lastLoginAt: {
       type: Date,

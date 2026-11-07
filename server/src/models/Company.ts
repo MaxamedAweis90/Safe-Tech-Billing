@@ -109,6 +109,7 @@ const CompanySchema = new Schema<ICompany>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       default: null,
+      index: true,
     },
     isConfigured: {
       type: Boolean,

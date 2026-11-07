@@ -4,6 +4,7 @@ export type InvitationRole = 'accountant' | 'sales';
 
 export interface ITeamInvitation extends Document {
   _id: Types.ObjectId;
+  companyId?: Types.ObjectId | null;
   email: string;
   role: InvitationRole;
   token: string;
@@ -16,6 +17,12 @@ export interface ITeamInvitation extends Document {
 
 export const TeamInvitationSchema = new Schema<ITeamInvitation>(
   {
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true,
+    },
     email: {
       type: String,
       required: true,

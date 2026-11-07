@@ -17,7 +17,11 @@ export const postPayment = async (
       return;
     }
 
-    const result = await recordPayment(id, req.body);
+    const payload = {
+      ...req.body,
+      companyId: req.user?.companyId || undefined,
+    };
+    const result = await recordPayment(id, payload);
 
     if (req.user) {
       await logAction({
@@ -48,6 +52,9 @@ export const listPayments = async (
     const { invoice_id, method, limit, skip } = req.query;
 
     const filter: Record<string, unknown> = {};
+    if (req.user?.companyId) {
+      filter.companyId = req.user.companyId;
+    }
     if (invoice_id && typeof invoice_id === "string")
       filter.invoice_id = invoice_id;
     if (method && typeof method === "string") filter.method = method;

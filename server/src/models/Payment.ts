@@ -3,6 +3,7 @@ import { Schema, model, Document, Types } from 'mongoose';
 export type PaymentMethod = 'cash' | 'bank' | 'mobile' | 'card';
 
 export interface IPayment extends Document {
+  companyId?: Types.ObjectId | null;
   invoice_id: Types.ObjectId;
   receipt_id: Types.ObjectId;
   date: string;
@@ -16,6 +17,12 @@ export interface IPayment extends Document {
 
 const PaymentSchema = new Schema<IPayment>(
   {
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true,
+    },
     invoice_id: {
       type: Schema.Types.ObjectId,
       ref: 'Invoice',

@@ -75,6 +75,7 @@ export const createDraft = async (data: CreateQuotationInput): Promise<IQuotatio
   }
 
   const quotation = new Quotation({
+    companyId: data.companyId || null,
     number,
     customer_id: custId,
     date: data.date,

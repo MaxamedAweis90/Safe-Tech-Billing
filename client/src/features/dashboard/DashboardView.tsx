@@ -85,7 +85,7 @@ export const DashboardView: React.FC = () => {
   const { openModal, closeModal, addToast } = useUIStore();
   const queryClient = useQueryClient();
 
-  const isDemo = user?.isDemo === true;
+  const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
 
   // 1. Fetch live dashboard summary via TanStack Query
   const {

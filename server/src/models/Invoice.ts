@@ -4,6 +4,7 @@ import { DocumentItemSchema, IDocumentItem } from './DocumentItem';
 export type InvoiceState = 'draft' | 'issued' | 'cancelled';
 
 export interface IInvoice extends Document {
+  companyId?: Types.ObjectId | null;
   number?: string | null;
   customer_id: Types.ObjectId;
   quote_id?: Types.ObjectId | null;
@@ -25,6 +26,12 @@ export interface IInvoice extends Document {
 
 const InvoiceSchema = new Schema<IInvoice>(
   {
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true,
+    },
     number: {
       type: String,
       default: null,

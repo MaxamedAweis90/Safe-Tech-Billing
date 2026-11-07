@@ -8,12 +8,13 @@ import { setAuthCookies } from './auth.controller';
  * Returns all organization members.
  */
 export const getMembers = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const members = await teamService.listTeamMembers();
+    const companyId = req.user?.companyId || undefined;
+    const members = await teamService.listTeamMembers(companyId);
     res.status(200).json({
       success: true,
       members,
@@ -65,6 +66,7 @@ export const inviteMember = async (
       invitedBy: req.user.id,
       inviterName: req.user.name,
       inviterEmail: req.user.email,
+      companyId: req.user.companyId || undefined,
     });
 
     res.status(201).json({
@@ -89,12 +91,13 @@ export const inviteMember = async (
  * Lists all invitations with status.
  */
 export const getInvitations = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const invitations = await teamService.listInvitations();
+    const companyId = req.user?.companyId || undefined;
+    const invitations = await teamService.listInvitations(companyId);
     res.status(200).json({
       success: true,
       invitations,
@@ -194,6 +197,47 @@ export const acceptInvitation = async (
       message: 'Invitation accepted successfully',
       token: result.tokens.accessToken,
       user: result.user,
+    });
+  } catch (err: any) {
+    if (err instanceof teamService.TeamServiceError) {
+      res.status(err.statusCode).json({ success: false, error: err.message });
+      return;
+    }
+    next(err);
+  }
+};
+
+/**
+ * 7. PATCH /api/v1/team/members/:id/role
+ * Guarded: Company Owner only.
+ * Updates a staff member's assigned role.
+ */
+export const updateMemberRole = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    if (!req.user) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const updated = await teamService.updateMemberRole(
+      id as string,
+      role,
+      req.user.id,
+      req.user.role,
+      req.user.isOwner
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Staff member role updated successfully',
+      member: updated,
     });
   } catch (err: any) {
     if (err instanceof teamService.TeamServiceError) {

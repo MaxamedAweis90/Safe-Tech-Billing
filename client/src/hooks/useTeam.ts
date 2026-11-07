@@ -94,3 +94,27 @@ export function useRevokeInvitation() {
     },
   });
 }
+
+export function useUpdateMemberRole() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      memberId,
+      role,
+    }: {
+      memberId: string;
+      role: 'accountant' | 'sales' | 'viewer';
+    }) => {
+      const res = await api.patch(`/team/members/${memberId}/role`, { role });
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: teamKeys.members() });
+      toast(`Staff member role updated to ${variables.role}`);
+    },
+    onError: (err: any) => {
+      toast(err.message || 'Failed to update member role', true);
+    },
+  });
+}
