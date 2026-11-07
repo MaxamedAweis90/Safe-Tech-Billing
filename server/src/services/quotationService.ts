@@ -7,6 +7,7 @@ import { calculateLineItem } from './mathService';
 import { getNextNumber } from './numberingService';
 
 export interface CreateQuotationInput {
+  companyId?: string | Types.ObjectId | null;
   customer_id: string | Types.ObjectId;
   date: string;
   expiry: string;

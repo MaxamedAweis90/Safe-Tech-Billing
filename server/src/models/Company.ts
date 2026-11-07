@@ -19,7 +19,7 @@ export interface ICompany extends Document {
   default_currency: string;
   currency?: string;
   taxNumber?: string;
-  ownerId?: Types.ObjectId | string;
+  ownerId?: Types.ObjectId | string | null;
   isConfigured?: boolean;
   createdAt?: Date;
   updatedAt?: Date;

@@ -26,6 +26,7 @@ export interface InvoiceFinancials {
 }
 
 export interface CreateInvoiceInput {
+  companyId?: string | Types.ObjectId | null;
   customer_id: string | Types.ObjectId;
   quote_id?: string | Types.ObjectId | null;
   date: string;

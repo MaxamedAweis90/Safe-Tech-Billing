@@ -6,6 +6,7 @@ import { getInvoiceFinancials } from './invoiceService';
 import { getNextNumber } from './numberingService';
 
 export interface RecordPaymentInput {
+  companyId?: string | Types.ObjectId | null;
   amount_milli: number;
   method: PaymentMethod;
   reference?: string;

@@ -140,7 +140,7 @@ export const onboardCompany = async (req: Request, res: Response, next: NextFunc
         default_currency: default_currency || 'USD',
         tax_id: tax_id ? tax_id.trim() : '',
         signatory,
-        ownerId: isRealUser ? req.user!.id : null,
+        ownerId: isRealUser && req.user?.id ? req.user.id : undefined,
         isConfigured: true,
       });
     }
@@ -199,7 +199,7 @@ export const updateCompany = async (req: Request, res: Response, next: NextFunct
     } else {
       company = await Company.create({
         ...updatePayload,
-        ownerId: isRealUser ? req.user!.id : null,
+        ownerId: isRealUser && req.user?.id ? req.user.id : undefined,
         isConfigured: true,
       });
 

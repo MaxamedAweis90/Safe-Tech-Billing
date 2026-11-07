@@ -4,6 +4,10 @@ import { env } from './env';
 let isListenersAttached = false;
 
 export const connectDatabase = async (): Promise<typeof mongoose> => {
+  if (mongoose.connection.readyState >= 1) {
+    return mongoose;
+  }
+
   if (!isListenersAttached) {
     mongoose.connection.on('connected', () => {
       console.log(`[Database] MongoDB connection established: ${mongoose.connection.host}`);
