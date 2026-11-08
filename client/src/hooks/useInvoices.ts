@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
-import { invoiceKeys } from '../lib/queryClient';
+import { invoiceKeys, trashKeys } from '../lib/queryClient';
 import { toast } from '../store/useUIStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { deleteMockInvoice } from '../lib/mockData';
 
 export interface InvoiceLineItem {
   desc: string;
@@ -232,12 +234,26 @@ export function useDeleteInvoice() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await api.delete(`/invoices/${id}`);
-      return res.data as { success: boolean; message?: string };
+      const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
+      if (isDemo && !/^[0-9a-fA-F]{24}$/.test(id)) {
+        deleteMockInvoice(id);
+        return { success: true, message: 'Draft invoice moved to trash.' };
+      }
+      try {
+        const res = await api.delete(`/invoices/${id}`);
+        return res.data as { success: boolean; message?: string };
+      } catch (err: any) {
+        if (isDemo) {
+          deleteMockInvoice(id);
+          return { success: true, message: 'Draft invoice moved to trash.' };
+        }
+        throw err;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
-      toast('Draft invoice deleted.');
+      queryClient.invalidateQueries({ queryKey: trashKeys.all });
+      toast(data?.message || 'Draft invoice moved to trash.');
     },
     onError: (err: any) => {
       toast(err.message || 'Failed to delete draft invoice', true);

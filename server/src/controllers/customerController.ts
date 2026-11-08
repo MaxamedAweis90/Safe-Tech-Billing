@@ -251,7 +251,11 @@ export const removeCustomer = async (
       res.status(404).json({ success: false, error: "Customer not found" });
       return;
     }
-    if (err?.message?.includes("Cannot delete customer")) {
+    if (
+      err?.message?.includes("Cannot") ||
+      err?.message?.includes("invoices") ||
+      err?.message?.includes("quotations")
+    ) {
       res.status(400).json({ success: false, error: err.message });
       return;
     }

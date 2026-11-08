@@ -288,15 +288,13 @@ export const AppRouter: React.FC = () => {
             }
           />
 
-          {/* Trash & Recycle Bin (Restricted to roles with 'trash' capability) */}
+          {/* Trash & Recycle Bin (Full-Screen Standalone Popup View) */}
           <Route
             path="/trash"
             element={
               <AuthBarrier mode="protected">
                 <RoleGuard permission="trash">
-                  <AppShell>
-                    <TrashView />
-                  </AppShell>
+                  <TrashView />
                 </RoleGuard>
               </AuthBarrier>
             }

@@ -6,6 +6,7 @@
 import { totalsOf, addDays, fmtNumber, qStatus, formatMoney } from './formatters';
 import { PROTOTYPE_LOGO, PROTOTYPE_STAMP } from '../features/documents/brandingAssets';
 import { useAuthStore, ROLES } from '../store/useAuthStore';
+import { TrashedItem, TrashCounts } from '../types';
 
 const realDateStr = new Date().toISOString().slice(0, 10);
 export const TODAY = realDateStr > '2026-10-31' ? realDateStr : '2026-10-31';
@@ -2317,10 +2318,228 @@ export function resetSampleData(): void {
   MOCK_AUDIT.length = 0;
   MOCK_AUDIT.push(...JSON.parse(JSON.stringify(INITIAL_AUDIT)));
 
+  MOCK_TRASH.length = 0;
+  MOCK_TRASH.push(...JSON.parse(JSON.stringify(INITIAL_TRASH)));
+
   Object.assign(COMPANY_SETTINGS, JSON.parse(JSON.stringify(INITIAL_SETTINGS.company)));
   Object.assign(SYSTEM_SETTINGS, JSON.parse(JSON.stringify(INITIAL_SETTINGS)));
 
   logAuditEvent('Restored sample data', 'System', 'All records restored to original sample');
+}
+
+export interface StoredMockTrashItem extends TrashedItem {
+  _originalDoc?: any;
+}
+
+export const MOCK_TRASH: StoredMockTrashItem[] = [
+  {
+    id: 'trash_q_008',
+    type: 'quotation',
+    numberOrCode: 'QT-2026-0008',
+    nameOrTitle: 'Daryeel Hospital - Archived Quote',
+    deletedAt: '2026-10-25T11:00:00.000Z',
+    deletedBy: { id: 'usr_demo_admin', name: 'Demo Administrator' },
+    currency: 'USD',
+    statusOrState: 'draft',
+  },
+  {
+    id: 'trash_inv_099',
+    type: 'invoice',
+    numberOrCode: 'Draft Invoice #99',
+    nameOrTitle: 'Mogadishu Tech Park',
+    deletedAt: '2026-10-28T14:30:00.000Z',
+    deletedBy: { id: 'usr_demo_admin', name: 'Demo Administrator' },
+    currency: 'USD',
+    statusOrState: 'draft',
+  },
+];
+
+const INITIAL_TRASH = JSON.parse(JSON.stringify(MOCK_TRASH));
+
+export function getMockTrash(type?: string, q?: string): { items: TrashedItem[]; counts: TrashCounts; total: number } {
+  const counts: TrashCounts = {
+    all: MOCK_TRASH.length,
+    quotation: MOCK_TRASH.filter((i) => i.type === 'quotation').length,
+    invoice: MOCK_TRASH.filter((i) => i.type === 'invoice').length,
+    receipt: MOCK_TRASH.filter((i) => i.type === 'receipt').length,
+    customer: MOCK_TRASH.filter((i) => i.type === 'customer').length,
+  };
+
+  let filtered = [...MOCK_TRASH];
+  if (type && type !== 'all') {
+    filtered = filtered.filter((i) => i.type === type);
+  }
+
+  if (q && q.trim()) {
+    const term = q.trim().toLowerCase();
+    filtered = filtered.filter(
+      (i) =>
+        i.numberOrCode.toLowerCase().includes(term) ||
+        i.nameOrTitle.toLowerCase().includes(term)
+    );
+  }
+
+  filtered.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
+
+  return {
+    items: filtered,
+    counts,
+    total: filtered.length,
+  };
+}
+
+export function deleteMockCustomer(id: string): boolean {
+  const idx = MOCK_CUSTOMERS.findIndex((c) => c.id === id);
+  if (idx < 0) throw new Error('Customer not found');
+
+  const cust = MOCK_CUSTOMERS[idx];
+  // Check active references
+  const hasInvoices = MOCK_INVOICES.some((i) => i.customerId === id);
+  const hasQuotes = MOCK_QUOTES.some((q) => q.customerId === id);
+  if (hasInvoices || hasQuotes) {
+    throw new Error('Cannot move customer to trash while active invoices or quotations exist. Delete or cancel them first.');
+  }
+
+  MOCK_CUSTOMERS.splice(idx, 1);
+  MOCK_TRASH.unshift({
+    id: cust.id,
+    type: 'customer',
+    numberOrCode: String(cust.code),
+    nameOrTitle: cust.name,
+    deletedAt: new Date().toISOString(),
+    deletedBy: { id: 'usr_demo_admin', name: 'Demo Administrator' },
+    statusOrState: cust.phone,
+    _originalDoc: cust,
+  });
+  logAuditEvent('Moved customer to trash', cust.name, `Code: ${cust.code}`);
+  return true;
+}
+
+export function deleteMockInvoice(id: string): boolean {
+  const idx = MOCK_INVOICES.findIndex((i) => i.id === id);
+  if (idx < 0) throw new Error('Invoice not found');
+
+  const inv = MOCK_INVOICES[idx];
+  if (inv.state !== 'draft') {
+    throw new Error(`Cannot delete invoice in "${inv.state}" state. Only drafts can be deleted.`);
+  }
+
+  MOCK_INVOICES.splice(idx, 1);
+  MOCK_TRASH.unshift({
+    id: inv.id,
+    type: 'invoice',
+    numberOrCode: inv.number || 'Draft Invoice',
+    nameOrTitle: inv.customerName || 'Customer',
+    deletedAt: new Date().toISOString(),
+    deletedBy: { id: 'usr_demo_admin', name: 'Demo Administrator' },
+    currency: inv.currency,
+    statusOrState: inv.state,
+    _originalDoc: inv,
+  });
+  logAuditEvent('Moved draft invoice to trash', inv.number || inv.id);
+  return true;
+}
+
+export function deleteMockQuotation(id: string): boolean {
+  const idx = MOCK_QUOTES.findIndex((q) => q.id === id);
+  if (idx < 0) throw new Error('Quotation not found');
+
+  const q = MOCK_QUOTES[idx];
+  if (q.state !== 'draft') {
+    throw new Error('Only draft quotations can be deleted');
+  }
+  if (q.invoiceId) {
+    throw new Error('Cannot delete quotation linked to an invoice');
+  }
+
+  MOCK_QUOTES.splice(idx, 1);
+  MOCK_TRASH.unshift({
+    id: q.id,
+    type: 'quotation',
+    numberOrCode: q.number,
+    nameOrTitle: q.customerName || 'Customer',
+    deletedAt: new Date().toISOString(),
+    deletedBy: { id: 'usr_demo_admin', name: 'Demo Administrator' },
+    currency: q.currency,
+    statusOrState: q.state,
+    _originalDoc: q,
+  });
+  logAuditEvent('Moved draft quotation to trash', q.number);
+  return true;
+}
+
+export function deleteMockReceipt(id: string): boolean {
+  const idx = MOCK_RECEIPTS.findIndex((r) => r.id === id);
+  if (idx < 0) throw new Error('Receipt not found');
+
+  const rec = MOCK_RECEIPTS[idx];
+  MOCK_RECEIPTS.splice(idx, 1);
+
+  // Restore invoice balance if present
+  const recMilli = rec.amount_milli || (rec.amount ? Math.round(rec.amount * 1000) : 0);
+  const inv = MOCK_INVOICES.find((i) => i.id === rec.invoiceId);
+  if (inv) {
+    inv.paid_milli = Math.max(0, (inv.paid_milli || 0) - recMilli);
+    inv.balance_milli = Math.max(0, (inv.total_milli || 0) - inv.paid_milli);
+  }
+
+  MOCK_TRASH.unshift({
+    id: rec.id,
+    type: 'receipt',
+    numberOrCode: rec.number,
+    nameOrTitle: `${rec.customerName} - ${rec.method.toUpperCase()}`,
+    deletedAt: new Date().toISOString(),
+    deletedBy: { id: 'usr_demo_admin', name: 'Demo Administrator' },
+    amount_milli: recMilli,
+    currency: rec.currency,
+    statusOrState: rec.method,
+    _originalDoc: rec,
+  });
+  const recAmtDisplay = rec.amount ?? (recMilli / 1000);
+  logAuditEvent('Moved receipt to trash', rec.number, `Voided ${recAmtDisplay} ${rec.currency}`);
+  return true;
+}
+
+export function restoreMockTrashItem(type: string, id: string): { success: boolean; message: string } {
+  const idx = MOCK_TRASH.findIndex((i) => i.id === id);
+  if (idx < 0) throw new Error('Item not found in trash');
+
+  const item = MOCK_TRASH[idx];
+  if (item._originalDoc) {
+    if (type === 'customer') MOCK_CUSTOMERS.unshift(item._originalDoc);
+    if (type === 'invoice') MOCK_INVOICES.unshift(item._originalDoc);
+    if (type === 'quotation') MOCK_QUOTES.unshift(item._originalDoc);
+    if (type === 'receipt') {
+      MOCK_RECEIPTS.unshift(item._originalDoc);
+      const inv = MOCK_INVOICES.find((i) => i.id === item._originalDoc.invoiceId);
+      if (inv) {
+        const recMilli = item._originalDoc.amount_milli || (item._originalDoc.amount ? Math.round(item._originalDoc.amount * 1000) : 0);
+        inv.paid_milli = (inv.paid_milli || 0) + recMilli;
+        inv.balance_milli = Math.max(0, (inv.total_milli || 0) - inv.paid_milli);
+      }
+    }
+  }
+
+  MOCK_TRASH.splice(idx, 1);
+  logAuditEvent(`Restored ${type} from trash`, item.numberOrCode);
+  return { success: true, message: `${type.charAt(0).toUpperCase() + type.slice(1)} restored successfully` };
+}
+
+export function purgeMockTrashItem(type: string, id: string): { success: boolean; message: string } {
+  const idx = MOCK_TRASH.findIndex((i) => i.id === id);
+  if (idx < 0) throw new Error('Item not found in trash');
+
+  const item = MOCK_TRASH[idx];
+  MOCK_TRASH.splice(idx, 1);
+  logAuditEvent(`Permanently purged ${type}`, item.numberOrCode);
+  return { success: true, message: `${type.charAt(0).toUpperCase() + type.slice(1)} permanently deleted` };
+}
+
+export function emptyMockTrash(): { count: number } {
+  const count = MOCK_TRASH.length;
+  MOCK_TRASH.length = 0;
+  logAuditEvent('Emptied trash', `${count} items`);
+  return { count };
 }
 
 

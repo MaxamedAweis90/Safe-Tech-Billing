@@ -34,6 +34,7 @@ import {
   useMarkInvoiceSent,
   useCancelInvoice,
   useCreditNote,
+  useDeleteInvoice,
 } from '../../hooks/useInvoices';
 import { useAuditLog } from '../../hooks/useAudit';
 import { invoiceKeys, receiptKeys } from '../../lib/queryClient';
@@ -182,6 +183,7 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   // Mutations
   const sendMutation = useMarkInvoiceSent();
   const cancelMutation = useCancelInvoice();
+  const deleteInvoiceMutation = useDeleteInvoice();
 
   const mockInv = isDemo ? getInvoiceById(invoiceId) : undefined;
   const liveInv = detailData?.invoice;
@@ -382,6 +384,24 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
     }
   };
 
+  const handleDeleteDraft = async () => {
+    if (!can('invoices') || inv.state !== 'draft') return;
+    const confirmed = await confirmBox({
+      title: 'Move draft invoice to trash?',
+      text: 'Draft invoices were never sent to customers. Moving this draft to trash will remove it from active records.',
+      ok: 'Move to trash',
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await deleteInvoiceMutation.mutateAsync(inv.id);
+      onBack();
+    } catch {
+      // error handled in mutation
+    }
+  };
+
   const openCreditModal = () => {
     if (!can('invoices')) return;
 
@@ -500,6 +520,18 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
             <Icon name="send" />
             Share
           </button>
+
+          {inv.state === 'draft' && can('invoices') && (
+            <button
+              type="button"
+              className="btn danger"
+              onClick={handleDeleteDraft}
+              disabled={deleteInvoiceMutation.isPending}
+            >
+              <Icon name="trash" size={14} />
+              <span>{deleteInvoiceMutation.isPending ? 'Deleting…' : 'Delete draft'}</span>
+            </button>
+          )}
 
           {inv.state === 'issued' && (
             <>

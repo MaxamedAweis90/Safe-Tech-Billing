@@ -10,7 +10,14 @@ import {
   dashboardKeys,
 } from '../lib/queryClient';
 import { toast } from '../store/useUIStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { TrashedItem, TrashCounts } from '../types';
+import {
+  getMockTrash,
+  restoreMockTrashItem,
+  purgeMockTrashItem,
+  emptyMockTrash,
+} from '../lib/mockData';
 
 export interface TrashFilterParams {
   type?: string;
@@ -35,8 +42,36 @@ export function useTrash(params?: TrashFilterParams) {
   return useQuery({
     queryKey: trashKeys.list(params),
     queryFn: async () => {
-      const res = await api.get('/trash', { params });
-      return res.data as TrashResponse;
+      const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
+      try {
+        const res = await api.get('/trash', { params });
+        const data = res.data as TrashResponse;
+        if (isDemo && (!data.items || data.items.length === 0)) {
+          const mockRes = getMockTrash(params?.type, params?.q);
+          return {
+            success: true,
+            items: mockRes.items,
+            counts: mockRes.counts,
+            total: mockRes.total,
+            limit: params?.limit || 50,
+            skip: params?.skip || 0,
+          };
+        }
+        return data;
+      } catch (err) {
+        if (isDemo) {
+          const mockRes = getMockTrash(params?.type, params?.q);
+          return {
+            success: true,
+            items: mockRes.items,
+            counts: mockRes.counts,
+            total: mockRes.total,
+            limit: params?.limit || 50,
+            skip: params?.skip || 0,
+          };
+        }
+        throw err;
+      }
     },
   });
 }
@@ -49,8 +84,19 @@ export function useRestoreTrash() {
 
   return useMutation({
     mutationFn: async ({ type, id }: { type: string; id: string }) => {
-      const res = await api.post(`/trash/${type}/${id}/restore`);
-      return res.data as { success: boolean; message: string };
+      const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
+      if (isDemo && !/^[0-9a-fA-F]{24}$/.test(id)) {
+        return restoreMockTrashItem(type, id);
+      }
+      try {
+        const res = await api.post(`/trash/${type}/${id}/restore`);
+        return res.data as { success: boolean; message: string };
+      } catch (err) {
+        if (isDemo) {
+          return restoreMockTrashItem(type, id);
+        }
+        throw err;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: trashKeys.all });
@@ -76,8 +122,19 @@ export function usePurgeTrash() {
 
   return useMutation({
     mutationFn: async ({ type, id }: { type: string; id: string }) => {
-      const res = await api.delete(`/trash/${type}/${id}/purge`);
-      return res.data as { success: boolean; message: string };
+      const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
+      if (isDemo && !/^[0-9a-fA-F]{24}$/.test(id)) {
+        return purgeMockTrashItem(type, id);
+      }
+      try {
+        const res = await api.delete(`/trash/${type}/${id}/purge`);
+        return res.data as { success: boolean; message: string };
+      } catch (err) {
+        if (isDemo) {
+          return purgeMockTrashItem(type, id);
+        }
+        throw err;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: trashKeys.all });
@@ -98,8 +155,22 @@ export function useEmptyTrash() {
 
   return useMutation({
     mutationFn: async () => {
-      const res = await api.delete('/trash/empty');
-      return res.data as { success: boolean; message: string; count: number };
+      const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
+      try {
+        const res = await api.delete('/trash/empty');
+        if (isDemo) emptyMockTrash();
+        return res.data as { success: boolean; message: string; count: number };
+      } catch (err) {
+        if (isDemo) {
+          const res = emptyMockTrash();
+          return {
+            success: true,
+            message: `Trash emptied successfully (${res.count} items removed)`,
+            count: res.count,
+          };
+        }
+        throw err;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: trashKeys.all });
@@ -111,4 +182,3 @@ export function useEmptyTrash() {
     },
   });
 }
-

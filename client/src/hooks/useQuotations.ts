@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
-import { quotationKeys, invoiceKeys } from '../lib/queryClient';
+import { quotationKeys, invoiceKeys, trashKeys } from '../lib/queryClient';
 import { toast } from '../store/useUIStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { deleteMockQuotation } from '../lib/mockData';
 
 export interface QuotationLineItem {
   desc: string;
@@ -235,12 +237,26 @@ export function useDeleteQuotation() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await api.delete(`/quotations/${id}`);
-      return res.data as { success: boolean; message?: string };
+      const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
+      if (isDemo && !/^[0-9a-fA-F]{24}$/.test(id)) {
+        deleteMockQuotation(id);
+        return { success: true, message: 'Draft quotation moved to trash.' };
+      }
+      try {
+        const res = await api.delete(`/quotations/${id}`);
+        return res.data as { success: boolean; message?: string };
+      } catch (err: any) {
+        if (isDemo) {
+          deleteMockQuotation(id);
+          return { success: true, message: 'Draft quotation moved to trash.' };
+        }
+        throw err;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: quotationKeys.all });
-      toast('Draft quotation deleted.');
+      queryClient.invalidateQueries({ queryKey: trashKeys.all });
+      toast(data?.message || 'Draft quotation moved to trash.');
     },
     onError: (err: any) => {
       toast(err.message || 'Failed to delete quotation', true);

@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
-import { customerKeys } from '../lib/queryClient';
+import { customerKeys, trashKeys } from '../lib/queryClient';
 import { toast } from '../store/useUIStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { deleteMockCustomer } from '../lib/mockData';
 
 export interface CustomerFilters {
   q?: string;
@@ -139,11 +141,25 @@ export function useDeleteCustomer() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await api.delete(`/customers/${id}`);
-      return res.data as { success: boolean; message: string };
+      const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
+      if (isDemo && !/^[0-9a-fA-F]{24}$/.test(id)) {
+        deleteMockCustomer(id);
+        return { success: true, message: 'Customer moved to trash.' };
+      }
+      try {
+        const res = await api.delete(`/customers/${id}`);
+        return res.data as { success: boolean; message: string };
+      } catch (err: any) {
+        if (isDemo) {
+          deleteMockCustomer(id);
+          return { success: true, message: 'Customer moved to trash.' };
+        }
+        throw err;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: customerKeys.all });
+      queryClient.invalidateQueries({ queryKey: trashKeys.all });
       toast(data.message || 'Customer moved to trash.');
     },
     onError: (err: any) => {

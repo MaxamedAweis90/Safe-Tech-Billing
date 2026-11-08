@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
-import { receiptKeys, invoiceKeys, customerKeys, reportKeys, dashboardKeys } from '../lib/queryClient';
+import { receiptKeys, invoiceKeys, customerKeys, reportKeys, dashboardKeys, trashKeys } from '../lib/queryClient';
 import { toast } from '../store/useUIStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { deleteMockReceipt } from '../lib/mockData';
 
 export interface PaymentPayload {
   invoiceId: string;
@@ -127,8 +129,21 @@ export function useDeleteReceipt() {
 
   return useMutation({
     mutationFn: async (receiptId: string) => {
-      const res = await api.delete(`/receipts/${receiptId}`);
-      return res.data as { success: boolean; message: string };
+      const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
+      if (isDemo && !/^[0-9a-fA-F]{24}$/.test(receiptId)) {
+        deleteMockReceipt(receiptId);
+        return { success: true, message: 'Receipt moved to trash.' };
+      }
+      try {
+        const res = await api.delete(`/receipts/${receiptId}`);
+        return res.data as { success: boolean; message: string };
+      } catch (err: any) {
+        if (isDemo) {
+          deleteMockReceipt(receiptId);
+          return { success: true, message: 'Receipt moved to trash.' };
+        }
+        throw err;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: receiptKeys.all });
@@ -136,6 +151,7 @@ export function useDeleteReceipt() {
       queryClient.invalidateQueries({ queryKey: customerKeys.all });
       queryClient.invalidateQueries({ queryKey: reportKeys.all });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
+      queryClient.invalidateQueries({ queryKey: trashKeys.all });
       toast(data.message || 'Receipt moved to trash.');
     },
     onError: (err: any) => {
