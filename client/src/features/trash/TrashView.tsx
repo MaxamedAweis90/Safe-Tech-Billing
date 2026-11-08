@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SkeletonBox } from 'skullet/react';
 import { useAuthStore, ROLES } from '../../store/useAuthStore';
-import { useNavStore } from '../../store/useNavStore';
 import { useTrash, useRestoreTrash, usePurgeTrash, useEmptyTrash } from '../../hooks/useTrash';
 import { fmtTs, formatMoney } from '../../lib/formatters';
 import { confirmBox } from '../../store/useUIStore';
@@ -15,19 +15,19 @@ export interface TrashViewProps {
 }
 
 export const TrashView: React.FC<TrashViewProps> = ({ onClose }) => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTabFilter] = useState<TrashTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const { can, role } = useAuthStore();
-  const { setActiveTab } = useNavStore();
 
   const handleClose = () => {
     if (onClose) {
       onClose();
     } else if (typeof window !== 'undefined' && window.history.length > 1) {
-      window.history.back();
+      navigate(-1);
     } else {
-      setActiveTab('dashboard');
+      navigate('/dashboard');
     }
   };
 

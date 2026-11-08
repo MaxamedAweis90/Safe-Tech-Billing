@@ -186,7 +186,7 @@ export const deleteCustomer = async (
 
   customer.isDeleted = true;
   customer.deletedAt = new Date();
-  customer.deletedBy = userId ? new Types.ObjectId(userId) : null;
+  customer.deletedBy = userId && Types.ObjectId.isValid(String(userId)) ? new Types.ObjectId(userId) : null;
   await customer.save();
   return true;
 };

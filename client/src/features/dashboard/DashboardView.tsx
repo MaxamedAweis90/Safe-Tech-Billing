@@ -7,6 +7,7 @@ import { useNavStore } from '../../store/useNavStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore } from '../../store/useUIStore';
 import { formatMoney, fmtLong, fmtD } from '../../lib/formatters';
+import { useCustomers } from '../../hooks/useCustomers';
 import api from '../../lib/api';
 import {
   TODAY,
@@ -104,6 +105,8 @@ export const DashboardView: React.FC = () => {
   });
 
   const { data: invoicesData } = useInvoices();
+  const { data: customersData } = useCustomers();
+  const totalCustomers = customersData?.total ?? (isDemo ? MOCK_CUSTOMERS.length : 0);
 
   // Fallbacks strictly reserved for Demo Mode
   const mockKpis = computeDashboardKPIs();
@@ -531,7 +534,7 @@ export const DashboardView: React.FC = () => {
                 }}
               >
                 <b>Customers</b>
-                <span>{MOCK_CUSTOMERS.length} on file</span>
+                <span>{totalCustomers} on file</span>
               </a>
             </div>
           </div>

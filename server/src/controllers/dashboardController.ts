@@ -41,6 +41,7 @@ export const getDashboardSummary = async (
           success: true,
           summary: {
             kpis: {
+              totalCustomers: 0,
               totalQuotes: 0,
               winRate: 0,
               issuedInvoices: 0,

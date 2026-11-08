@@ -116,7 +116,23 @@ export const ConversionReport: React.FC<ConversionReportProps> = ({
       };
     }
 
-    // Fallback to local mock data
+    if (!isDemo) {
+      return {
+        quotes: [],
+        stats: {
+          rate: 0,
+          totalCount: 0,
+          totalVal: 0,
+          decidedCount: 0,
+          convertedCount: 0,
+          convertedVal: 0,
+          openCount: 0,
+          openVal: 0,
+        },
+      };
+    }
+
+    // Fallback to local mock data strictly in Demo Mode
     const qs = MOCK_QUOTES.filter((q) => inR(q.date) && cOk(q.customerId)).map((q) => {
       const tot = totalsOf({ items: q.items || [] }).total;
       const c = getCustomerById(q.customerId);

@@ -2,6 +2,7 @@ import React from 'react';
 import { Icon } from '../../components/icons';
 import { CATALOG_ITEMS, TAX_RATES, MockQuoteItem } from '../../lib/mockData';
 import { lineCalc, plain, priceStr, toMilli } from '../../lib/formatters';
+import { useAuthStore } from '../../store/useAuthStore';
 
 export interface QuoteItemsTableProps {
   items: MockQuoteItem[];
@@ -18,18 +19,22 @@ export const QuoteItemsTable: React.FC<QuoteItemsTableProps> = ({
   onChange,
   error,
 }) => {
+  const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
+
   const handleItemChange = (index: number, field: keyof MockQuoteItem, value: any) => {
     const updated = [...items];
     const current = { ...updated[index] };
 
     if (field === 'desc') {
       current.desc = value;
-      // Catalog price auto-fill if unit price is 0 or unset
-      const catalogHit = CATALOG_ITEMS.find(
-        (c) => c[0].toLowerCase() === value.trim().toLowerCase()
-      );
-      if (catalogHit && !current.price) {
-        current.price = catalogHit[1];
+      // Catalog price auto-fill if unit price is 0 or unset (strictly in Demo Mode)
+      if (isDemo) {
+        const catalogHit = CATALOG_ITEMS.find(
+          (c) => c[0].toLowerCase() === value.trim().toLowerCase()
+        );
+        if (catalogHit && !current.price) {
+          current.price = catalogHit[1];
+        }
       }
     } else if (field === 'qty') {
       const parsed = parseFloat(value);
@@ -98,7 +103,7 @@ export const QuoteItemsTable: React.FC<QuoteItemsTableProps> = ({
                       <input
                         className="inp"
                         value={it.desc}
-                        list="catalog-list"
+                        list={isDemo ? 'catalog-list' : undefined}
                         placeholder="Product or service"
                         aria-label="Description"
                         onChange={(e) => handleItemChange(idx, 'desc', e.target.value)}
@@ -204,14 +209,16 @@ export const QuoteItemsTable: React.FC<QuoteItemsTableProps> = ({
           </tbody>
         </table>
 
-        {/* Catalog Datalist */}
-        <datalist id="catalog-list">
-          {CATALOG_ITEMS.map(([name, price]) => (
-            <option key={name} value={name}>
-              {priceStr(price)}
-            </option>
-          ))}
-        </datalist>
+        {/* Catalog Datalist strictly isolated to Demo Mode */}
+        {isDemo && (
+          <datalist id="catalog-list">
+            {CATALOG_ITEMS.map(([name, price]) => (
+              <option key={name} value={name}>
+                {priceStr(price)}
+              </option>
+            ))}
+          </datalist>
+        )}
 
         {/* Add line action */}
         {!readOnly && (

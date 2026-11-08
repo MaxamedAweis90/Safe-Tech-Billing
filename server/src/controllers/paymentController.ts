@@ -248,7 +248,7 @@ export const removeReceipt = async (
     }
 
     const now = new Date();
-    const userId = req.user?.id ? new Types.ObjectId(req.user.id) : null;
+    const userId = req.user?.id && Types.ObjectId.isValid(String(req.user.id)) ? new Types.ObjectId(req.user.id) : null;
 
     receipt.isDeleted = true;
     receipt.deletedAt = now;

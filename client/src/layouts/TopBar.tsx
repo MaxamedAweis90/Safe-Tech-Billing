@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavStore } from '../store/useNavStore';
+import { useNavigate } from 'react-router-dom';
+import { useNavStore, tabToPath } from '../store/useNavStore';
 import { useAuthStore, getAvatarInitials } from '../store/useAuthStore';
 import { useCompanySettings } from '../hooks/useSettings';
 import { SearchBar } from './SearchBar';
@@ -7,6 +8,7 @@ import { RoleSelect } from './RoleSelect';
 import { Icon } from '../components/icons';
 
 export const TopBar: React.FC = () => {
+  const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
@@ -62,15 +64,12 @@ export const TopBar: React.FC = () => {
 
   const handleNav = (tab: any, hashSuffix?: string) => {
     setDropdownOpen(false);
-    if (hashSuffix && typeof window !== 'undefined') {
+    setActiveTab(tab);
+    if (hashSuffix) {
       const clean = hashSuffix.replace(/^[#/]+/, '');
-      window.history.pushState(null, '', `/${tab}/${clean}`);
-      setActiveTab(tab);
+      navigate(`/${tab}/${clean}`);
     } else {
-      if (typeof window !== 'undefined') {
-        window.history.pushState(null, '', `/${tab}`);
-      }
-      setActiveTab(tab);
+      navigate(tabToPath(tab));
     }
   };
 

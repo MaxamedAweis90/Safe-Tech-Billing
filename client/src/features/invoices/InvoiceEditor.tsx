@@ -155,7 +155,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
     }
   }, [isNew, customersData]);
 
-  const isExisting = Boolean(!isNew && doc.id !== 'new');
+  const isExisting = Boolean(doc.id && doc.id !== 'new');
   const readOnly = !can('invoices');
 
   // Live sequence preview
@@ -406,13 +406,15 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
     if (doc.id && doc.id !== 'new') {
       try {
         await deleteMutation.mutateAsync(doc.id);
+        onBack();
       } catch {
-        deleteDraftInvoice(doc.id);
+        // Real server error toast handled in deleteMutation.onError
       }
     } else {
       deleteDraftInvoice(doc.id);
+      toast('Draft deleted');
+      onBack();
     }
-    onBack();
   };
 
   // Quick Customer Registration Modal

@@ -266,7 +266,7 @@ export const deleteDraft = async (
 
   invoice.isDeleted = true;
   invoice.deletedAt = new Date();
-  invoice.deletedBy = userId ? new Types.ObjectId(userId) : null;
+  invoice.deletedBy = userId && Types.ObjectId.isValid(String(userId)) ? new Types.ObjectId(userId) : null;
   await invoice.save();
   return true;
 };

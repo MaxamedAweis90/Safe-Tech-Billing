@@ -236,7 +236,7 @@ export const deleteDraft = async (
 
   quotation.isDeleted = true;
   quotation.deletedAt = new Date();
-  quotation.deletedBy = userId ? new Types.ObjectId(userId) : null;
+  quotation.deletedBy = userId && Types.ObjectId.isValid(String(userId)) ? new Types.ObjectId(userId) : null;
   await quotation.save();
   return true;
 };

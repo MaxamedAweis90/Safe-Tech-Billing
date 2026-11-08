@@ -169,7 +169,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     }
   }, [isNew, customersData]);
 
-  const isExisting = Boolean(!isNew && doc.id !== 'new');
+  const isExisting = Boolean(doc.id && doc.id !== 'new');
   const resolvedStatus = isExisting ? qStatus(doc, TODAY) : 'draft';
   const readOnly = !(can('quotes') && (!isExisting || doc.state === 'draft'));
 
@@ -385,17 +385,18 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
       danger: true,
     });
     if (confirmed) {
-      try {
-        if (isExisting) {
+      if (isExisting) {
+        try {
           await deleteMutation.mutateAsync(doc.id);
-        } else {
-          deleteDraftQuote(doc.id);
+          onBack();
+        } catch {
+          // Real server error toast handled in deleteMutation.onError
         }
-      } catch {
+      } else {
         deleteDraftQuote(doc.id);
         toast('Draft deleted');
+        onBack();
       }
-      onBack();
     }
   };
 

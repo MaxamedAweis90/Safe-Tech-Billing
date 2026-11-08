@@ -32,6 +32,7 @@ export const AuditView: React.FC = () => {
     );
   }
 
+  const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
   const hasLogs = Boolean(apiData?.logs && apiData.logs.length > 0);
   const entries = hasLogs && apiData
     ? apiData.logs.map((a) => ({
@@ -42,7 +43,9 @@ export const AuditView: React.FC = () => {
         ref: a.ref || '',
         detail: a.detail || '',
       }))
-    : MOCK_AUDIT.slice(0, 200);
+    : isDemo
+    ? MOCK_AUDIT.slice(0, 200)
+    : [];
 
   return (
     <>

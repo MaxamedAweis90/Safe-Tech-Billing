@@ -71,9 +71,12 @@ export const PaymentModalContent: React.FC<PaymentModalContentProps> = ({
       } as MockInvoice;
     });
 
+  const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
   const openInvoices = (liveOpen.length > 0
     ? liveOpen
-    : MOCK_INVOICES.filter((i) => i.state === 'issued' && invFin(i).balance > 0)
+    : isDemo
+    ? MOCK_INVOICES.filter((i) => i.state === 'issued' && invFin(i).balance > 0)
+    : []
   ).sort((a, b) => (a.due || a.due_date || '').localeCompare(b.due || b.due_date || ''));
 
   const [selectedInvId, setSelectedInvId] = useState<string>(() => {
