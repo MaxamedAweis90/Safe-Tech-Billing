@@ -67,6 +67,20 @@ const PaymentSchema = new Schema<IPayment>(
       type: Date,
       default: Date.now,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -74,16 +88,16 @@ const PaymentSchema = new Schema<IPayment>(
   }
 );
 
-// Prevent duplicate transaction references for non-empty references per payment method
+// Prevent duplicate transaction references for non-empty references per payment method for active records
 PaymentSchema.index(
   { companyId: 1, method: 1, reference: 1 },
   {
     unique: true,
     partialFilterExpression: {
       reference: { $type: 'string', $gt: '' },
+      isDeleted: { $ne: true },
     },
   }
 );
 
 export const Payment = model<IPayment>('Payment', PaymentSchema);
-

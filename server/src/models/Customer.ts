@@ -72,6 +72,20 @@ const CustomerSchema = new Schema<ICustomer>(
       trim: true,
       default: () => new Date().toISOString().split('T')[0],
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -79,7 +93,10 @@ const CustomerSchema = new Schema<ICustomer>(
   }
 );
 
-// Multi-tenant compound unique index: code is unique per company
-CustomerSchema.index({ companyId: 1, code: 1 }, { unique: true });
+// Multi-tenant compound unique index: code is unique per company for active records
+CustomerSchema.index(
+  { companyId: 1, code: 1 },
+  { unique: true, partialFilterExpression: { isDeleted: { $ne: true } } }
+);
 
 export const Customer = model<ICustomer>('Customer', CustomerSchema);

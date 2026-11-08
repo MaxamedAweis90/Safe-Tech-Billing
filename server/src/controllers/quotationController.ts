@@ -467,11 +467,12 @@ export const deleteQuotation = async (
       return;
     }
 
-    await quotationService.deleteDraft(id, req.user?.id);
+    const tenantCompanyId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
+    await quotationService.deleteDraft(id, req.user?.id, tenantCompanyId);
 
     if (req.user && existing) {
       await logAction({
-        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
+        companyId: tenantCompanyId,
         user_name: req.user.name,
         role: req.user.role,
         action: "Moved draft quotation to trash",

@@ -113,7 +113,10 @@ const QuotationSchema = new Schema<IQuotation>(
 );
 
 // Multi-tenant compound unique index: quotation number is strictly unique per company
-QuotationSchema.index({ companyId: 1, number: 1 }, { unique: true });
+QuotationSchema.index(
+  { companyId: 1, number: 1 },
+  { unique: true, partialFilterExpression: { isDeleted: { $ne: true } } }
+);
 
 export const Quotation = model<IQuotation>('Quotation', QuotationSchema);
 

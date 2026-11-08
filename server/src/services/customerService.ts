@@ -164,13 +164,24 @@ export const deleteCustomer = async (
   tenantCompanyId?: string | Types.ObjectId | null,
   userId?: string | Types.ObjectId | null
 ): Promise<boolean> => {
-  const query: Record<string, unknown> = { _id: id };
-  if (tenantCompanyId) {
-    query.companyId = tenantCompanyId;
+  const query: Record<string, unknown> = { _id: id, isDeleted: { $ne: true } };
+  if (tenantCompanyId !== undefined) {
+    query.companyId = tenantCompanyId ? new Types.ObjectId(tenantCompanyId) : null;
   }
   const customer = await Customer.findOne(query);
   if (!customer) {
     throw new Error('Customer not found');
+  }
+
+  // Pre-delete referential integrity check:
+  // Cannot delete customer if active invoices or quotations exist
+  const [hasInvoices, hasQuotes] = await Promise.all([
+    Invoice.exists({ customer_id: id, isDeleted: { $ne: true } }),
+    Quotation.exists({ customer_id: id, isDeleted: { $ne: true } }),
+  ]);
+
+  if (hasInvoices || hasQuotes) {
+    throw new Error('Cannot move customer to trash while active invoices or quotations exist. Delete or cancel them first.');
   }
 
   customer.isDeleted = true;
@@ -212,8 +223,8 @@ export const getCustomerStatement = async (
   tenantCompanyId?: string | Types.ObjectId | null
 ): Promise<CustomerStatementSummary> => {
   const query: Record<string, unknown> = { _id: customerId };
-  if (tenantCompanyId) {
-    query.companyId = tenantCompanyId;
+  if (tenantCompanyId !== undefined) {
+    query.companyId = tenantCompanyId ? new Types.ObjectId(tenantCompanyId) : null;
   }
   const customer = await Customer.findOne(query);
   if (!customer) {

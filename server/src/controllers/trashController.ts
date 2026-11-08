@@ -9,12 +9,15 @@ import {
 } from '../services/trashService';
 import { logAction } from '../services/auditService';
 
-const getCompanyTenantId = (req: Request): string | Types.ObjectId | null => {
+export const resolveTenantId = (req: Request): { tenantId: string | Types.ObjectId | null; isAllowed: boolean } => {
   if (req.user?.companyId) {
-    return req.user.companyId;
+    return { tenantId: req.user.companyId, isAllowed: true };
   }
-  const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
-  return isDemo ? null : null;
+  const isDemo = Boolean(req.user?.isDemo || req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+  if (isDemo) {
+    return { tenantId: null, isAllowed: true };
+  }
+  return { tenantId: null, isAllowed: false };
 };
 
 export const getTrash = async (
@@ -24,15 +27,14 @@ export const getTrash = async (
 ): Promise<void> => {
   try {
     const { type, q, limit, skip } = req.query;
-    const tenantCompanyId = getCompanyTenantId(req);
-    const isDemo = Boolean(req.user?.email === 'demo@account.com' || req.user?.id?.startsWith('usr_'));
+    const { tenantId, isAllowed } = resolveTenantId(req);
 
     const parsedLimit = limit
       ? Math.min(100, Math.max(1, parseInt(limit as string, 10)))
       : 50;
     const parsedSkip = skip ? Math.max(0, parseInt(skip as string, 10)) : 0;
 
-    if (!req.user?.companyId && !isDemo) {
+    if (!isAllowed) {
       res.status(200).json({
         success: true,
         items: [],
@@ -44,7 +46,7 @@ export const getTrash = async (
       return;
     }
 
-    const result = await listTrash(tenantCompanyId, {
+    const result = await listTrash(tenantId, {
       type: typeof type === 'string' ? type : undefined,
       q: typeof q === 'string' ? q : undefined,
       limit: parsedLimit,
@@ -81,12 +83,17 @@ export const restoreTrashItem = async (
       return;
     }
 
-    const tenantCompanyId = getCompanyTenantId(req);
-    const result = await restoreItem(type as TrashEntityType, id, tenantCompanyId);
+    const { tenantId, isAllowed } = resolveTenantId(req);
+    if (!isAllowed) {
+      res.status(403).json({ success: false, error: 'Unauthorized: missing company context' });
+      return;
+    }
+
+    const result = await restoreItem(type as TrashEntityType, id, tenantId);
 
     if (req.user) {
       await logAction({
-        companyId: tenantCompanyId,
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
         action: `Restored ${type} from trash`,
@@ -102,6 +109,10 @@ export const restoreTrashItem = async (
   } catch (err: any) {
     if (err.message && err.message.includes('not found in trash')) {
       res.status(404).json({ success: false, error: err.message });
+      return;
+    }
+    if (err.message && (err.message.includes('Cannot restore') || err.message.includes('exceeds invoice remaining balance'))) {
+      res.status(400).json({ success: false, error: err.message });
       return;
     }
     next(err);
@@ -125,12 +136,17 @@ export const purgeTrashItem = async (
       return;
     }
 
-    const tenantCompanyId = getCompanyTenantId(req);
-    const result = await purgeItem(type as TrashEntityType, id, tenantCompanyId);
+    const { tenantId, isAllowed } = resolveTenantId(req);
+    if (!isAllowed) {
+      res.status(403).json({ success: false, error: 'Unauthorized: missing company context' });
+      return;
+    }
+
+    const result = await purgeItem(type as TrashEntityType, id, tenantId);
 
     if (req.user) {
       await logAction({
-        companyId: tenantCompanyId,
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
         action: `Permanently purged ${type}`,
@@ -148,7 +164,7 @@ export const purgeTrashItem = async (
       res.status(404).json({ success: false, error: err.message });
       return;
     }
-    if (err.message && err.message.includes('Cannot permanently purge')) {
+    if (err.message && (err.message.includes('Cannot permanently purge') || err.message.includes('active invoices'))) {
       res.status(400).json({ success: false, error: err.message });
       return;
     }
@@ -162,12 +178,17 @@ export const emptyAllTrash = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const tenantCompanyId = getCompanyTenantId(req);
-    const { count } = await emptyTrash(tenantCompanyId);
+    const { tenantId, isAllowed } = resolveTenantId(req);
+    if (!isAllowed) {
+      res.status(403).json({ success: false, error: 'Unauthorized: missing company context' });
+      return;
+    }
+
+    const { count } = await emptyTrash(tenantId);
 
     if (req.user) {
       await logAction({
-        companyId: tenantCompanyId,
+        companyId: tenantId,
         user_name: req.user.name,
         role: req.user.role,
         action: 'Emptied trash',

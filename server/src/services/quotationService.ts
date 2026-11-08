@@ -212,10 +212,19 @@ export const duplicateQuote = async (id: string | Types.ObjectId): Promise<IQuot
  */
 export const deleteDraft = async (
   id: string | Types.ObjectId,
-  userId?: string | Types.ObjectId | null
+  userId?: string | Types.ObjectId | null,
+  tenantCompanyId?: string | Types.ObjectId | null
 ): Promise<boolean> => {
   const quotation = await Quotation.findById(id);
-  if (!quotation) throw new Error('Quotation not found');
+  if (!quotation || quotation.isDeleted) throw new Error('Quotation not found');
+
+  if (tenantCompanyId !== undefined) {
+    const expectedCompanyId = tenantCompanyId ? String(tenantCompanyId) : null;
+    const actualCompanyId = quotation.companyId ? String(quotation.companyId) : null;
+    if (expectedCompanyId !== actualCompanyId) {
+      throw new Error('Quotation not found');
+    }
+  }
 
   if (quotation.state !== 'draft') {
     throw new Error('Only draft quotations can be deleted');

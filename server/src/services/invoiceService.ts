@@ -246,10 +246,19 @@ export const cancelInvoice = async (
  */
 export const deleteDraft = async (
   id: string | Types.ObjectId,
-  userId?: string | Types.ObjectId | null
+  userId?: string | Types.ObjectId | null,
+  tenantCompanyId?: string | Types.ObjectId | null
 ): Promise<boolean> => {
   const invoice = await Invoice.findById(id);
-  if (!invoice) throw new Error('Invoice not found');
+  if (!invoice || invoice.isDeleted) throw new Error('Invoice not found');
+
+  if (tenantCompanyId !== undefined) {
+    const expectedCompanyId = tenantCompanyId ? String(tenantCompanyId) : null;
+    const actualCompanyId = invoice.companyId ? String(invoice.companyId) : null;
+    if (expectedCompanyId !== actualCompanyId) {
+      throw new Error('Invoice not found');
+    }
+  }
 
   if (invoice.state !== 'draft') {
     throw new Error(`Cannot delete invoice in "${invoice.state}" state. Only drafts can be deleted.`);

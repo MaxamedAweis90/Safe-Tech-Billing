@@ -448,11 +448,12 @@ export const deleteInvoiceHandler = async (
       return;
     }
 
-    await invoiceService.deleteDraft(id, req.user?.id);
+    const tenantCompanyId = req.user?.companyId || (req.user?.isDemo ? null : undefined);
+    await invoiceService.deleteDraft(id, req.user?.id, tenantCompanyId);
 
     if (req.user) {
       await logAction({
-        companyId: req.user?.companyId || (req.user?.isDemo ? null : undefined),
+        companyId: tenantCompanyId,
         user_name: req.user.name,
         role: req.user.role,
         action: "Moved draft invoice to trash",

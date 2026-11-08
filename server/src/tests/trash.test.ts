@@ -198,5 +198,65 @@ describe('Trash System & Multi-Tenant Isolation Specifications', () => {
       expect.objectContaining({ success: false, error: 'Quotation not found in trash' })
     );
   });
+
+  it('rejects restore, purge, or empty with 403 when user has no company context and is not demo', async () => {
+    const unassignedUser = {
+      id: 'unassigned_user',
+      name: 'Unassigned User',
+      email: 'unassigned@test.com',
+      role: 'admin',
+      companyId: undefined,
+    };
+
+    const { req: resReq, res: resRes, statusMock: resStatus, jsonMock: resJson } = createMockReqRes({
+      user: unassignedUser,
+      params: { type: 'quotation', id: new Types.ObjectId().toString() },
+    });
+    await restoreTrashItem(resReq, resRes, vi.fn());
+    expect(resStatus).toHaveBeenCalledWith(403);
+    expect(resJson).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: 'Unauthorized: missing company context' })
+    );
+
+    const { req: purgeReq, res: purgeRes, statusMock: purgeStatus, jsonMock: purgeJson } = createMockReqRes({
+      user: unassignedUser,
+      params: { type: 'quotation', id: new Types.ObjectId().toString() },
+    });
+    await purgeTrashItem(purgeReq, purgeRes, vi.fn());
+    expect(purgeStatus).toHaveBeenCalledWith(403);
+    expect(purgeJson).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: 'Unauthorized: missing company context' })
+    );
+
+    const { req: emptyReq, res: emptyRes, statusMock: emptyStatus, jsonMock: emptyJson } = createMockReqRes({
+      user: unassignedUser,
+    });
+    await emptyAllTrash(emptyReq, emptyRes, vi.fn());
+    expect(emptyStatus).toHaveBeenCalledWith(403);
+    expect(emptyJson).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: 'Unauthorized: missing company context' })
+    );
+  });
+
+  it('returns 400 when restoring an item violates business rules or financial balances', async () => {
+    vi.spyOn(trashService, 'restoreItem').mockRejectedValueOnce(
+      new Error('Cannot restore receipt: restoring 100 exceeds invoice remaining balance (50 remaining).')
+    );
+
+    const { req, res, statusMock, jsonMock } = createMockReqRes({
+      user: adminA,
+      params: { type: 'receipt', id: new Types.ObjectId().toString() },
+    });
+
+    await restoreTrashItem(req, res, vi.fn());
+
+    expect(statusMock).toHaveBeenCalledWith(400);
+    expect(jsonMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('exceeds invoice remaining balance'),
+      })
+    );
+  });
 });
 

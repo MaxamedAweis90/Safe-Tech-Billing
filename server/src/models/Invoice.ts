@@ -114,6 +114,20 @@ const InvoiceSchema = new Schema<IInvoice>(
         message: 'Invoice must contain at least one line item',
       },
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -121,7 +135,16 @@ const InvoiceSchema = new Schema<IInvoice>(
   }
 );
 
-// Multi-tenant compound unique index: invoice number is strictly unique per company
-InvoiceSchema.index({ companyId: 1, number: 1 }, { unique: true, partialFilterExpression: { number: { $type: 'string' } } });
+// Multi-tenant compound unique index: invoice number is strictly unique per company for active records
+InvoiceSchema.index(
+  { companyId: 1, number: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      number: { $type: 'string' },
+      isDeleted: { $ne: true },
+    },
+  }
+);
 
 export const Invoice = model<IInvoice>('Invoice', InvoiceSchema);

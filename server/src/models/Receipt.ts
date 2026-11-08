@@ -108,6 +108,20 @@ const ReceiptSchema = new Schema<IReceipt>(
       default: 'USD',
       trim: true,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -115,8 +129,11 @@ const ReceiptSchema = new Schema<IReceipt>(
   }
 );
 
-// Multi-tenant compound index ensuring sequential receipt numbers are strictly unique per company
-ReceiptSchema.index({ companyId: 1, number: 1 }, { unique: true });
+// Multi-tenant compound index ensuring sequential receipt numbers are strictly unique per company for active records
+ReceiptSchema.index(
+  { companyId: 1, number: 1 },
+  { unique: true, partialFilterExpression: { isDeleted: { $ne: true } } }
+);
 
 export const Receipt = model<IReceipt>('Receipt', ReceiptSchema);
 

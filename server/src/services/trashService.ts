@@ -4,6 +4,7 @@ import { Invoice, IInvoice } from '../models/Invoice';
 import { Customer, ICustomer } from '../models/Customer';
 import { Payment, IPayment } from '../models/Payment';
 import { Receipt, IReceipt } from '../models/Receipt';
+import { calculateDocumentTotals } from './mathService';
 
 export type TrashEntityType = 'quotation' | 'invoice' | 'receipt' | 'customer';
 
@@ -177,6 +178,15 @@ export const restoreItem = async (
   if (type === 'quotation') {
     const doc = await Quotation.findOne(filter);
     if (!doc) throw new Error('Quotation not found in trash');
+
+    // Pre-restore check: Linked customer must not be soft-deleted
+    if (doc.customer_id) {
+      const cust = await Customer.findById(doc.customer_id);
+      if (cust && cust.isDeleted) {
+        throw new Error(`Cannot restore quotation: customer "${cust.name}" is in trash. Restore customer first.`);
+      }
+    }
+
     doc.isDeleted = false;
     doc.deletedAt = null;
     doc.deletedBy = null;
@@ -191,6 +201,15 @@ export const restoreItem = async (
   if (type === 'invoice') {
     const doc = await Invoice.findOne(filter);
     if (!doc) throw new Error('Invoice not found in trash');
+
+    // Pre-restore check: Linked customer must not be soft-deleted
+    if (doc.customer_id) {
+      const cust = await Customer.findById(doc.customer_id);
+      if (cust && cust.isDeleted) {
+        throw new Error(`Cannot restore invoice: customer "${cust.name}" is in trash. Restore customer first.`);
+      }
+    }
+
     doc.isDeleted = false;
     doc.deletedAt = null;
     doc.deletedBy = null;
@@ -205,6 +224,18 @@ export const restoreItem = async (
   if (type === 'customer') {
     const doc = await Customer.findOne(filter);
     if (!doc) throw new Error('Customer not found in trash');
+
+    // Pre-restore check: Active duplicate customer code check
+    const duplicate = await Customer.findOne({
+      companyId: doc.companyId,
+      code: doc.code,
+      isDeleted: { $ne: true },
+      _id: { $ne: doc._id },
+    });
+    if (duplicate) {
+      throw new Error(`Cannot restore customer: an active customer with code ${doc.code} already exists.`);
+    }
+
     doc.isDeleted = false;
     doc.deletedAt = null;
     doc.deletedBy = null;
@@ -219,6 +250,38 @@ export const restoreItem = async (
   if (type === 'receipt') {
     const rec = await Receipt.findOne(filter);
     if (!rec) throw new Error('Receipt not found in trash');
+
+    // 1. Verify parent invoice exists and is active
+    const invoice = await Invoice.findById(rec.invoice_id);
+    if (!invoice || invoice.isDeleted) {
+      throw new Error('Cannot restore receipt: the linked invoice does not exist or is in trash. Restore invoice first.');
+    }
+    if (invoice.state === 'cancelled') {
+      throw new Error('Cannot restore receipt: the linked invoice has been cancelled.');
+    }
+
+    // 2. Verify customer is active
+    const cust = await Customer.findById(rec.customer_id);
+    if (cust && cust.isDeleted) {
+      throw new Error(`Cannot restore receipt: customer "${cust.name}" is in trash. Restore customer first.`);
+    }
+
+    // 3. Verify invoice outstanding balance can accommodate this payment
+    const activePayments = await Payment.find({
+      invoice_id: invoice._id,
+      isDeleted: { $ne: true },
+      _id: { $ne: rec.payment_id },
+    });
+    const paid_milli = activePayments.reduce((sum, p) => sum + p.amount_milli, 0);
+    const totals = calculateDocumentTotals(invoice.items);
+    const remaining_milli = Math.max(0, totals.total_milli - paid_milli);
+
+    if (rec.amount_milli > remaining_milli) {
+      throw new Error(
+        `Cannot restore receipt: restoring ${rec.amount_milli / 1000} exceeds invoice remaining balance (${remaining_milli / 1000} remaining).`
+      );
+    }
+
     rec.isDeleted = false;
     rec.deletedAt = null;
     rec.deletedBy = null;
@@ -282,7 +345,7 @@ export const purgeItem = async (
     const doc = await Customer.findOne(filter);
     if (!doc) throw new Error('Customer not found in trash');
     
-    // Check if non-deleted invoices/quotations remain
+    // Check if non-deleted invoices/quotations/receipts remain
     const activeInvoices = await Invoice.exists({ customer_id: id, isDeleted: { $ne: true } });
     if (activeInvoices) {
       throw new Error('Cannot permanently purge customer with active invoices. Purge or restore the invoices first.');
@@ -290,6 +353,10 @@ export const purgeItem = async (
     const activeQuotes = await Quotation.exists({ customer_id: id, isDeleted: { $ne: true } });
     if (activeQuotes) {
       throw new Error('Cannot permanently purge customer with active quotations. Purge or restore the quotations first.');
+    }
+    const activeReceipts = await Receipt.exists({ customer_id: id, isDeleted: { $ne: true } });
+    if (activeReceipts) {
+      throw new Error('Cannot permanently purge customer with active receipts. Purge or restore the receipts first.');
     }
 
     await Customer.deleteOne({ _id: id });
@@ -319,6 +386,7 @@ export const purgeItem = async (
 
 /**
  * Empties all soft-deleted items belonging strictly to the company.
+ * Protects customers from deletion if they still have active (non-deleted) invoices, quotes, or receipts.
  */
 export const emptyTrash = async (
   companyId: string | Types.ObjectId | null
@@ -328,19 +396,45 @@ export const emptyTrash = async (
     isDeleted: true,
   };
 
-  const [quotesRes, invRes, recRes, payRes, custRes] = await Promise.all([
+  // 1. Purge trashed quotations, invoices, receipts, and payments
+  const [quotesRes, invRes, recRes] = await Promise.all([
     Quotation.deleteMany(filter),
     Invoice.deleteMany(filter),
     Receipt.deleteMany(filter),
     Payment.deleteMany(filter),
-    Customer.deleteMany(filter),
   ]);
+
+  // 2. Cascade safety for customers:
+  // Only purge trashed customers who have NO remaining active (non-deleted) references
+  const trashedCustomers = await Customer.find(filter, { _id: 1 });
+  let purgedCustCount = 0;
+
+  if (trashedCustomers.length > 0) {
+    const custIds = trashedCustomers.map((c) => c._id);
+    const [usedInInvoices, usedInQuotes, usedInReceipts] = await Promise.all([
+      Invoice.distinct('customer_id', { customer_id: { $in: custIds }, isDeleted: { $ne: true } }),
+      Quotation.distinct('customer_id', { customer_id: { $in: custIds }, isDeleted: { $ne: true } }),
+      Receipt.distinct('customer_id', { customer_id: { $in: custIds }, isDeleted: { $ne: true } }),
+    ]);
+
+    const usedSet = new Set([
+      ...usedInInvoices.map(String),
+      ...usedInQuotes.map(String),
+      ...usedInReceipts.map(String),
+    ]);
+
+    const purgeableCustIds = custIds.filter((id) => !usedSet.has(String(id)));
+    if (purgeableCustIds.length > 0) {
+      const custRes = await Customer.deleteMany({ _id: { $in: purgeableCustIds } });
+      purgedCustCount = custRes.deletedCount;
+    }
+  }
 
   const count =
     quotesRes.deletedCount +
     invRes.deletedCount +
     recRes.deletedCount +
-    custRes.deletedCount;
+    purgedCustCount;
 
   return { count };
 };
