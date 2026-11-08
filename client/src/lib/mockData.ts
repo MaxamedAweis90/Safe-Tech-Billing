@@ -2397,7 +2397,7 @@ export function deleteMockCustomer(id: string): boolean {
   const hasInvoices = MOCK_INVOICES.some((i) => i.customerId === id);
   const hasQuotes = MOCK_QUOTES.some((q) => q.customerId === id);
   if (hasInvoices || hasQuotes) {
-    throw new Error('Cannot move customer to trash while active invoices or quotations exist. Delete or cancel them first.');
+    throw new Error('Cannot delete customer while active invoices or quotations exist. Delete or cancel them first.');
   }
 
   MOCK_CUSTOMERS.splice(idx, 1);

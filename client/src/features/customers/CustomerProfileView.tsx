@@ -259,9 +259,9 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
 
   const handleDeleteCustomer = async () => {
     const confirmed = await confirmBox({
-      title: `Move ${c.name} to trash?`,
-      text: 'This customer will be moved to your company trash bin. You can restore or permanently delete them from the Trash view.',
-      ok: 'Move to trash',
+      title: `Delete ${c.name}?`,
+      text: 'Deleting this customer will move them to your company trash bin. You can restore or permanently delete them from the Trash view.',
+      ok: `Delete ${c.name}`,
       danger: true,
     });
 
@@ -335,7 +335,7 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
               disabled={deleteCustomerMutation.isPending}
             >
               <Icon name="trash" size={14} />
-              <span>{deleteCustomerMutation.isPending ? 'Deleting…' : 'Delete'}</span>
+              <span>{deleteCustomerMutation.isPending ? 'Deleting…' : `Delete ${c.name}`}</span>
             </button>
           )}
           {can('invoices') && (

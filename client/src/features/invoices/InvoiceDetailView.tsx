@@ -387,9 +387,9 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   const handleDeleteDraft = async () => {
     if (!can('invoices') || inv.state !== 'draft') return;
     const confirmed = await confirmBox({
-      title: 'Move draft invoice to trash?',
-      text: 'Draft invoices were never sent to customers. Moving this draft to trash will remove it from active records.',
-      ok: 'Move to trash',
+      title: `Delete draft ${inv.number}?`,
+      text: 'Draft invoices were never sent to customers. Deleting this draft will remove it from active records.',
+      ok: 'Delete draft',
       danger: true,
     });
     if (!confirmed) return;

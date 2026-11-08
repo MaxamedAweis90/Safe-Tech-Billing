@@ -237,7 +237,7 @@ export function useDeleteInvoice() {
       const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
       if (isDemo && !/^[0-9a-fA-F]{24}$/.test(id)) {
         deleteMockInvoice(id);
-        return { success: true, message: 'Draft invoice moved to trash.' };
+        return { success: true, message: 'Draft invoice deleted.' };
       }
       try {
         const res = await api.delete(`/invoices/${id}`);
@@ -245,7 +245,7 @@ export function useDeleteInvoice() {
       } catch (err: any) {
         if (isDemo) {
           deleteMockInvoice(id);
-          return { success: true, message: 'Draft invoice moved to trash.' };
+          return { success: true, message: 'Draft invoice deleted.' };
         }
         throw err;
       }
@@ -253,7 +253,7 @@ export function useDeleteInvoice() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
       queryClient.invalidateQueries({ queryKey: trashKeys.all });
-      toast(data?.message || 'Draft invoice moved to trash.');
+      toast(data?.message || 'Draft invoice deleted.');
     },
     onError: (err: any) => {
       toast(err.message || 'Failed to delete draft invoice', true);

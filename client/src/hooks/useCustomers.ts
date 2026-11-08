@@ -144,7 +144,7 @@ export function useDeleteCustomer() {
       const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
       if (isDemo && !/^[0-9a-fA-F]{24}$/.test(id)) {
         deleteMockCustomer(id);
-        return { success: true, message: 'Customer moved to trash.' };
+        return { success: true, message: 'Customer deleted.' };
       }
       try {
         const res = await api.delete(`/customers/${id}`);
@@ -152,7 +152,7 @@ export function useDeleteCustomer() {
       } catch (err: any) {
         if (isDemo) {
           deleteMockCustomer(id);
-          return { success: true, message: 'Customer moved to trash.' };
+          return { success: true, message: 'Customer deleted.' };
         }
         throw err;
       }
@@ -160,7 +160,7 @@ export function useDeleteCustomer() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: customerKeys.all });
       queryClient.invalidateQueries({ queryKey: trashKeys.all });
-      toast(data.message || 'Customer moved to trash.');
+      toast(data.message || 'Customer deleted.');
     },
     onError: (err: any) => {
       toast(err.message || 'Failed to delete customer', true);

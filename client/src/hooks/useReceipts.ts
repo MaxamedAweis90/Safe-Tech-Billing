@@ -132,7 +132,7 @@ export function useDeleteReceipt() {
       const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
       if (isDemo && !/^[0-9a-fA-F]{24}$/.test(receiptId)) {
         deleteMockReceipt(receiptId);
-        return { success: true, message: 'Receipt moved to trash.' };
+        return { success: true, message: 'Receipt deleted.' };
       }
       try {
         const res = await api.delete(`/receipts/${receiptId}`);
@@ -140,7 +140,7 @@ export function useDeleteReceipt() {
       } catch (err: any) {
         if (isDemo) {
           deleteMockReceipt(receiptId);
-          return { success: true, message: 'Receipt moved to trash.' };
+          return { success: true, message: 'Receipt deleted.' };
         }
         throw err;
       }
@@ -152,7 +152,7 @@ export function useDeleteReceipt() {
       queryClient.invalidateQueries({ queryKey: reportKeys.all });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
       queryClient.invalidateQueries({ queryKey: trashKeys.all });
-      toast(data.message || 'Receipt moved to trash.');
+      toast(data.message || 'Receipt deleted.');
     },
     onError: (err: any) => {
       toast(err.message || 'Failed to delete receipt', true);

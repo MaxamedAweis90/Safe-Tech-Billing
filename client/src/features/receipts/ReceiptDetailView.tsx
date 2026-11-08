@@ -136,9 +136,9 @@ export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
 
   const handleDeleteReceipt = async () => {
     const confirmed = await confirmBox({
-      title: `Move receipt ${r.number} to trash?`,
-      text: 'Moving this receipt to trash will void the recorded payment and restore the outstanding balance on the linked invoice. This action is recorded in the company audit trail.',
-      ok: 'Void & Move to Trash',
+      title: `Delete receipt ${r.number}?`,
+      text: 'Deleting this receipt will void the recorded payment and restore the outstanding balance on the linked invoice. This action is recorded in the company audit trail.',
+      ok: `Delete ${r.number}`,
       danger: true,
     });
 
@@ -220,7 +220,7 @@ export const ReceiptDetailView: React.FC<ReceiptDetailViewProps> = ({
               disabled={deleteReceiptMutation.isPending}
             >
               <Icon name="trash" size={14} />
-              <span>{deleteReceiptMutation.isPending ? 'Voiding…' : 'Move to trash'}</span>
+              <span>{deleteReceiptMutation.isPending ? 'Deleting…' : `Delete ${r.number}`}</span>
             </button>
           )}
           {linkedInvoice && (

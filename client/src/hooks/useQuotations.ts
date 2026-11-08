@@ -240,7 +240,7 @@ export function useDeleteQuotation() {
       const isDemo = Boolean(useAuthStore.getState().user?.isDemo);
       if (isDemo && !/^[0-9a-fA-F]{24}$/.test(id)) {
         deleteMockQuotation(id);
-        return { success: true, message: 'Draft quotation moved to trash.' };
+        return { success: true, message: 'Draft quotation deleted.' };
       }
       try {
         const res = await api.delete(`/quotations/${id}`);
@@ -248,7 +248,7 @@ export function useDeleteQuotation() {
       } catch (err: any) {
         if (isDemo) {
           deleteMockQuotation(id);
-          return { success: true, message: 'Draft quotation moved to trash.' };
+          return { success: true, message: 'Draft quotation deleted.' };
         }
         throw err;
       }
@@ -256,7 +256,7 @@ export function useDeleteQuotation() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: quotationKeys.all });
       queryClient.invalidateQueries({ queryKey: trashKeys.all });
-      toast(data?.message || 'Draft quotation moved to trash.');
+      toast(data?.message || 'Draft quotation deleted.');
     },
     onError: (err: any) => {
       toast(err.message || 'Failed to delete quotation', true);

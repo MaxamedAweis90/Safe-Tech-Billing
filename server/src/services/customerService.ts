@@ -181,7 +181,7 @@ export const deleteCustomer = async (
   ]);
 
   if (hasInvoices || hasQuotes) {
-    throw new Error('Cannot move customer to trash while active invoices or quotations exist. Delete or cancel them first.');
+    throw new Error('Cannot delete customer while active invoices or quotations exist. Delete or cancel them first.');
   }
 
   customer.isDeleted = true;
