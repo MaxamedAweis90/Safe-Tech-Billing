@@ -9,12 +9,10 @@ export function tabToPath(tab: NavTab, recordId?: string | null): string {
   if (tab === 'verify') return '/verify';
   if (tab === 'accept-invite') return '/accept-invite';
   if (tab === 'quotations') {
-    if (recordId === 'new') return '/quotations?action=new';
     if (recordId) return `/quotations/${recordId}`;
     return '/quotations';
   }
   if (tab === 'invoices') {
-    if (recordId === 'new') return '/invoices?action=new';
     if (recordId) return `/invoices/${recordId}`;
     return '/invoices';
   }
@@ -35,10 +33,15 @@ export function tabToPath(tab: NavTab, recordId?: string | null): string {
 }
 
 export function parsePath(pathnameStr: string): { tab: NavTab; recordId: string | null } {
-  const clean = (pathnameStr || '/dashboard').replace(/^\//, '').split('?')[0].toLowerCase();
+  const [pathPart, queryPart] = (pathnameStr || '/dashboard').split('?');
+  const clean = pathPart.replace(/^\//, '').toLowerCase();
   const segments = clean.split('/');
   const base = segments[0] || 'dashboard';
-  const param = segments[1] || null;
+  let param = segments[1] || null;
+
+  if (queryPart && (queryPart.includes('action=new') || queryPart.includes('new=true'))) {
+    param = 'new';
+  }
 
   if (base === 'login') return { tab: 'login', recordId: null };
   if (base === 'signup' || base === 'onboarding') return { tab: 'signup', recordId: null };

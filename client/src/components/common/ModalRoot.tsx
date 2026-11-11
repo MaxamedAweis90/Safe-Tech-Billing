@@ -14,16 +14,23 @@ export const ModalRoot: React.FC = () => {
     }
   }, [activeModal]);
 
+  const handleDismiss = () => {
+    if (activeModal?.onClose) {
+      activeModal.onClose();
+    }
+    closeModal();
+  };
+
   // Global Escape key listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && activeModal) {
-        closeModal();
+        handleDismiss();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeModal, closeModal]);
+  }, [activeModal]);
 
   if (!activeModal) {
     return <div id="modalRoot" />;
@@ -35,7 +42,7 @@ export const ModalRoot: React.FC = () => {
         id="mbg"
         className="modal-bg"
         onClick={(e) => {
-          if (e.target === e.currentTarget) closeModal();
+          if (e.target === e.currentTarget) handleDismiss();
         }}
       >
         <div
@@ -49,7 +56,7 @@ export const ModalRoot: React.FC = () => {
             <button
               type="button"
               className="icon-btn"
-              onClick={closeModal}
+              onClick={handleDismiss}
               aria-label="Close"
             >
               <IconX size={16} />

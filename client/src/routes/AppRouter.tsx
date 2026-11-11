@@ -39,13 +39,13 @@ const RouteSync: React.FC = () => {
   const location = useLocation();
 
   useEffect(() => {
-    const parsed = parsePath(location.pathname);
+    const parsed = parsePath(location.pathname + location.search);
     useNavStore.setState({
       activeTab: parsed.tab,
       selectedRecordId: parsed.recordId,
       mobileDrawerOpen: false,
     });
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   return null;
 };

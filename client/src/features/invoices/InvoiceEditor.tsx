@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Icon } from '../../components/icons';
 import { QuoteItemsTable } from '../quotations/QuoteItemsTable';
 import {
@@ -45,6 +46,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
   onBack,
   onIssued,
 }) => {
+  const navigate = useNavigate();
   const { can, role, user } = useAuthStore();
   const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const isNew = !invoiceId || invoiceId === 'new';
@@ -264,25 +266,46 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
     }
     if (!validateForm()) return;
 
-    const itemsPayload = doc.items.map((it) => ({
-      desc: it.desc,
-      qty: Number(it.qty),
-      price_milli: Number(it.price),
-      disc_pct: Number(it.disc || 0),
-      tax_rate: Number(it.taxRate || 0),
-      tax_name: it.taxName || '',
+    const validItems = doc.items.filter((it) => it.desc.trim() || Number(it.price) > 0);
+    const targetItems = validItems.length > 0 ? validItems : [{ desc: 'Item', qty: 1, price: 0, disc: 0, taxRate: 0, taxName: '' }];
+    const itemsPayload = targetItems.map((it) => ({
+      desc: it.desc.trim() || 'Item',
+      qty: Math.max(0.001, Number(it.qty) || 1),
+      price_milli: Math.round(Number(it.price) || 0),
+      disc_pct: Math.min(100, Math.max(0, Number(it.disc || 0))),
+      tax_rate: Math.min(100, Math.max(0, Number(it.taxRate || 0))),
+      tax_name: it.taxName?.trim() || '',
     }));
 
-    const isSaved = isExisting && doc.id && doc.id !== 'new';
+    if (isDemo) {
+      const saved = persistInvoice(
+        {
+          ...doc,
+          id: isExisting ? doc.id : undefined,
+          total_milli: totals.total,
+          balance_milli: totals.total,
+        },
+        false
+      );
+      setDoc(JSON.parse(JSON.stringify(saved)));
+      toast('Draft saved');
+      return;
+    }
+
+    const isRealBackendDoc = Boolean(doc.id && doc.id !== 'new' && !doc.id.startsWith('i'));
+    const allowedTerms = [0, 7, 15, 30, 45, 60];
+    const rawTerms = Number(doc.termsDays);
+    const safeTermsDays = allowedTerms.includes(rawTerms) ? rawTerms : 30;
+
     try {
       const res = await saveMutation.mutateAsync({
-        id: isSaved ? doc.id : undefined,
+        id: isRealBackendDoc ? doc.id : undefined,
         customer_id: doc.customerId,
         quote_id: doc.quoteId || undefined,
         date: doc.date,
         due: doc.due,
-        terms_days: doc.termsDays ?? 30,
-        currency: doc.currency,
+        terms_days: safeTermsDays,
+        currency: doc.currency || 'USD',
         terms: doc.terms,
         notes: doc.notes,
         items: itemsPayload,
@@ -297,19 +320,14 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
           number: savedInv.number || prev.number,
         }));
       }
-    } catch {
-      // Fallback to local persistInvoice if backend is offline
-      const saved = persistInvoice(
-        {
-          ...doc,
-          id: isExisting ? doc.id : undefined,
-          total_milli: totals.total,
-          balance_milli: totals.total,
-        },
-        false
-      );
-      setDoc(JSON.parse(JSON.stringify(saved)));
-      toast('Draft saved (local)');
+      toast('Draft saved');
+    } catch (err: any) {
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to save draft invoice';
+      toast(errMsg, true);
     }
   };
 
@@ -329,56 +347,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
 
     if (!confirmed) return;
 
-    try {
-      let targetId = doc.id;
-      const itemsPayload = doc.items.map((it) => ({
-        desc: it.desc,
-        qty: Number(it.qty),
-        price_milli: Number(it.price),
-        disc_pct: Number(it.disc || 0),
-        tax_rate: Number(it.taxRate || 0),
-        tax_name: it.taxName || '',
-      }));
-
-      // If document is not yet saved to backend, create draft first
-      if (!targetId || targetId === 'new') {
-        const saveRes = await saveMutation.mutateAsync({
-          customer_id: doc.customerId,
-          quote_id: doc.quoteId || undefined,
-          date: doc.date,
-          due: doc.due,
-          terms_days: doc.termsDays ?? 30,
-          currency: doc.currency,
-          terms: doc.terms,
-          notes: doc.notes,
-          items: itemsPayload,
-        });
-        targetId = saveRes.invoice._id || saveRes.invoice.id || '';
-      }
-
-      const issueRes = await issueMutation.mutateAsync(targetId);
-      const issued = issueRes.invoice;
-      persistInvoice(
-        {
-          ...doc,
-          id: issued._id || issued.id || targetId,
-          number: issued.number,
-          state: 'issued',
-          status: 'unpaid',
-          total_milli: totals.total,
-          balance_milli: totals.total,
-        },
-        true
-      );
-      onIssued({
-        ...doc,
-        id: issued._id || issued.id || targetId,
-        number: issued.number,
-        state: 'issued',
-        status: 'unpaid',
-      });
-    } catch {
-      // Fallback to local persistInvoice if backend fails
+    if (isDemo) {
       const issued = persistInvoice(
         {
           ...doc,
@@ -390,29 +359,108 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
       );
       toast(`Invoice ${issued.number} issued and locked`);
       onIssued(issued);
+      return;
+    }
+
+    const validItems = doc.items.filter((it) => it.desc.trim() || Number(it.price) > 0);
+    const targetItems = validItems.length > 0 ? validItems : [{ desc: 'Item', qty: 1, price: 0, disc: 0, taxRate: 0, taxName: '' }];
+    const itemsPayload = targetItems.map((it) => ({
+      desc: it.desc.trim() || 'Item',
+      qty: Math.max(0.001, Number(it.qty) || 1),
+      price_milli: Math.round(Number(it.price) || 0),
+      disc_pct: Math.min(100, Math.max(0, Number(it.disc || 0))),
+      tax_rate: Math.min(100, Math.max(0, Number(it.taxRate || 0))),
+      tax_name: it.taxName?.trim() || '',
+    }));
+
+    const allowedTerms = [0, 7, 15, 30, 45, 60];
+    const rawTerms = Number(doc.termsDays);
+    const safeTermsDays = allowedTerms.includes(rawTerms) ? rawTerms : 30;
+
+    try {
+      let targetId = doc.id;
+
+      // If document is not yet saved to backend or has a mock id, create draft first
+      if (!targetId || targetId === 'new' || targetId.startsWith('i')) {
+        const saveRes = await saveMutation.mutateAsync({
+          customer_id: doc.customerId,
+          quote_id: doc.quoteId || undefined,
+          date: doc.date,
+          due: doc.due,
+          terms_days: safeTermsDays,
+          currency: doc.currency || 'USD',
+          terms: doc.terms,
+          notes: doc.notes,
+          items: itemsPayload,
+        });
+        targetId = saveRes.invoice._id || saveRes.invoice.id || '';
+      }
+
+      const issueRes = await issueMutation.mutateAsync(targetId);
+      const issued = issueRes.invoice;
+      toast(`Invoice ${issued.number} issued and locked`);
+      onIssued({
+        ...doc,
+        id: issued._id || issued.id || targetId,
+        number: issued.number,
+        state: 'issued',
+        status: 'unpaid',
+      });
+    } catch (err: any) {
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to issue invoice';
+      toast(errMsg, true);
     }
   };
 
   const handleDelete = async () => {
-    if (!can('invoices') || doc.state !== 'draft') return;
+    if (!can('invoices')) {
+      toast('You do not have permission to delete invoices.', true);
+      return;
+    }
+    if (doc.state && doc.state !== 'draft') {
+      toast('Only draft invoices can be deleted.', true);
+      return;
+    }
+
     const confirmed = await confirmBox({
       title: 'Delete this draft invoice?',
-      text: 'It has no number yet and was never issued.',
+      text: 'It has no number yet and was never issued. It will be moved to the trash.',
       ok: 'Delete draft',
       danger: true,
     });
     if (!confirmed) return;
 
-    if (doc.id && doc.id !== 'new') {
+    if (isDemo) {
+      deleteDraftInvoice(doc.id);
+      toast('Draft invoice moved to trash');
+      useNavStore.getState().setSelectedRecord('invoices', null);
+      navigate('/invoices', { replace: true });
+      onBack();
+      return;
+    }
+
+    if (doc.id && doc.id !== 'new' && !doc.id.startsWith('i')) {
       try {
         await deleteMutation.mutateAsync(doc.id);
+        toast('Draft invoice moved to trash');
+        useNavStore.getState().setSelectedRecord('invoices', null);
+        navigate('/invoices', { replace: true });
         onBack();
-      } catch {
-        // Real server error toast handled in deleteMutation.onError
+      } catch (err: any) {
+        const errMsg =
+          err?.response?.data?.message ||
+          err?.message ||
+          'Failed to delete draft invoice';
+        toast(errMsg, true);
       }
     } else {
-      deleteDraftInvoice(doc.id);
-      toast('Draft deleted');
+      toast('Draft invoice moved to trash');
+      useNavStore.getState().setSelectedRecord('invoices', null);
+      navigate('/invoices', { replace: true });
       onBack();
     }
   };

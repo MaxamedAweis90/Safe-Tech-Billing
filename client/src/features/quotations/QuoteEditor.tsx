@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Icon } from '../../components/icons';
 import { QuoteItemsTable } from './QuoteItemsTable';
 import {
@@ -62,6 +63,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
   onBack,
   onNavigateInvoice,
 }) => {
+  const navigate = useNavigate();
   const { can, role, user } = useAuthStore();
   const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const isNew = !quoteId || quoteId === 'new';
@@ -264,25 +266,45 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     }
     if (!validateForm()) return;
 
+    const validItems = doc.items.filter((it) => it.desc.trim() || Number(it.price) > 0);
+    const targetItems = validItems.length > 0 ? validItems : [{ desc: 'Item', qty: 1, price: 0, disc: 0, taxRate: 0, taxName: '' }];
+    const itemsPayload = targetItems.map((it) => ({
+      desc: it.desc.trim() || 'Item',
+      qty: Math.max(0.001, Number(it.qty) || 1),
+      price_milli: Math.round(Number(it.price) || 0),
+      disc_pct: Math.min(100, Math.max(0, Number(it.disc || 0))),
+      tax_rate: Math.min(100, Math.max(0, Number(it.taxRate || 0))),
+      tax_name: it.taxName?.trim() || '',
+    }));
+
+    if (isDemo) {
+      const saved = saveQuote(
+        {
+          ...doc,
+          id: isExisting ? doc.id : undefined,
+          total_milli: totals.total,
+        },
+        markSent
+      );
+      setDoc(JSON.parse(JSON.stringify(saved)));
+      toast(markSent ? `${saved.number} marked as sent` : 'Draft saved');
+      return;
+    }
+
+    const isRealBackendDoc = Boolean(doc.id && doc.id !== 'new' && !doc.id.startsWith('q'));
+
     try {
       const payload = {
-        id: isExisting ? doc.id : undefined,
+        id: isRealBackendDoc ? doc.id : undefined,
         customer_id: doc.customerId,
         customerName: selectedCustomer?.name || doc.customerName,
         date: doc.date,
         expiry: doc.expiry,
-        currency: doc.currency,
+        currency: doc.currency || 'USD',
         terms: doc.terms,
         notes: doc.notes,
         state: (markSent ? 'sent' : doc.state || 'draft') as any,
-        items: doc.items.map((it) => ({
-          desc: it.desc,
-          qty: +it.qty,
-          price_milli: +it.price,
-          disc_pct: +it.disc || 0,
-          tax_rate: +it.taxRate || 0,
-          tax_name: it.taxName || '',
-        })),
+        items: itemsPayload,
       };
 
       const result = await saveMutation.mutateAsync(payload);
@@ -300,33 +322,36 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
         state: markSent ? 'sent' : saved.state || prev.state,
         total_milli: totals.total,
       }));
-    } catch {
-      const saved = saveQuote(
-        {
-          ...doc,
-          id: isExisting ? doc.id : undefined,
-          total_milli: totals.total,
-        },
-        markSent
-      );
-      setDoc(JSON.parse(JSON.stringify(saved)));
-      toast(markSent ? `${saved.number} marked as sent` : 'Draft saved');
+      toast(markSent ? `${saved.number || 'Quotation'} marked as sent` : 'Draft saved');
+    } catch (err: any) {
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to save quotation';
+      toast(errMsg, true);
     }
   };
 
   const handleAccept = async () => {
     if (!can('quotes')) return;
-    try {
-      if (isExisting) {
-        await acceptMutation.mutateAsync(doc.id);
-      }
-      setDoc((prev) => ({ ...prev, state: 'accepted' }));
-    } catch {
+    if (isDemo) {
       const accepted = acceptQuote(doc.id);
       if (accepted) {
         setDoc({ ...doc, state: 'accepted' });
         toast(`${accepted.number} accepted. It can now be converted to an invoice.`);
       }
+      return;
+    }
+    try {
+      if (isExisting && doc.id && !doc.id.startsWith('q')) {
+        await acceptMutation.mutateAsync(doc.id);
+      }
+      setDoc((prev) => ({ ...prev, state: 'accepted' }));
+      toast('Quotation accepted. It can now be converted to an invoice.');
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to accept quotation';
+      toast(errMsg, true);
     }
   };
 
@@ -341,62 +366,98 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
     });
 
     if (typeof res === 'string' && res.trim()) {
-      try {
-        if (isExisting) {
-          await rejectMutation.mutateAsync({ id: doc.id, reason: res.trim() });
-        }
-        setDoc((prev) => ({ ...prev, state: 'rejected', rejectReason: res.trim() }));
-      } catch {
+      if (isDemo) {
         const rejected = rejectQuote(doc.id, res.trim());
         if (rejected) {
           setDoc({ ...doc, state: 'rejected', rejectReason: res.trim() });
           toast(`${rejected.number} marked rejected`);
         }
+        return;
+      }
+      try {
+        if (isExisting && doc.id && !doc.id.startsWith('q')) {
+          await rejectMutation.mutateAsync({ id: doc.id, reason: res.trim() });
+        }
+        setDoc((prev) => ({ ...prev, state: 'rejected', rejectReason: res.trim() }));
+        toast('Quotation marked rejected');
+      } catch (err: any) {
+        const errMsg = err?.response?.data?.message || err?.message || 'Failed to reject quotation';
+        toast(errMsg, true);
       }
     }
   };
 
   const handleDuplicate = async () => {
     if (!can('quotes')) return;
-    try {
-      const res = await duplicateMutation.mutateAsync(doc.id);
-      const duplicated = res.quotation;
-      setDoc((prev) => ({
-        ...prev,
-        id: duplicated._id || duplicated.id || '',
-        number: duplicated.number || 'Draft Copy',
-        state: 'draft',
-      }));
-    } catch {
+    if (isDemo) {
       const duplicated = duplicateQuote(doc.id);
       if (duplicated) {
         toast(`${duplicated.number} created as a draft copy`);
         setDoc(JSON.parse(JSON.stringify(duplicated)));
       }
+      return;
+    }
+    try {
+      if (doc.id && !doc.id.startsWith('q')) {
+        const res = await duplicateMutation.mutateAsync(doc.id);
+        const duplicated = res.quotation;
+        setDoc((prev) => ({
+          ...prev,
+          id: duplicated._id || duplicated.id || '',
+          number: duplicated.number || 'Draft Copy',
+          state: 'draft',
+        }));
+        toast('Quotation duplicated as draft copy');
+      }
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to duplicate quotation';
+      toast(errMsg, true);
     }
   };
 
   const handleDelete = async () => {
-    if (!can('quotes') || doc.state !== 'draft') return;
+    if (!can('quotes')) {
+      toast('You do not have permission to delete quotations.', true);
+      return;
+    }
+    if (doc.state && doc.state !== 'draft') {
+      toast('Only draft quotations can be deleted.', true);
+      return;
+    }
+
     const confirmed = await confirmBox({
-      title: `Delete draft ${doc.number}?`,
-      text: 'Drafts were never sent to the customer, so they can be deleted. The deletion is recorded in the audit trail.',
+      title: `Delete draft ${doc.number || 'quotation'}?`,
+      text: 'Drafts were never sent to the customer. It will be moved to the trash.',
       ok: 'Delete draft',
       danger: true,
     });
-    if (confirmed) {
-      if (isExisting) {
-        try {
-          await deleteMutation.mutateAsync(doc.id);
-          onBack();
-        } catch {
-          // Real server error toast handled in deleteMutation.onError
-        }
-      } else {
-        deleteDraftQuote(doc.id);
-        toast('Draft deleted');
+    if (!confirmed) return;
+
+    if (isDemo) {
+      deleteDraftQuote(doc.id);
+      toast('Draft quotation moved to trash');
+      useNavStore.getState().setSelectedRecord('quotations', null);
+      navigate('/quotations', { replace: true });
+      onBack();
+      return;
+    }
+
+    if (doc.id && doc.id !== 'new' && !doc.id.startsWith('q')) {
+      try {
+        await deleteMutation.mutateAsync(doc.id);
+        toast('Draft quotation moved to trash');
+        useNavStore.getState().setSelectedRecord('quotations', null);
+        navigate('/quotations', { replace: true });
         onBack();
+      } catch (err: any) {
+        const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete draft quotation';
+        toast(errMsg, true);
       }
+    } else {
+      toast('Draft quotation moved to trash');
+      useNavStore.getState().setSelectedRecord('quotations', null);
+      navigate('/quotations', { replace: true });
+      onBack();
     }
   };
 
@@ -405,18 +466,8 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
       toast('Accountant or Administrator role required to convert quotations.', true);
       return;
     }
-    try {
-      const res = await convertMutation.mutateAsync(doc.id);
-      const invId = res.invoice?.id || (res.invoice as any)?._id;
-      if (invId) {
-        if (onNavigateInvoice) {
-          onNavigateInvoice(invId);
-        } else {
-          useNavStore.getState().setSelectedRecord('invoices', invId);
-        }
-        return;
-      }
-    } catch {
+
+    if (isDemo) {
       try {
         const res = convertQuoteToInvoice(doc.id);
         toast(`Draft invoice created from ${doc.number}`);
@@ -428,6 +479,23 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
       } catch (e: any) {
         toast(e.message || 'Failed to convert quotation', true);
       }
+      return;
+    }
+
+    try {
+      const res = await convertMutation.mutateAsync(doc.id);
+      const invId = res.invoice?.id || (res.invoice as any)?._id;
+      if (invId) {
+        if (onNavigateInvoice) {
+          onNavigateInvoice(invId);
+        } else {
+          useNavStore.getState().setSelectedRecord('invoices', invId);
+        }
+        return;
+      }
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to convert quotation';
+      toast(errMsg, true);
     }
   };
 

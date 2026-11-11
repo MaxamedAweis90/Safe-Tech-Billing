@@ -46,21 +46,27 @@ export interface CreateInvoiceInput {
 }
 
 const mapAndCalculateInvoiceItems = (items: CreateInvoiceInput['items']): IDocumentItem[] => {
-  return items.map((item) => {
-    const calc = calculateLineItem(
-      item.qty,
-      item.price_milli,
-      item.disc_pct || 0,
-      item.tax_rate || 0
-    );
+  const filtered = (items || []).filter(
+    (item) => item && (item.desc?.trim() || Number(item.price_milli) > 0)
+  );
+
+  const targetList = filtered.length > 0 ? filtered : [{ desc: 'Item', qty: 1, price_milli: 0 }];
+
+  return targetList.map((item) => {
+    const qty = Math.max(0.001, Number(item.qty) || 1);
+    const priceMilli = Math.round(Number(item.price_milli) || 0);
+    const discPct = Math.min(100, Math.max(0, Number(item.disc_pct) || 0));
+    const taxRate = Math.min(100, Math.max(0, Number(item.tax_rate) || 0));
+
+    const calc = calculateLineItem(qty, priceMilli, discPct, taxRate);
 
     return {
-      desc: item.desc,
-      qty: item.qty,
-      price_milli: item.price_milli,
-      disc_pct: item.disc_pct || 0,
-      tax_rate: item.tax_rate || 0,
-      tax_name: item.tax_name || '',
+      desc: item.desc ? item.desc.trim() : 'Item',
+      qty,
+      price_milli: priceMilli,
+      disc_pct: discPct,
+      tax_rate: taxRate,
+      tax_name: item.tax_name ? item.tax_name.trim() : '',
       gross_milli: calc.gross_milli,
       disc_milli: calc.disc_milli,
       tax_milli: calc.tax_milli,
@@ -76,11 +82,14 @@ const computeDueDate = (dateStr: string, termsDays: number): string => {
   return targetDate.toISOString().split('T')[0];
 };
 
+const ALLOWED_TERMS_DAYS = [0, 7, 15, 30, 45, 60];
+
 /**
  * Creates a draft invoice. Number remains null until formally issued.
  */
 export const createDraft = async (data: CreateInvoiceInput): Promise<IInvoice> => {
-  const termsDays = data.terms_days ?? 30;
+  const rawTermsDays = Number(data.terms_days);
+  const termsDays = ALLOWED_TERMS_DAYS.includes(rawTermsDays) ? rawTermsDays : 30;
   const due = data.due || computeDueDate(data.date, termsDays);
   const items = mapAndCalculateInvoiceItems(data.items);
 
@@ -162,7 +171,10 @@ export const updateDraft = async (
     }
   }
   if (data.date) invoice.date = data.date;
-  if (data.terms_days !== undefined) invoice.terms_days = data.terms_days;
+  if (data.terms_days !== undefined) {
+    const raw = Number(data.terms_days);
+    invoice.terms_days = ALLOWED_TERMS_DAYS.includes(raw) ? raw : invoice.terms_days || 30;
+  }
   if (data.due) {
     invoice.due = data.due;
   } else if (data.date || data.terms_days !== undefined) {

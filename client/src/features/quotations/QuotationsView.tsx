@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SkeletonBox } from 'skullet/react';
 import { Icon } from '../../components/icons';
 import { QuoteEditor } from './QuoteEditor';
@@ -25,6 +26,7 @@ const STATUS_LABELS: Record<string, string> = {
 const FILTER_SEGMENTS = ['all', 'draft', 'sent', 'accepted', 'rejected', 'expired'];
 
 export const QuotationsView: React.FC = () => {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const { can, user } = useAuthStore();
@@ -51,8 +53,14 @@ export const QuotationsView: React.FC = () => {
     return (
       <QuoteEditor
         quoteId={selectedRecordId}
-        onBack={() => setSelectedRecord('quotations', null)}
-        onNavigateInvoice={(invId) => setSelectedRecord('invoices', invId)}
+        onBack={() => {
+          setSelectedRecord('quotations', null);
+          navigate('/quotations');
+        }}
+        onNavigateInvoice={(invId) => {
+          setSelectedRecord('invoices', invId);
+          navigate(`/invoices/${invId}`);
+        }}
       />
     );
   }
@@ -128,7 +136,10 @@ export const QuotationsView: React.FC = () => {
             <button
               type="button"
               className="btn primary"
-              onClick={() => setSelectedRecord('quotations', 'new')}
+              onClick={() => {
+                setSelectedRecord('quotations', 'new');
+                navigate('/quotations/new');
+              }}
             >
               <Icon name="plus" />
               New quotation
@@ -226,7 +237,10 @@ export const QuotationsView: React.FC = () => {
                     <tr
                       key={q.id}
                       className="link"
-                      onClick={() => setSelectedRecord('quotations', q.id)}
+                      onClick={() => {
+                        setSelectedRecord('quotations', q.id);
+                        navigate(`/quotations/${q.id}`);
+                      }}
                     >
                       <td className="mono strong" style={{ color: 'var(--accent)' }}>
                         {q.number}
@@ -246,7 +260,9 @@ export const QuotationsView: React.FC = () => {
                             style={{ color: 'var(--accent)', cursor: 'pointer' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedRecord('invoices', (inv as any)._id || (inv as any).id);
+                              const targetInvId = (inv as any)._id || (inv as any).id;
+                              setSelectedRecord('invoices', targetInvId);
+                              navigate(`/invoices/${targetInvId}`);
                             }}
                           >
                             {(inv as any).number || 'Draft'}

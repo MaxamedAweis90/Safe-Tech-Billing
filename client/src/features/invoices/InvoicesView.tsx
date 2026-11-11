@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SkeletonBox } from 'skullet/react';
 import { Icon } from '../../components/icons';
 import { Badge } from '../../components/ui/Badge';
@@ -41,6 +42,7 @@ const FILTER_SEGMENTS = [
 ];
 
 export const InvoicesView: React.FC = () => {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const { can, user } = useAuthStore();
@@ -65,8 +67,14 @@ export const InvoicesView: React.FC = () => {
       return (
         <InvoiceEditor
           invoiceId="new"
-          onBack={() => setSelectedRecord('invoices', null)}
-          onIssued={(inv) => setSelectedRecord('invoices', inv.id)}
+          onBack={() => {
+            setSelectedRecord('invoices', null);
+            navigate('/invoices');
+          }}
+          onIssued={(inv) => {
+            setSelectedRecord('invoices', inv.id);
+            navigate(`/invoices/${inv.id}`);
+          }}
         />
       );
     }
@@ -82,8 +90,14 @@ export const InvoicesView: React.FC = () => {
       return (
         <InvoiceEditor
           invoiceId={selectedRecordId}
-          onBack={() => setSelectedRecord('invoices', null)}
-          onIssued={(inv) => setSelectedRecord('invoices', inv.id)}
+          onBack={() => {
+            setSelectedRecord('invoices', null);
+            navigate('/invoices');
+          }}
+          onIssued={(inv) => {
+            setSelectedRecord('invoices', inv.id);
+            navigate(`/invoices/${inv.id}`);
+          }}
         />
       );
     }
@@ -91,10 +105,22 @@ export const InvoicesView: React.FC = () => {
     return (
       <InvoiceDetailView
         invoiceId={selectedRecordId}
-        onBack={() => setSelectedRecord('invoices', null)}
-        onNavigateReceipt={(receiptId) => setSelectedRecord('receipts', receiptId)}
-        onNavigateCustomer={(customerId) => setSelectedRecord('customers', customerId)}
-        onNavigateQuote={(quoteId) => setSelectedRecord('quotations', quoteId)}
+        onBack={() => {
+          setSelectedRecord('invoices', null);
+          navigate('/invoices');
+        }}
+        onNavigateReceipt={(receiptId) => {
+          setSelectedRecord('receipts', receiptId);
+          navigate(`/receipts/${receiptId}`);
+        }}
+        onNavigateCustomer={(customerId) => {
+          setSelectedRecord('customers', customerId);
+          navigate(`/customers/${customerId}`);
+        }}
+        onNavigateQuote={(quoteId) => {
+          setSelectedRecord('quotations', quoteId);
+          navigate(`/quotations/${quoteId}`);
+        }}
       />
     );
   }
@@ -176,7 +202,10 @@ export const InvoicesView: React.FC = () => {
           {can('invoices') && (
             <button
               className="btn primary"
-              onClick={() => setSelectedRecord('invoices', 'new')}
+              onClick={() => {
+                setSelectedRecord('invoices', 'new');
+                navigate('/invoices/new');
+              }}
             >
               <Icon name="plus" size={15} />
               New invoice
@@ -272,7 +301,10 @@ export const InvoicesView: React.FC = () => {
                     <tr
                       key={i.id}
                       className="link"
-                      onClick={() => setSelectedRecord('invoices', i.id)}
+                      onClick={() => {
+                        setSelectedRecord('invoices', i.id);
+                        navigate(`/invoices/${i.id}`);
+                      }}
                     >
                       <td className="mono strong">
                         {i.number ? i.number : <span className="muted">Draft</span>}

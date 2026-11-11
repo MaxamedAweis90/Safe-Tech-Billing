@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SkeletonBox } from 'skullet/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '../../components/icons';
@@ -17,6 +18,7 @@ import {
   getAuditEventsForRef,
   MockInvoice,
   TODAY,
+  deleteDraftInvoice,
 } from '../../lib/mockData';
 import {
   fmtD,
@@ -25,6 +27,7 @@ import {
   toMilli,
 } from '../../lib/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useNavStore } from '../../store/useNavStore';
 import { confirmBox, toast, openModal, closeModal } from '../../store/useUIStore';
 import { PaymentModalContent } from '../dashboard/PaymentModal';
 import { DocumentScaleWrapper, DocumentSheet, downloadPdf } from '../documents';
@@ -171,6 +174,7 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   onNavigateCustomer,
   onNavigateQuote,
 }) => {
+  const navigate = useNavigate();
   const { can, user } = useAuthStore();
   const isDemo = Boolean(user?.isDemo && (user?.email === 'demo@account.com' || user?.id === 'usr_demo_admin'));
   const queryClient = useQueryClient();
@@ -385,20 +389,36 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   };
 
   const handleDeleteDraft = async () => {
-    if (!can('invoices') || inv.state !== 'draft') return;
+    if (!can('invoices')) {
+      toast('You do not have permission to delete invoices.', true);
+      return;
+    }
+    if (inv.state !== 'draft') {
+      toast('Only draft invoices can be deleted.', true);
+      return;
+    }
+
     const confirmed = await confirmBox({
-      title: `Delete draft ${inv.number}?`,
-      text: 'Draft invoices were never sent to customers. Deleting this draft will remove it from active records.',
+      title: `Delete draft ${inv.number || 'invoice'}?`,
+      text: 'Draft invoices were never sent to customers. It will be moved to the trash.',
       ok: 'Delete draft',
       danger: true,
     });
     if (!confirmed) return;
 
     try {
-      await deleteInvoiceMutation.mutateAsync(inv.id);
+      if (isDemo && !/^[0-9a-fA-F]{24}$/.test(inv.id)) {
+        deleteDraftInvoice(inv.id);
+      } else {
+        await deleteInvoiceMutation.mutateAsync(inv.id);
+      }
+      toast('Draft invoice moved to trash');
+      useNavStore.getState().setSelectedRecord('invoices', null);
+      navigate('/invoices', { replace: true });
       onBack();
-    } catch {
-      // error handled in mutation
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete draft invoice';
+      toast(errMsg, true);
     }
   };
 

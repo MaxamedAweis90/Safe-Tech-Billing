@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SkeletonBox } from 'skullet/react';
 import { Button } from '../../components/ui/Button';
@@ -81,6 +82,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export const DashboardView: React.FC = () => {
+  const navigate = useNavigate();
   const { setActiveTab, setSelectedRecord } = useNavStore();
   const { can, needs, user } = useAuthStore();
   const { openModal, closeModal, addToast } = useUIStore();
@@ -237,7 +239,10 @@ export const DashboardView: React.FC = () => {
             <Button
               variant="secondary"
               leftIcon={<IconPlus size={15} />}
-              onClick={() => setActiveTab('quotations')}
+              onClick={() => {
+                setSelectedRecord('quotations', 'new');
+                navigate('/quotations/new');
+              }}
             >
               New quotation
             </Button>
@@ -246,7 +251,10 @@ export const DashboardView: React.FC = () => {
             <Button
               variant="primary"
               leftIcon={<IconPlus size={15} />}
-              onClick={() => setActiveTab('invoices')}
+              onClick={() => {
+                setSelectedRecord('invoices', 'new');
+                navigate('/invoices/new');
+              }}
             >
               New invoice
             </Button>
@@ -503,7 +511,10 @@ export const DashboardView: React.FC = () => {
                 href="#quote-new"
                 onClick={(e) => {
                   e.preventDefault();
-                  if (needs('quotes')) setSelectedRecord('quotations', 'new');
+                  if (needs('quotes')) {
+                    setSelectedRecord('quotations', 'new');
+                    navigate('/quotations/new');
+                  }
                 }}
               >
                 <b>Create quotation</b>
@@ -514,7 +525,10 @@ export const DashboardView: React.FC = () => {
                 href="#invoice-new"
                 onClick={(e) => {
                   e.preventDefault();
-                  if (needs('invoices')) setSelectedRecord('invoices', 'new');
+                  if (needs('invoices')) {
+                    setSelectedRecord('invoices', 'new');
+                    navigate('/invoices/new');
+                  }
                 }}
               >
                 <b>Create invoice</b>

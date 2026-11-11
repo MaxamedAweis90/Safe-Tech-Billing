@@ -25,21 +25,27 @@ export interface CreateQuotationInput {
 }
 
 const mapAndCalculateItems = (items: CreateQuotationInput['items']): IDocumentItem[] => {
-  return items.map((item) => {
-    const calc = calculateLineItem(
-      item.qty,
-      item.price_milli,
-      item.disc_pct || 0,
-      item.tax_rate || 0
-    );
+  const filtered = (items || []).filter(
+    (item) => item && (item.desc?.trim() || Number(item.price_milli) > 0)
+  );
+
+  const targetList = filtered.length > 0 ? filtered : [{ desc: 'Item', qty: 1, price_milli: 0 }];
+
+  return targetList.map((item) => {
+    const qty = Math.max(0.001, Number(item.qty) || 1);
+    const priceMilli = Math.round(Number(item.price_milli) || 0);
+    const discPct = Math.min(100, Math.max(0, Number(item.disc_pct) || 0));
+    const taxRate = Math.min(100, Math.max(0, Number(item.tax_rate) || 0));
+
+    const calc = calculateLineItem(qty, priceMilli, discPct, taxRate);
 
     return {
-      desc: item.desc,
-      qty: item.qty,
-      price_milli: item.price_milli,
-      disc_pct: item.disc_pct || 0,
-      tax_rate: item.tax_rate || 0,
-      tax_name: item.tax_name || '',
+      desc: item.desc ? item.desc.trim() : 'Item',
+      qty,
+      price_milli: priceMilli,
+      disc_pct: discPct,
+      tax_rate: taxRate,
+      tax_name: item.tax_name ? item.tax_name.trim() : '',
       gross_milli: calc.gross_milli,
       disc_milli: calc.disc_milli,
       tax_milli: calc.tax_milli,
